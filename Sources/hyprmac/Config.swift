@@ -95,8 +95,8 @@ func parseCombo(_ s: String) -> KeyCombo? {
 }
 
 struct Config {
-    var gap: CGFloat = 8
-    var outerGap: CGFloat = 8
+    var gap: CGFloat = 4
+    var outerGap: CGFloat = 6
     /// Workspaces 1...mainWorkspaces live on the main display, the rest on the second one.
     var mainWorkspaces = 5
     /// Apps whose windows float instead of tiling.

@@ -7,10 +7,12 @@ final class Controller {
     private let hotkeys = HotkeyTap()
     private var known = [WindowID: AXWin]()
     private var applied = [WindowID: Placement]()
+    private var retries = [WindowID: Int]()
     private var statusItem: NSStatusItem?
     private var timer: Timer?
     private var paused = false
     private var monitorsDirty = true
+    private var lastWindowCount = -1
     private let myPid = ProcessInfo.processInfo.processIdentifier
 
     init() {
@@ -23,12 +25,15 @@ final class Controller {
     // MARK: - Lifecycle
 
     func start() {
+        Log.write("start: trusted=\(Windows.isTrusted(prompt: false)) monitors=\(engine.monitors.count)")
         if !Windows.isTrusted(prompt: true) {
             notify("Allow hyprmac under System Settings > Privacy & Security > Accessibility, then start it again.")
         }
         setUpMenu()
         hotkeys.handler = { [weak self] action in self?.handle(action) ?? false }
-        if !hotkeys.start() {
+        let tapOK = hotkeys.start()
+        Log.write("key tap installed=\(tapOK) bindings=\(hotkeys.table.count)")
+        if !tapOK {
             notify("Could not install the global key tap - is Accessibility (and Input Monitoring) allowed?")
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
@@ -81,6 +86,12 @@ final class Controller {
             engine.windowGone(id)
             known[id] = nil
             applied[id] = nil
+            retries[id] = nil
+        }
+
+        if current.count != lastWindowCount {
+            Log.write("windows seen=\(current.count) trusted=\(Windows.isTrusted(prompt: false))")
+            lastWindowCount = current.count
         }
 
         // 2. follow the focus the user set by clicking / app switching
@@ -102,7 +113,18 @@ final class Controller {
         let plan = engine.plan()
         let monitors = engine.monitors
         for (id, placement) in plan {
-            guard let w = known[id], applied[id] != placement else { continue }
+            guard let w = known[id] else { continue }
+            if applied[id] != placement {
+                retries[id] = 0
+            } else {
+                // Same plan as before: only act when the app moved or resized the window itself
+                // (a new window opening, an app restoring its own frame). Give up after a few tries
+                // for apps whose minimum size cannot fit the tile.
+                guard case .frame(let want) = placement, !engine.isFloating(id),
+                      (retries[id] ?? 0) < 6,
+                      let actual = Windows.frame(of: w.element), !Windows.framesMatch(actual, want) else { continue }
+                retries[id] = (retries[id] ?? 0) + 1
+            }
             switch placement {
             case .frame(let r): Windows.setFrame(w.element, r)
             case .hidden(let m): Windows.hide(w.element, on: monitors[min(m, monitors.count - 1)])
@@ -119,6 +141,7 @@ final class Controller {
 
     /// Returns true when the key was consumed.
     private func handle(_ action: Action) -> Bool {
+        Log.write("hotkey \(action)")
         if case .togglePause = action { paused.toggle(); updateStatus(); return true }
         if paused { return false }
         if let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,

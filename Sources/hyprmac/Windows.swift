@@ -73,6 +73,12 @@ enum Windows {
         return CGRect(origin: pos, size: size)
     }
 
+    /// True when two frames agree within a few pixels (apps round and clamp).
+    static func framesMatch(_ a: CGRect, _ b: CGRect) -> Bool {
+        return abs(a.minX - b.minX) <= 3 && abs(a.minY - b.minY) <= 3
+            && abs(a.width - b.width) <= 3 && abs(a.height - b.height) <= 3
+    }
+
     static func setFrame(_ el: AXUIElement, _ r: CGRect) {
         var pos = r.origin
         var size = r.size

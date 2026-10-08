@@ -45,8 +45,8 @@ Option-letter combos are avoided on purpose: on a German keyboard `⌥L` types `
 
 ```json
 {
-  "gap": 8,
-  "outerGap": 8,
+  "gap": 4,
+  "outerGap": 6,
   "mainWorkspaces": 5,
   "floatApps": ["com.apple.calculator"],
   "passthroughApps": ["com.apple.Terminal"],
