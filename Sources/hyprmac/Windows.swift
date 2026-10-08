@@ -93,7 +93,10 @@ enum Windows {
 
     static func setPosition(_ el: AXUIElement, _ p: CGPoint) {
         var pos = p
-        if let pv = AXValueCreate(.cgPoint, &pos) { AXUIElementSetAttributeValue(el, kAXPositionAttribute as CFString, pv) }
+        if let pv = AXValueCreate(.cgPoint, &pos) {
+            let e = AXUIElementSetAttributeValue(el, kAXPositionAttribute as CFString, pv)
+            if Log.debug { Log.write("  setPosition \(p) -> err=\(e.rawValue)") }
+        }
     }
 
     static func setSize(_ el: AXUIElement, _ s: CGSize) {

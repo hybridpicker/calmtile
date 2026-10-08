@@ -141,7 +141,6 @@ final class Controller {
         }
 
         observeApps()
-        if drag != nil && NSEvent.pressedMouseButtons == 0 { drag = nil }   // mouse-up got lost
 
         // 1. reconcile the set of windows
         let current = Windows.list(excluding: myPid)
@@ -236,10 +235,14 @@ final class Controller {
     private func handleMouse(_ type: CGEventType, _ p: CGPoint, _ flags: CGEventFlags) -> Bool {
         switch type {
         case .leftMouseDown, .rightMouseDown:
-            guard !paused, drag == nil, let mods = parseMods(config.mouseModifier), Mods(flags: flags) == mods else { return false }
+            if Log.debug { Log.write("mouse down flags=\(Mods(flags: flags).rawValue) want=\(parseMods(config.mouseModifier)?.rawValue ?? -1) at \(p)") }
+            drag = nil   // a stale drag (lost mouse-up) never survives a new click
+            guard !paused, let mods = parseMods(config.mouseModifier), Mods(flags: flags) == mods else { return false }
             if let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
                config.passthroughApps.contains(front) { return false }
-            guard let id = Windows.windowID(at: p), let w = known[id], let frame = Windows.frame(of: w.element) else { return false }
+            let hit = Windows.windowID(at: p)
+            if Log.debug { Log.write("mouse hit window=\(hit.map { String($0) } ?? "none") known=\(hit.map { known[$0] != nil } ?? false)") }
+            guard let id = hit, let w = known[id], let frame = Windows.frame(of: w.element) else { return false }
             if case .hidden? = applied[id] { return false }
             engine.setFocused(id)
             Windows.focus(w)
@@ -249,6 +252,7 @@ final class Controller {
             return true
         case .leftMouseDragged, .rightMouseDragged:
             guard var d = drag, let w = known[d.id] else { return drag != nil }
+            if Log.debug { Log.write("mouse drag at \(p)") }
             let now = CACurrentMediaTime()
             guard now - d.lastApplied >= 0.016 else { return true }   // AX calls are slow; coalesce
             d.lastApplied = now
@@ -272,6 +276,7 @@ final class Controller {
         case .leftMouseUp, .rightMouseUp:
             guard let d = drag else { return false }
             drag = nil
+            if Log.debug { Log.write("mouse up at \(p)") }
             if let w = known[d.id] {
                 if d.floating {
                     if let f = Windows.frame(of: w.element) {
