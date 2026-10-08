@@ -1,0 +1,56 @@
+#!/bin/bash
+# Build hyprmac.app (menu bar app) and the core self-test with plain swiftc.
+# Needs only the Xcode Command Line Tools (no Xcode, no XCTest).
+#
+#   scripts/build.sh           build to build/hyprmac.app and run the self-test
+#   scripts/build.sh install   additionally copy to ~/Applications
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+OUT=build
+APP="$OUT/hyprmac.app"
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+mkdir -p "$OUT" "$WORK/mc" "$WORK/app" "$WORK/test"
+
+# The sources are split in two SwiftPM targets; for swiftc we compile them as one module.
+strip_import() { sed '/^import HyprCore/d' "$1" > "$2"; }
+
+echo "== self-test"
+strip_import Sources/hyprcore-selftest/main.swift "$WORK/test/main.swift"
+swiftc -module-cache-path "$WORK/mc" -o "$WORK/test/selftest" Sources/HyprCore/*.swift "$WORK/test/main.swift"
+"$WORK/test/selftest"
+
+echo "== app"
+for f in Sources/hyprmac/*.swift; do strip_import "$f" "$WORK/app/$(basename "$f")"; done
+rm -rf "$APP"
+mkdir -p "$APP/Contents/MacOS"
+swiftc -O -module-cache-path "$WORK/mc" -o "$APP/Contents/MacOS/hyprmac" Sources/HyprCore/*.swift "$WORK/app"/*.swift
+
+cat > "$APP/Contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>local.hyprmac</string>
+  <key>CFBundleName</key><string>hyprmac</string>
+  <key>CFBundleExecutable</key><string>hyprmac</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>0.1.0</string>
+  <key>LSUIElement</key><true/>
+  <key>LSMinimumSystemVersion</key><string>11.0</string>
+</dict>
+</plist>
+PLIST
+
+# Ad-hoc signature keeps the Accessibility permission attached to this bundle across rebuilds
+# as long as the path stays the same.
+codesign --force --sign - "$APP"
+echo "built $APP"
+
+if [ "${1:-}" = "install" ]; then
+  mkdir -p "$HOME/Applications"
+  rm -rf "$HOME/Applications/hyprmac.app"
+  cp -R "$APP" "$HOME/Applications/hyprmac.app"
+  echo "installed ~/Applications/hyprmac.app"
+fi
