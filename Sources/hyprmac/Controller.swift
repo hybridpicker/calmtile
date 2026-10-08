@@ -181,21 +181,12 @@ final class Controller {
             engine.backAndForth()
             applyPlan()
             focusEngineChoice()
-        case .cycleWorkspace(let d):
-            engine.cycleWorkspace(d)
-            applyPlan()
-            focusEngineChoice()
         case .reload:
             reload()
         case .open(let app):
             let p = Process()
             p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
             p.arguments = ["-a", app]
-            try? p.run()
-        case .exec(let cmd):
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: "/bin/zsh")
-            p.arguments = ["-c", cmd]
             try? p.run()
         case .togglePause:
             break

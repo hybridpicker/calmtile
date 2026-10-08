@@ -174,18 +174,6 @@ do {
     check(frame(e.plan()[1])!.width > w, "divider moved right")
 }
 
-// 12. next/previous workspace wraps around
-do {
-    let e = makeEngine()
-    e.cycleWorkspace(1)
-    check(e.currentWorkspace == 2, "next workspace")
-    e.cycleWorkspace(-1)
-    e.cycleWorkspace(-1)
-    check(e.currentWorkspace == 9, "previous from 1 wraps to 9")
-    e.cycleWorkspace(1)
-    check(e.currentWorkspace == 1, "next from 9 wraps to 1")
-}
-
 if failures == 0 {
     print("OK - \(checks) checks passed")
 } else {

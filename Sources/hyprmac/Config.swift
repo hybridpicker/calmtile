@@ -37,11 +37,9 @@ enum Action {
     case toggleSplit
     case close
     case backAndForth
-    case cycleWorkspace(Int)
     case reload
     case togglePause
     case open(String)
-    case exec(String)
 
     static func parse(_ s: String) -> Action? {
         let parts = s.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true).map(String.init)
@@ -58,12 +56,9 @@ enum Action {
         case "toggle-split": return .toggleSplit
         case "close": return .close
         case "back-and-forth": return .backAndForth
-        case "workspace-next": return .cycleWorkspace(1)
-        case "workspace-prev": return .cycleWorkspace(-1)
         case "reload": return .reload
         case "pause": return .togglePause
         case "open": return arg.isEmpty ? nil : .open(arg)
-        case "exec": return arg.isEmpty ? nil : .exec(arg)
         default: return nil
         }
     }
@@ -118,9 +113,6 @@ struct Config {
         for n in 1...9 {
             b["cmd-\(n)"] = "workspace \(n)"
             b["cmd-alt-\(n)"] = "move-to-workspace \(n)"
-            // Omarchy style: Super+N / Super+Shift+N, with ctrl-alt as the Super key.
-            b["ctrl-alt-\(n)"] = "workspace \(n)"
-            b["ctrl-alt-shift-\(n)"] = "move-to-workspace \(n)"
         }
         for (name, dir) in [("left", "left"), ("right", "right"), ("up", "up"), ("down", "down")] {
             b["ctrl-alt-\(name)"] = "focus \(dir)"
@@ -134,16 +126,7 @@ struct Config {
         b["ctrl-alt-t"] = "toggle-float"
         b["ctrl-alt-s"] = "toggle-split"
         b["ctrl-alt-w"] = "close"
-        b["ctrl-alt-tab"] = "workspace-next"
-        b["ctrl-alt-shift-tab"] = "workspace-prev"
-        b["ctrl-alt-cmd-tab"] = "back-and-forth"
-        b["ctrl-alt-equal"] = "resize right"
-        b["ctrl-alt-minus"] = "resize left"
-        b["ctrl-alt-shift-equal"] = "resize down"
-        b["ctrl-alt-shift-minus"] = "resize up"
-        b["ctrl-alt-shift-b"] = "open Safari"
-        b["ctrl-alt-shift-f"] = "open Finder"
-        b["ctrl-alt-space"] = "exec osascript -e 'tell application \"System Events\" to key code 49 using command down'"
+        b["ctrl-alt-tab"] = "back-and-forth"
         b["ctrl-alt-r"] = "reload"
         b["ctrl-alt-p"] = "pause"
         b["ctrl-alt-return"] = "open Terminal"

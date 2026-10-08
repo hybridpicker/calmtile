@@ -136,12 +136,6 @@ public final class Engine {
 
     public func backAndForth() { switchWorkspace(previousWorkspace) }
 
-    /// Next (+1) or previous (-1) workspace, wrapping inside 1...count.
-    public func cycleWorkspace(_ delta: Int, count: Int = 9) {
-        let n = ((currentWorkspace - 1 + delta) % count + count) % count + 1
-        switchWorkspace(n)
-    }
-
     public func moveFocused(toWorkspace n: Int) {
         guard let id = focused, let from = home[id], let src = workspaces[from], n != from else { return }
         let wasFloating = src.floating.contains(id)
