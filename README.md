@@ -27,6 +27,7 @@ First start: allow it under System Settings → Privacy & Security → **Accessi
 | `⌃⌥Tab` | previous workspace |
 | `⌘Return` / `⌃⌥Return` | open a new Terminal window |
 | `⇧⌘Return` | open Google Chrome |
+| `⌃⌥Q` / `⌃⌥⇧Q` | show/hide the scratchpad / send the focused window there |
 | `⌃⌥Space` | launcher: search windows, apps, actions and themes |
 | `⌃⌥⇧Space` | next theme |
 | `⌃⌥R` / `⌃⌥P` | reload config / pause tiling |
@@ -41,6 +42,14 @@ Hold `⌘⌥` (`"mouseModifier"` in the config, `""` turns it off):
   from their top-left corner.
 
 Option-letter combos are avoided on purpose: on a German keyboard `⌥L` types `@`.
+
+## Scratchpad
+
+`⌃⌥⇧Q` sends the focused window to the scratchpad: it disappears and belongs to no workspace.
+`⌃⌥Q` pops the latest one up as a floating window in the middle of the screen (and hides it
+again). With an empty scratchpad `⌃⌥Q` opens `"scratchpadApp"` (default Terminal) and captures
+its window, which makes a drop-down terminal. `⌃⌥⇧Q` on a shown scratchpad window puts it
+back on the current workspace. The menu bar lists scratchpad windows too.
 
 ## Launcher and themes
 
@@ -78,7 +87,7 @@ launcher (`Theme: …`) or cycle with `⌃⌥⇧Space`; the choice is kept in `~
 
 `passthroughApps`: no hotkey is intercepted while one of these is frontmost (e.g. apps where
 `⌘1…9` must keep its own meaning). A binding set to `""` removes the default.
-Actions: `launcher`, `theme <name>`, `theme-next`, `workspace N`, `move-to-workspace N`, `focus|swap|resize <left|right|up|down>`,
+Actions: `scratchpad`, `move-to-scratchpad`, `launcher`, `theme <name>`, `theme-next`, `workspace N`, `move-to-workspace N`, `focus|swap|resize <left|right|up|down>`,
 `toggle-float`, `toggle-fullscreen`, `toggle-split`, `close`, `back-and-forth`, `reload`,
 `pause`, `open <App name>`.
 

@@ -16,6 +16,8 @@ final class Controller {
     private var observers = [pid_t: AXObserver]()
     private var tickQueued = false
     private var drag: Drag?
+    /// Set when the scratchpad was toggled while empty: the next window of `scratchpadApp` is captured.
+    private var pendingScratch: Date?
 
     private struct Drag {
         let id: WindowID
@@ -155,6 +157,14 @@ final class Controller {
             if known[w.id] == nil {
                 let float = !w.resizable || config.floatApps.contains(w.bundleID)
                 engine.windowAppeared(w.id, floating: float, frame: float ? Windows.frame(of: w.element) : nil)
+                if let t = pendingScratch {
+                    if Date().timeIntervalSince(t) > 5 {
+                        pendingScratch = nil
+                    } else if NSRunningApplication(processIdentifier: w.pid)?.localizedName == config.scratchpadApp {
+                        engine.moveToScratchpad(w.id, show: true)
+                        pendingScratch = nil
+                    }
+                }
             }
             if Log.debug, known[w.id] == nil {
                 Log.write("new win \(w.id) \(w.bundleID) resizable=\(w.resizable) float=\(engine.isFloating(w.id)) frame=\(Windows.frame(of: w.element).map { "\($0)" } ?? "?")")
@@ -271,6 +281,13 @@ final class Controller {
                                         detail: "window \u{00B7} workspace \(n)") { [weak self] in self?.menuSelect(id) })
             }
         }
+        for id in engine.scratchpadWindows {
+            guard let w = known[id] else { continue }
+            let app = NSRunningApplication(processIdentifier: w.pid)?.localizedName ?? w.bundleID
+            let title = Windows.title(of: w.element) ?? ""
+            out.append(LauncherItem(kind: .window, title: title.isEmpty ? app : "\(app) \u{2013} \(title)",
+                                    detail: "window \u{00B7} scratchpad") { [weak self] in self?.menuSelect(id) })
+        }
         for app in Apps.installed() {
             out.append(LauncherItem(kind: .app, title: app.name, detail: "application") {
                 NSWorkspace.shared.openApplication(at: app.url, configuration: NSWorkspace.OpenConfiguration())
@@ -279,6 +296,8 @@ final class Controller {
         func act(_ title: String, _ action: Action) {
             out.append(LauncherItem(kind: .action, title: title, detail: "action") { [weak self] in _ = self?.perform(action) })
         }
+        act("Toggle scratchpad", .scratchpad)
+        act("Send window to scratchpad", .moveToScratchpad)
         act("Toggle floating", .toggleFloat)
         act("Toggle fullscreen", .toggleFullscreen)
         act("Flip split", .toggleSplit)
@@ -427,6 +446,18 @@ final class Controller {
             // Terminal only gets a new window when it is handed a folder.
             p.arguments = app == "Terminal" ? ["-a", app, NSHomeDirectory()] : ["-a", app]
             try? p.run()
+        case .scratchpad:
+            if engine.toggleScratchpad() {
+                applyPlan()
+                focusEngineChoice()
+            } else {
+                pendingScratch = Date()
+                return perform(.open(config.scratchpadApp))
+            }
+        case .moveToScratchpad:
+            engine.moveFocusedToScratchpad()
+            applyPlan()
+            focusEngineChoice()
         case .launcher:
             launcher.show()
         case .theme(let name):
@@ -482,6 +513,27 @@ final class Controller {
                 entry.representedObject = Int(id)
                 entry.indentationLevel = 1
                 if id == engine.focused { entry.state = .on }
+                menu.addItem(entry)
+            }
+        }
+        let pad = engine.scratchpadWindows.filter { known[$0] != nil }
+        if !pad.isEmpty {
+            let head = NSMenuItem(title: "Scratchpad", action: nil, keyEquivalent: "")
+            head.isEnabled = false
+            head.attributedTitle = NSAttributedString(string: head.title,
+                attributes: [.font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)])
+            menu.addItem(head)
+            for id in pad {
+                guard let w = known[id] else { continue }
+                let app = NSRunningApplication(processIdentifier: w.pid)?.localizedName ?? w.bundleID
+                let title = Windows.title(of: w.element) ?? ""
+                var text = title.isEmpty ? app : "\(app) \u{2013} \(title)"
+                if text.count > 60 { text = String(text.prefix(59)) + "\u{2026}" }
+                let entry = NSMenuItem(title: text, action: #selector(MenuTarget.selectWindow(_:)), keyEquivalent: "")
+                entry.target = target
+                entry.representedObject = Int(id)
+                entry.indentationLevel = 1
+                if id == engine.scratchShown { entry.state = .on }
                 menu.addItem(entry)
             }
         }

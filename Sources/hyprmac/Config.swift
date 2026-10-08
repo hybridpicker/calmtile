@@ -42,6 +42,8 @@ enum Action {
     case togglePause
     case open(String)
     case launcher
+    case scratchpad
+    case moveToScratchpad
     case theme(String)
     case themeNext
 
@@ -63,6 +65,8 @@ enum Action {
         case "reload": return .reload
         case "pause": return .togglePause
         case "launcher": return .launcher
+        case "scratchpad": return .scratchpad
+        case "move-to-scratchpad": return .moveToScratchpad
         case "theme": return arg.isEmpty ? nil : .theme(arg)
         case "theme-next": return .themeNext
         case "open": return arg.isEmpty ? nil : .open(arg)
@@ -134,6 +138,8 @@ struct Config {
     /// nil: use the theme's accent colour.
     var borderColor: String?
     var theme = "catppuccin"
+    /// Opened and captured when the scratchpad is toggled while empty (a drop-down terminal).
+    var scratchpadApp = "Terminal"
     /// Hold these keys and drag: left button moves, right button resizes. "" turns the mouse off.
     var mouseModifier = "cmd-alt"
     var bindings: [String: String] = Config.defaultBindings
@@ -164,6 +170,8 @@ struct Config {
         b["cmd-shift-return"] = "open Google Chrome"
         b["ctrl-alt-return"] = "open Terminal"
         b["ctrl-alt-space"] = "launcher"
+        b["ctrl-alt-q"] = "scratchpad"
+        b["ctrl-alt-shift-q"] = "move-to-scratchpad"
         b["ctrl-alt-shift-space"] = "theme-next"
         return b
     }()
@@ -187,6 +195,7 @@ struct Config {
             if let v = obj["borderColor"] as? String {
                 if NSColor(hex: v) == nil { problems.append("borderColor must look like #rrggbb: \(v)") } else { cfg.borderColor = v }
             }
+            if let v = obj["scratchpadApp"] as? String, !v.isEmpty { cfg.scratchpadApp = v }
             if let v = obj["theme"] as? String {
                 if Theme.named(v) == nil { problems.append("unknown theme: \(v) (\(Theme.all.map { $0.name }.joined(separator: ", ")))") } else { cfg.theme = v }
             }
@@ -220,7 +229,7 @@ struct Config {
     func json() -> String {
         var obj: [String: Any] = [
             "mouseModifier": mouseModifier, "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces,
-            "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "theme": theme,
+            "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "theme": theme, "scratchpadApp": scratchpadApp,
             "floatApps": floatApps, "passthroughApps": passthroughApps, "bindings": bindings,
         ]
         if let c = borderColor { obj["borderColor"] = c }

@@ -218,6 +218,28 @@ do {
     check(Theme.named("Nord")?.name == "nord", "theme lookup ignores case")
 }
 
+// 15. scratchpad
+do {
+    let e = makeEngine()
+    check(!e.toggleScratchpad(), "empty scratchpad toggles nothing")
+    e.windowAppeared(1, floating: false)
+    e.windowAppeared(2, floating: false)
+    e.setFocused(2)
+    e.moveFocusedToScratchpad()
+    check(isHidden(e.plan()[2]) && e.workspaceOf(2) == 0, "scratchpad window is hidden")
+    check(frame(e.plan()[1]) == CGRect(x: 8, y: 8, width: 1904, height: 1064), "the other window takes the space")
+    check(e.focused == 1, "focus returns to the remaining window")
+    check(e.toggleScratchpad() && frame(e.plan()[2]) != nil && e.focused == 2, "toggle shows and focuses it")
+    check(frame(e.plan()[1]) == CGRect(x: 8, y: 8, width: 1904, height: 1064), "tiles are not disturbed while shown")
+    check(e.toggleScratchpad() && isHidden(e.plan()[2]) && e.focused == 1, "toggle hides it again")
+    e.toggleScratchpad()
+    e.moveFocusedToScratchpad()
+    check(e.workspaceOf(2) == 1 && e.isFloating(2) && frame(e.plan()[2]) != nil, "a shown scratchpad window returns to the workspace")
+    e.moveToScratchpad(1)
+    e.windowGone(1)
+    check(!e.toggleScratchpad(), "a closed scratchpad window is forgotten")
+}
+
 if failures == 0 {
     print("OK - \(checks) checks passed")
 } else {

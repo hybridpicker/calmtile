@@ -48,6 +48,9 @@ public final class Engine {
     private var visible = [Int: Int]()          // monitor id -> workspace number
     private var home = [WindowID: Int]()        // window -> workspace number
     private var floatFrames = [WindowID: CGRect]()
+    /// The scratchpad: windows that belong to no workspace (home == 0) and pop up on demand.
+    private var scratch = [WindowID]()
+    public private(set) var scratchShown: WindowID?
 
     public init(monitors: [Monitor]) {
         self.monitors = monitors.isEmpty ? [Monitor(id: 0, frame: CGRect(x: 0, y: 0, width: 1440, height: 900))] : monitors
@@ -59,6 +62,7 @@ public final class Engine {
 
     public func workspaceOf(_ id: WindowID) -> Int? { return home[id] }
     public func isFloating(_ id: WindowID) -> Bool {
+        if home[id] == 0 { return true }
         guard let n = home[id], let ws = workspaces[n] else { return false }
         return ws.floating.contains(id)
     }
@@ -68,6 +72,7 @@ public final class Engine {
     public var workspaceNumbers: [Int] { return workspaces.keys.sorted() }
     /// Windows of a workspace in tree order, floating ones last.
     public func windows(in n: Int) -> [WindowID] { return workspaces[n]?.all ?? [] }
+    public var scratchpadWindows: [WindowID] { return scratch }
 
     /// Tiled frames of the current workspace (what directional focus navigates).
     public func tiledFrames() -> [WindowID: CGRect] {
@@ -103,7 +108,15 @@ public final class Engine {
     }
 
     public func windowGone(_ id: WindowID) {
-        guard let n = home.removeValue(forKey: id), let ws = workspaces[n] else { return }
+        guard let n = home.removeValue(forKey: id) else { return }
+        if n == 0 {
+            scratch.removeAll { $0 == id }
+            floatFrames[id] = nil
+            if scratchShown == id { scratchShown = nil }
+            if focused == id { focused = workspaces[currentWorkspace]?.lastFocused }
+            return
+        }
+        guard let ws = workspaces[n] else { return }
         detach(id, from: ws)
         floatFrames[id] = nil
         if focused == id { focused = (n == currentWorkspace) ? ws.lastFocused : nil }
@@ -111,6 +124,10 @@ public final class Engine {
 
     /// The OS reports which window has focus (click, app switch).
     public func setFocused(_ id: WindowID) {
+        if home[id] == 0 {
+            if scratchShown == id { focused = id }   // a hidden scratchpad window cannot take focus
+            return
+        }
         guard let n = home[id], let ws = workspaces[n], visible[ws.monitor] == n else { return }
         focused = id
         ws.lastFocused = id
@@ -139,6 +156,13 @@ public final class Engine {
 
     /// Bring a window into view and focus it, switching workspace if it lives on another one.
     public func activate(_ id: WindowID) {
+        if home[id] == 0 {
+            scratch.removeAll { $0 == id }
+            scratch.append(id)
+            scratchShown = id
+            focused = id
+            return
+        }
         guard let n = home[id], let ws = workspaces[n] else { return }
         switchWorkspace(n)
         focused = id
@@ -148,6 +172,7 @@ public final class Engine {
     public func backAndForth() { switchWorkspace(previousWorkspace) }
 
     public func moveFocused(toWorkspace n: Int) {
+        if let id = focused, home[id] == 0 { unscratch(id, to: n); return }
         guard let id = focused, let from = home[id], let src = workspaces[from], n != from else { return }
         let wasFloating = src.floating.contains(id)
         detach(id, from: src)
@@ -156,6 +181,60 @@ public final class Engine {
         home[id] = n
         dest.lastFocused = id
         focused = src.lastFocused
+    }
+
+    // MARK: - Scratchpad
+
+    /// Put a window into the scratchpad (hidden, floating, centred when shown). `show` pops it up at once.
+    public func moveToScratchpad(_ id: WindowID, show: Bool = false) {
+        guard let n = home[id], n != 0, let src = workspaces[n] else { return }
+        let wasFocused = focused == id
+        detach(id, from: src)
+        scratch.append(id)
+        home[id] = 0
+        floatFrames[id] = scratchFrame()
+        if wasFocused { focused = src.lastFocused }
+        if show {
+            scratchShown = id
+            focused = id
+        }
+    }
+
+    /// The focused window goes to the scratchpad; a scratchpad window comes back to this workspace.
+    public func moveFocusedToScratchpad() {
+        guard let id = focused, let n = home[id] else { return }
+        if n == 0 { unscratch(id, to: currentWorkspace) } else { moveToScratchpad(id) }
+    }
+
+    /// Show the most recent scratchpad window, or hide it again. False when the scratchpad is empty.
+    @discardableResult
+    public func toggleScratchpad() -> Bool {
+        if scratchShown != nil {
+            scratchShown = nil
+            focused = workspaces[currentWorkspace]?.lastFocused
+            return true
+        }
+        guard let id = scratch.last else { return false }
+        scratchShown = id
+        focused = id
+        return true
+    }
+
+    private func unscratch(_ id: WindowID, to n: Int) {
+        scratch.removeAll { $0 == id }
+        if scratchShown == id { scratchShown = nil }
+        let ws = ensure(n)
+        ws.floating.append(id)
+        home[id] = n
+        ws.lastFocused = id
+        focused = (n == currentWorkspace) ? id : workspaces[currentWorkspace]?.lastFocused
+    }
+
+    private func scratchFrame() -> CGRect {
+        let m = monitors[min(workspaces[currentWorkspace]?.monitor ?? 0, monitors.count - 1)].frame
+        let w = (m.width * 0.7).rounded()
+        let h = (m.height * 0.6).rounded()
+        return CGRect(x: (m.midX - w / 2).rounded(), y: (m.midY - h / 2).rounded(), width: w, height: h)
     }
 
     @discardableResult
@@ -233,6 +312,10 @@ public final class Engine {
             if let fs = ws.fullscreen, home[fs] != nil {
                 out[fs] = .frame(monitors[ws.monitor].frame)
             }
+        }
+        let cur = min(workspaces[currentWorkspace]?.monitor ?? 0, monitors.count - 1)
+        for id in scratch {
+            if id == scratchShown, let f = floatFrames[id] { out[id] = .frame(f) } else { out[id] = .hidden(monitor: cur) }
         }
         return out
     }
