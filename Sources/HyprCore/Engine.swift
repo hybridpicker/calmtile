@@ -65,6 +65,9 @@ public final class Engine {
     public var currentFullscreen: WindowID? { return workspaces[currentWorkspace]?.fullscreen }
     public func visibleWorkspace(on monitor: Int) -> Int? { return visible[monitor] }
     public var windowCount: Int { return home.count }
+    public var workspaceNumbers: [Int] { return workspaces.keys.sorted() }
+    /// Windows of a workspace in tree order, floating ones last.
+    public func windows(in n: Int) -> [WindowID] { return workspaces[n]?.all ?? [] }
 
     /// Tiled frames of the current workspace (what directional focus navigates).
     public func tiledFrames() -> [WindowID: CGRect] {
@@ -132,6 +135,14 @@ public final class Engine {
         currentWorkspace = n
         visible[ws.monitor] = n
         focused = ws.lastFocused ?? ws.tree.windows.first ?? ws.floating.first
+    }
+
+    /// Bring a window into view and focus it, switching workspace if it lives on another one.
+    public func activate(_ id: WindowID) {
+        guard let n = home[id], let ws = workspaces[n] else { return }
+        switchWorkspace(n)
+        focused = id
+        ws.lastFocused = id
     }
 
     public func backAndForth() { switchWorkspace(previousWorkspace) }

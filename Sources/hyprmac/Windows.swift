@@ -66,6 +66,11 @@ enum Windows {
         return out
     }
 
+    static func title(of el: AXUIElement) -> String? {
+        let t: String? = attr(el, kAXTitleAttribute)
+        return t
+    }
+
     static func frame(of el: AXUIElement) -> CGRect? {
         guard let p: AXValue = attr(el, kAXPositionAttribute), let s: AXValue = attr(el, kAXSizeAttribute) else { return nil }
         var pos = CGPoint.zero

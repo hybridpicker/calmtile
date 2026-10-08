@@ -191,6 +191,20 @@ do {
     check(frame(e.plan()[1])! == b && frame(e.plan()[2])! == a, "swapWindows exchanges the tiles")
 }
 
+// 13. activate switches to the workspace of the window
+do {
+    let e = makeEngine()
+    e.windowAppeared(1, floating: false)
+    e.windowAppeared(2, floating: false)
+    e.moveFocused(toWorkspace: 2)           // window 2 -> ws2
+    check(e.windows(in: 1) == [1] && e.windows(in: 2) == [2], "windows listed per workspace")
+    e.activate(2)
+    check(e.currentWorkspace == 2 && e.focused == 2, "activate switches workspace and focuses")
+    check(frame(e.plan()[2]) != nil && isHidden(e.plan()[1]), "activated window visible, other hidden")
+    e.activate(1)
+    check(e.currentWorkspace == 1 && e.focused == 1, "activate back")
+}
+
 if failures == 0 {
     print("OK - \(checks) checks passed")
 } else {

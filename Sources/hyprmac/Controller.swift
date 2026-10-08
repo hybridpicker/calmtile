@@ -364,13 +364,59 @@ final class Controller {
     private func setUpMenu() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         let menu = NSMenu()
-        menu.addItem(withTitle: "Reload config", action: #selector(MenuTarget.reload), keyEquivalent: "").target = MenuTarget.shared
-        menu.addItem(withTitle: "Pause / resume tiling", action: #selector(MenuTarget.pause), keyEquivalent: "").target = MenuTarget.shared
-        menu.addItem(NSMenuItem.separator())
-        menu.addItem(withTitle: "Quit hyprmac", action: #selector(MenuTarget.quit), keyEquivalent: "q").target = MenuTarget.shared
+        menu.delegate = MenuTarget.shared      // rebuilt every time it opens
         item.menu = menu
         statusItem = item
         MenuTarget.shared.controller = self
+        rebuildMenu(menu)
+    }
+
+    /// Workspaces with their windows (click to jump there), then the fixed commands.
+    fileprivate func rebuildMenu(_ menu: NSMenu) {
+        menu.removeAllItems()
+        let target = MenuTarget.shared
+        for n in engine.workspaceNumbers {
+            let ids = engine.windows(in: n).filter { known[$0] != nil }
+            if ids.isEmpty && n != engine.currentWorkspace { continue }
+            let current = n == engine.currentWorkspace
+            let head = NSMenuItem(title: "Workspace \(n)" + (current ? "  \u{2190} here" : ""), action: nil, keyEquivalent: "")
+            head.isEnabled = false
+            head.attributedTitle = NSAttributedString(string: head.title,
+                attributes: [.font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)])
+            menu.addItem(head)
+            if ids.isEmpty {
+                let none = NSMenuItem(title: "no windows", action: nil, keyEquivalent: "")
+                none.isEnabled = false
+                none.indentationLevel = 1
+                menu.addItem(none)
+            }
+            for id in ids {
+                guard let w = known[id] else { continue }
+                let app = NSRunningApplication(processIdentifier: w.pid)?.localizedName ?? w.bundleID
+                let title = Windows.title(of: w.element) ?? ""
+                var text = title.isEmpty ? app : "\(app) \u{2013} \(title)"
+                if text.count > 60 { text = String(text.prefix(59)) + "\u{2026}" }
+                let entry = NSMenuItem(title: text, action: #selector(MenuTarget.selectWindow(_:)), keyEquivalent: "")
+                entry.target = target
+                entry.representedObject = Int(id)
+                entry.indentationLevel = 1
+                if id == engine.focused { entry.state = .on }
+                menu.addItem(entry)
+            }
+        }
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(withTitle: "Reload config", action: #selector(MenuTarget.reload), keyEquivalent: "").target = target
+        menu.addItem(withTitle: "Pause / resume tiling", action: #selector(MenuTarget.pause), keyEquivalent: "").target = target
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(withTitle: "Quit hyprmac", action: #selector(MenuTarget.quit), keyEquivalent: "q").target = target
+    }
+
+    fileprivate func menuSelect(_ id: WindowID) {
+        guard known[id] != nil else { return }
+        engine.activate(id)
+        applyPlan()
+        focusEngineChoice()
+        updateBorder()
     }
 
     fileprivate func menuReload() { reload() }
@@ -390,9 +436,13 @@ final class Controller {
     }
 }
 
-final class MenuTarget: NSObject {
+final class MenuTarget: NSObject, NSMenuDelegate {
     static let shared = MenuTarget()
     weak var controller: Controller?
+    func menuNeedsUpdate(_ menu: NSMenu) { controller?.rebuildMenu(menu) }
+    @objc func selectWindow(_ sender: NSMenuItem) {
+        if let id = sender.representedObject as? Int { controller?.menuSelect(WindowID(id)) }
+    }
     @objc func reload() { controller?.menuReload() }
     @objc func pause() { controller?.menuPause() }
     @objc func quit() { NSApp.terminate(nil) }
