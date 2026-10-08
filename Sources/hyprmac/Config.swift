@@ -134,6 +134,7 @@ struct Config {
         b["ctrl-alt-tab"] = "back-and-forth"
         b["ctrl-alt-r"] = "reload"
         b["ctrl-alt-p"] = "pause"
+        b["cmd-return"] = "open Terminal"
         b["ctrl-alt-return"] = "open Terminal"
         return b
     }()

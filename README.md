@@ -25,7 +25,7 @@ First start: allow it under System Settings → Privacy & Security → **Accessi
 | `⌃⌥F` / `⌃⌥T` / `⌃⌥S` | fullscreen / float / flip split |
 | `⌃⌥W` | close window |
 | `⌃⌥Tab` | previous workspace |
-| `⌃⌥Return` | open Terminal |
+| `⌘Return` / `⌃⌥Return` | open a new Terminal window |
 | `⌃⌥R` / `⌃⌥P` | reload config / pause tiling |
 
 Option-letter combos are avoided on purpose: on a German keyboard `⌥L` types `@`.

@@ -205,7 +205,8 @@ final class Controller {
         case .open(let app):
             let p = Process()
             p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-            p.arguments = ["-a", app]
+            // Terminal only gets a new window when it is handed a folder.
+            p.arguments = app == "Terminal" ? ["-a", app, NSHomeDirectory()] : ["-a", app]
             try? p.run()
         case .togglePause:
             break
