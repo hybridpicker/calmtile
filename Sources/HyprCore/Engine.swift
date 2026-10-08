@@ -168,6 +168,18 @@ public final class Engine {
         ws.tree.moveDivider(of: id, direction: d, amount: amount)
     }
 
+    /// Exchange two tiled windows of the current workspace (mouse drop).
+    public func swapWindows(_ a: WindowID, _ b: WindowID) {
+        guard let ws = workspaces[currentWorkspace] else { return }
+        ws.tree.swap(a, b)
+    }
+
+    /// Mouse resize of the focused tiled window: dividers follow the pointer by `dx`/`dy` pixels.
+    public func resizeBy(dx: CGFloat, dy: CGFloat) {
+        guard let id = focused, let ws = workspaces[currentWorkspace] else { return }
+        ws.tree.dragDividers(of: id, dx: dx, dy: dy, in: rect(of: ws), gap: gap)
+    }
+
     public func toggleSplit() {
         guard let id = focused, let ws = workspaces[currentWorkspace] else { return }
         ws.tree.toggleSplit(of: id)

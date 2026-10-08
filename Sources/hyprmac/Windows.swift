@@ -43,8 +43,9 @@ enum Windows {
 
     static func list(excluding selfPid: pid_t) -> [AXWin] {
         var out = [AXWin]()
-        for app in NSWorkspace.shared.runningApplications
-        where app.activationPolicy == .regular && app.processIdentifier != selfPid && !app.isTerminated {
+        let apps = NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular && $0.processIdentifier != selfPid && !$0.isTerminated }
+        for app in apps {
             let ax = AXUIElementCreateApplication(app.processIdentifier)
             AXUIElementSetMessagingTimeout(ax, 0.25)
             guard let wins: [AXUIElement] = attr(ax, kAXWindowsAttribute) else { continue }
@@ -88,6 +89,30 @@ enum Windows {
         if let pv = AXValueCreate(.cgPoint, &pos) { codes.append(AXUIElementSetAttributeValue(el, kAXPositionAttribute as CFString, pv)) }
         if let sv = AXValueCreate(.cgSize, &size) { codes.append(AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sv)) }
         if Log.debug { Log.write("  set -> \(codes.map { $0.rawValue }) now=\(frame(of: el).map { "\($0)" } ?? "?")") }
+    }
+
+    static func setPosition(_ el: AXUIElement, _ p: CGPoint) {
+        var pos = p
+        if let pv = AXValueCreate(.cgPoint, &pos) { AXUIElementSetAttributeValue(el, kAXPositionAttribute as CFString, pv) }
+    }
+
+    static func setSize(_ el: AXUIElement, _ s: CGSize) {
+        var size = s
+        if let sv = AXValueCreate(.cgSize, &size) { AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sv) }
+    }
+
+    /// Topmost normal window under `p` (Accessibility coordinates), front to back.
+    static func windowID(at p: CGPoint) -> WindowID? {
+        guard let raw = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID),
+              let list = (raw as NSArray) as? [[String: Any]] else { return nil }
+        for w in list {
+            guard (w["kCGWindowLayer"] as? Int) == 0,
+                  let num = w["kCGWindowNumber"] as? Int,
+                  let b = w["kCGWindowBounds"] as? [String: Any],
+                  let r = CGRect(dictionaryRepresentation: b as CFDictionary), r.contains(p) else { continue }
+            return WindowID(num)
+        }
+        return nil
     }
 
     /// Park a window at the bottom-right corner of its monitor so only one pixel stays on screen.

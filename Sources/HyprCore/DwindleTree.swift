@@ -149,4 +149,39 @@ public final class DwindleTree {
             n = p
         }
     }
+
+    /// Mouse resize: move the nearest horizontal and vertical dividers around `id` by pixels.
+    /// `rect` and `gap` must match what `frames` was called with.
+    public func dragDividers(of id: WindowID, dx: CGFloat, dy: CGFloat, in rect: CGRect, gap: CGFloat) {
+        guard let target = leaf(of: id) else { return }
+        var rects = [ObjectIdentifier: CGRect]()
+        func walk(_ n: Node, _ r: CGRect) {
+            rects[ObjectIdentifier(n)] = r
+            guard let a = n.first, let b = n.second else { return }
+            switch n.axis {
+            case .horizontal:
+                let w1 = ((r.width - gap) * n.ratio).rounded()
+                walk(a, CGRect(x: r.minX, y: r.minY, width: w1, height: r.height))
+                walk(b, CGRect(x: r.minX + w1 + gap, y: r.minY, width: r.width - gap - w1, height: r.height))
+            case .vertical:
+                let h1 = ((r.height - gap) * n.ratio).rounded()
+                walk(a, CGRect(x: r.minX, y: r.minY, width: r.width, height: h1))
+                walk(b, CGRect(x: r.minX, y: r.minY + h1 + gap, width: r.width, height: r.height - gap - h1))
+            }
+        }
+        if let root = root { walk(root, rect) }
+        for axis in [Axis.horizontal, Axis.vertical] {
+            let delta = axis == .horizontal ? dx : dy
+            guard delta != 0 else { continue }
+            var n = target.parent
+            while let p = n {
+                if p.axis == axis, let r = rects[ObjectIdentifier(p)] {
+                    let extent = (axis == .horizontal ? r.width : r.height) - gap
+                    if extent > 1 { p.ratio = min(0.9, max(0.1, p.ratio + delta / extent)) }
+                    break
+                }
+                n = p.parent
+            }
+        }
+    }
 }

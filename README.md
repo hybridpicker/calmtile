@@ -29,6 +29,15 @@ First start: allow it under System Settings → Privacy & Security → **Accessi
 | `⇧⌘Return` | open Google Chrome |
 | `⌃⌥R` / `⌃⌥P` | reload config / pause tiling |
 
+## Mouse
+
+Hold `⌘⌥` (`"mouseModifier"` in the config, `""` turns it off):
+
+- **left drag** moves the window. A tiled window follows the pointer and, when dropped on another
+  tile, swaps places with it; a floating window stays where you drop it.
+- **right drag** resizes. For tiled windows the divider follows the pointer; floating windows grow
+  from their top-left corner.
+
 Option-letter combos are avoided on purpose: on a German keyboard `⌥L` types `@`.
 
 ## Layout rules

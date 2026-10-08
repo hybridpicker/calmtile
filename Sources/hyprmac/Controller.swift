@@ -13,6 +13,17 @@ final class Controller {
     private var settled = [WindowID: CGRect]()
     private var observers = [pid_t: AXObserver]()
     private var tickQueued = false
+    private var drag: Drag?
+
+    private struct Drag {
+        let id: WindowID
+        let resize: Bool
+        let floating: Bool
+        let startCursor: CGPoint
+        let startFrame: CGRect
+        var lastCursor: CGPoint
+        var lastApplied: CFTimeInterval = 0
+    }
     private var statusItem: NSStatusItem?
     private var timer: Timer?
     private var paused = false
@@ -36,6 +47,7 @@ final class Controller {
         }
         setUpMenu()
         hotkeys.handler = { [weak self] action in self?.handle(action) ?? false }
+        hotkeys.mouseHandler = { [weak self] type, p, flags in self?.handleMouse(type, p, flags) ?? false }
         let tapOK = hotkeys.start()
         Log.write("key tap installed=\(tapOK) bindings=\(hotkeys.table.count)")
         if !tapOK {
@@ -121,8 +133,15 @@ final class Controller {
             applied = [:]
         }
         if paused { border.hide(); updateStatus(); return }
+        // Locked screen / screen saver: apps expose no windows, which would empty the layout.
+        if let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+           ["com.apple.loginwindow", "com.apple.ScreenSaver.Engine"].contains(front) {
+            border.hide()
+            return
+        }
 
         observeApps()
+        if drag != nil && NSEvent.pressedMouseButtons == 0 { drag = nil }   // mouse-up got lost
 
         // 1. reconcile the set of windows
         let current = Windows.list(excluding: myPid)
@@ -180,6 +199,7 @@ final class Controller {
         let monitors = engine.monitors
         for (id, placement) in plan {
             guard let w = known[id] else { continue }
+            if let d = drag, d.id == id, !d.resize || d.floating { continue }   // the user is placing it by hand
             if applied[id] != placement {
                 retries[id] = 0
             } else {
@@ -208,6 +228,70 @@ final class Controller {
 
     private func focusEngineChoice() {
         if let id = engine.focused, let w = known[id] { Windows.focus(w) }
+    }
+
+    // MARK: - Mouse
+
+    /// ⌘⌥ (configurable) + left drag moves, + right drag resizes. Returns true when the event is consumed.
+    private func handleMouse(_ type: CGEventType, _ p: CGPoint, _ flags: CGEventFlags) -> Bool {
+        switch type {
+        case .leftMouseDown, .rightMouseDown:
+            guard !paused, drag == nil, let mods = parseMods(config.mouseModifier), Mods(flags: flags) == mods else { return false }
+            if let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+               config.passthroughApps.contains(front) { return false }
+            guard let id = Windows.windowID(at: p), let w = known[id], let frame = Windows.frame(of: w.element) else { return false }
+            if case .hidden? = applied[id] { return false }
+            engine.setFocused(id)
+            Windows.focus(w)
+            drag = Drag(id: id, resize: type == .rightMouseDown, floating: engine.isFloating(id),
+                        startCursor: p, startFrame: frame, lastCursor: p)
+            if Log.debug { Log.write("mouse \(type == .rightMouseDown ? "resize" : "move") \(id) floating=\(engine.isFloating(id))") }
+            return true
+        case .leftMouseDragged, .rightMouseDragged:
+            guard var d = drag, let w = known[d.id] else { return drag != nil }
+            let now = CACurrentMediaTime()
+            guard now - d.lastApplied >= 0.016 else { return true }   // AX calls are slow; coalesce
+            d.lastApplied = now
+            if d.resize {
+                if d.floating {
+                    let size = CGSize(width: max(120, d.startFrame.width + p.x - d.startCursor.x),
+                                      height: max(80, d.startFrame.height + p.y - d.startCursor.y))
+                    Windows.setSize(w.element, size)
+                } else {
+                    engine.resizeBy(dx: p.x - d.lastCursor.x, dy: p.y - d.lastCursor.y)
+                    applyPlan()
+                }
+            } else {
+                Windows.setPosition(w.element, CGPoint(x: d.startFrame.minX + p.x - d.startCursor.x,
+                                                       y: d.startFrame.minY + p.y - d.startCursor.y))
+            }
+            d.lastCursor = p
+            drag = d
+            updateBorder()
+            return true
+        case .leftMouseUp, .rightMouseUp:
+            guard let d = drag else { return false }
+            drag = nil
+            if let w = known[d.id] {
+                if d.floating {
+                    if let f = Windows.frame(of: w.element) {
+                        engine.noteFloatFrame(d.id, f)
+                        applied[d.id] = .frame(f)
+                    }
+                } else {
+                    if !d.resize,
+                       let target = engine.tiledFrames().first(where: { $0.key != d.id && $0.value.contains(p) })?.key {
+                        engine.swapWindows(d.id, target)
+                    }
+                    applied[d.id] = nil
+                    applyPlan()
+                }
+            }
+            updateBorder()
+            return true
+        default:
+            return false
+        }
     }
 
     // MARK: - Hotkeys

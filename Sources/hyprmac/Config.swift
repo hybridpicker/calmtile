@@ -77,6 +77,21 @@ let keyCodes: [String: Int64] = [
     "left": 123, "right": 124, "down": 125, "up": 126,
 ]
 
+/// "cmd-alt" -> [.cmd, .alt]; nil for an empty or unknown string.
+func parseMods(_ s: String) -> Mods? {
+    var mods = Mods()
+    for part in s.lowercased().split(separator: "-").map(String.init) {
+        switch part {
+        case "cmd", "super": mods.insert(.cmd)
+        case "alt", "opt", "option": mods.insert(.alt)
+        case "ctrl", "control": mods.insert(.ctrl)
+        case "shift": mods.insert(.shift)
+        default: return nil
+        }
+    }
+    return mods.isEmpty ? nil : mods
+}
+
 func parseCombo(_ s: String) -> KeyCombo? {
     var mods = Mods()
     var key: Int64?
@@ -111,6 +126,8 @@ struct Config {
     var borderWidth: CGFloat = 3
     var borderRadius: CGFloat = 12
     var borderColor = "#89b4fa"
+    /// Hold these keys and drag: left button moves, right button resizes. "" turns the mouse off.
+    var mouseModifier = "cmd-alt"
     var bindings: [String: String] = Config.defaultBindings
 
     static var defaultBindings: [String: String] = {
@@ -160,6 +177,9 @@ struct Config {
             if let v = obj["borderColor"] as? String {
                 if NSColor(hex: v) == nil { problems.append("borderColor must look like #rrggbb: \(v)") } else { cfg.borderColor = v }
             }
+            if let v = obj["mouseModifier"] as? String {
+                if !v.isEmpty && parseMods(v) == nil { problems.append("unknown mouseModifier: \(v)") } else { cfg.mouseModifier = v }
+            }
             if let v = obj["mainWorkspaces"] as? Int { cfg.mainWorkspaces = v }
             if let v = obj["floatApps"] as? [String] { cfg.floatApps = v }
             if let v = obj["passthroughApps"] as? [String] { cfg.passthroughApps = v }
@@ -186,7 +206,7 @@ struct Config {
 
     func json() -> String {
         let obj: [String: Any] = [
-            "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces,
+            "mouseModifier": mouseModifier, "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces,
             "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "borderColor": borderColor,
             "floatApps": floatApps, "passthroughApps": passthroughApps, "bindings": bindings,
         ]

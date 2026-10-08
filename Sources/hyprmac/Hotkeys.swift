@@ -6,10 +6,14 @@ import CoreGraphics
 final class HotkeyTap {
     var table = [KeyCombo: Action]()
     var handler: ((Action) -> Bool)?
+    /// Mouse events; return true to swallow. Only consulted for down/drag/up of the left and right button.
+    var mouseHandler: ((CGEventType, CGPoint, CGEventFlags) -> Bool)?
     private var tap: CFMachPort?
 
     func start() -> Bool {
-        let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
+        let types: [CGEventType] = [.keyDown, .leftMouseDown, .leftMouseUp, .leftMouseDragged,
+                                    .rightMouseDown, .rightMouseUp, .rightMouseDragged]
+        let mask = types.reduce(CGEventMask(0)) { $0 | (1 << $1.rawValue) }
         let callback: CGEventTapCallBack = { _, type, event, refcon in
             guard let refcon = refcon else { return Unmanaged.passUnretained(event) }
             let me = Unmanaged<HotkeyTap>.fromOpaque(refcon).takeUnretainedValue()
@@ -17,7 +21,10 @@ final class HotkeyTap {
                 if let t = me.tap { CGEvent.tapEnable(tap: t, enable: true) }
                 return Unmanaged.passUnretained(event)
             }
-            guard type == .keyDown else { return Unmanaged.passUnretained(event) }
+            if type != .keyDown {
+                if let h = me.mouseHandler, h(type, event.location, event.flags) { return nil }
+                return Unmanaged.passUnretained(event)
+            }
             let combo = KeyCombo(keyCode: event.getIntegerValueField(.keyboardEventKeycode),
                                  mods: Mods(flags: event.flags))
             if let action = me.table[combo], let h = me.handler, h(action) { return nil }

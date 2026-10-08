@@ -174,6 +174,23 @@ do {
     check(frame(e.plan()[1])!.width > w, "divider moved right")
 }
 
+// 12. mouse: dragging a divider and dropping a window on another
+do {
+    let e = makeEngine()
+    e.windowAppeared(1, floating: false)
+    e.windowAppeared(2, floating: false)
+    e.setFocused(1)
+    let w = frame(e.plan()[1])!.width
+    e.resizeBy(dx: 100, dy: 0)
+    check(abs(frame(e.plan()[1])!.width - (w + 100)) <= 2, "dx of 100 px moves the divider by 100 px")
+    e.resizeBy(dx: 0, dy: 50)
+    check(frame(e.plan()[1])!.height == 1064, "dy without a vertical split changes nothing")
+    let a = frame(e.plan()[1])!
+    let b = frame(e.plan()[2])!
+    e.swapWindows(1, 2)
+    check(frame(e.plan()[1])! == b && frame(e.plan()[2])! == a, "swapWindows exchanges the tiles")
+}
+
 if failures == 0 {
     print("OK - \(checks) checks passed")
 } else {
