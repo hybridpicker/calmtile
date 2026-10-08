@@ -83,9 +83,11 @@ enum Windows {
         var pos = r.origin
         var size = r.size
         // size, position, size: apps clamp the size to the screen they are currently on.
-        if let sv = AXValueCreate(.cgSize, &size) { AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sv) }
-        if let pv = AXValueCreate(.cgPoint, &pos) { AXUIElementSetAttributeValue(el, kAXPositionAttribute as CFString, pv) }
-        if let sv = AXValueCreate(.cgSize, &size) { AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sv) }
+        var codes = [AXError]()
+        if let sv = AXValueCreate(.cgSize, &size) { codes.append(AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sv)) }
+        if let pv = AXValueCreate(.cgPoint, &pos) { codes.append(AXUIElementSetAttributeValue(el, kAXPositionAttribute as CFString, pv)) }
+        if let sv = AXValueCreate(.cgSize, &size) { codes.append(AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sv)) }
+        if Log.debug { Log.write("  set -> \(codes.map { $0.rawValue }) now=\(frame(of: el).map { "\($0)" } ?? "?")") }
     }
 
     /// Park a window at the bottom-right corner of its monitor so only one pixel stays on screen.

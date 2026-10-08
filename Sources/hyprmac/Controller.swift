@@ -84,6 +84,9 @@ final class Controller {
                 let float = !w.resizable || config.floatApps.contains(w.bundleID)
                 engine.windowAppeared(w.id, floating: float, frame: float ? Windows.frame(of: w.element) : nil)
             }
+            if Log.debug, known[w.id] == nil {
+                Log.write("new win \(w.id) \(w.bundleID) resizable=\(w.resizable) float=\(engine.isFloating(w.id)) frame=\(Windows.frame(of: w.element).map { "\($0)" } ?? "?")")
+            }
             known[w.id] = w
         }
         for id in Array(known.keys) where !seen.contains(id) {
@@ -137,6 +140,9 @@ final class Controller {
                       (retries[id] ?? 0) < 6,
                       let actual = Windows.frame(of: w.element), !Windows.framesMatch(actual, want) else { continue }
                 retries[id] = (retries[id] ?? 0) + 1
+            }
+            if Log.debug {
+                Log.write("place \(id) \(w.bundleID) want=\(placement) actual=\(Windows.frame(of: w.element).map { "\($0)" } ?? "?") retry=\(retries[id] ?? 0)")
             }
             switch placement {
             case .frame(let r): Windows.setFrame(w.element, r)

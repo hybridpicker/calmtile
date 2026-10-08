@@ -9,6 +9,8 @@ enum Log {
         return f
     }()
 
+    static let debug = ProcessInfo.processInfo.environment["HYPRMAC_DEBUG"] != nil
+
     static func write(_ s: String) {
         let line = "\(fmt.string(from: Date())) \(s)\n"
         guard let data = line.data(using: .utf8) else { return }
