@@ -134,8 +134,11 @@ final class Controller {
     // MARK: - The loop
 
     private func tick() {
-        if monitorsDirty {
-            engine.setMonitors(Screens.monitors())
+        // The usable area also changes when the menu bar or Dock hide/show setting is switched, which
+        // sends no notification, so compare on every tick (cheap) instead of waiting for an event.
+        let monitors = Screens.monitors()
+        if monitorsDirty || monitors != engine.monitors {
+            engine.setMonitors(monitors)
             monitorsDirty = false
             applied = [:]
         }
