@@ -24,7 +24,12 @@ First start: allow it under System Settings → Privacy & Security → **Accessi
 | `⌃⌥⌘←↑↓→` | move the nearest divider |
 | `⌃⌥F` / `⌃⌥T` / `⌃⌥S` | fullscreen / float / flip split |
 | `⌃⌥W` | close window |
-| `⌃⌥Tab` | previous workspace |
+| `⌃⌥1…9` / `⌃⌥⇧1…9` | workspace / move window (Omarchy-style aliases) |
+| `⌃⌥Tab` / `⌃⌥⇧Tab` | next / previous workspace |
+| `⌃⌥⌘Tab` | back to the last workspace |
+| `⌃⌥-` / `⌃⌥=` | shrink / grow width (`⇧` for height) |
+| `⌃⌥⇧B` / `⌃⌥⇧F` | open Safari / Finder |
+| `⌃⌥Space` | open Spotlight (sends `⌘Space`) |
 | `⌃⌥Return` | open Terminal |
 | `⌃⌥R` / `⌃⌥P` | reload config / pause tiling |
 
@@ -57,7 +62,7 @@ Option-letter combos are avoided on purpose: on a German keyboard `⌥L` types `
 `passthroughApps`: no hotkey is intercepted while one of these is frontmost (e.g. apps where
 `⌘1…9` must keep its own meaning). A binding set to `""` removes the default.
 Actions: `workspace N`, `move-to-workspace N`, `focus|swap|resize <left|right|up|down>`,
-`toggle-float`, `toggle-fullscreen`, `toggle-split`, `close`, `back-and-forth`, `reload`,
+`workspace-next|workspace-prev`, `exec <shell command>`, `toggle-float`, `toggle-fullscreen`, `toggle-split`, `close`, `back-and-forth`, `reload`,
 `pause`, `open <App name>`.
 
 ## Structure
