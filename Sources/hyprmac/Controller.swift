@@ -9,6 +9,10 @@ final class Controller {
     private var known = [WindowID: AXWin]()
     private var applied = [WindowID: Placement]()
     private var retries = [WindowID: Int]()
+    /// Where a window actually ended up after we placed it (apps clamp or snap to character cells).
+    private var settled = [WindowID: CGRect]()
+    private var observers = [pid_t: AXObserver]()
+    private var tickQueued = false
     private var statusItem: NSStatusItem?
     private var timer: Timer?
     private var paused = false
@@ -65,6 +69,49 @@ final class Controller {
         if !problems.isEmpty { notify(problems.joined(separator: "\n")) }
     }
 
+    // MARK: - Accessibility notifications
+
+    /// React to new windows, closed windows and focus changes immediately instead of waiting for
+    /// the next timer tick (a new window would otherwise sit at the app's own position for a moment).
+    private func observeApps() {
+        var live = Set<pid_t>()
+        for app in NSWorkspace.shared.runningApplications
+        where app.activationPolicy == .regular && app.processIdentifier != myPid && !app.isTerminated {
+            live.insert(app.processIdentifier)
+            observe(pid: app.processIdentifier)
+        }
+        for pid in Array(observers.keys) where !live.contains(pid) {
+            if let o = observers[pid] { CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(o), .commonModes) }
+            observers[pid] = nil
+        }
+    }
+
+    private func observe(pid: pid_t) {
+        guard observers[pid] == nil else { return }
+        let callback: AXObserverCallback = { _, _, _, refcon in
+            guard let refcon = refcon else { return }
+            Unmanaged<Controller>.fromOpaque(refcon).takeUnretainedValue().requestTick()
+        }
+        var created: AXObserver?
+        guard AXObserverCreate(pid, callback, &created) == .success, let obs = created else { return }
+        let app = AXUIElementCreateApplication(pid)
+        let me = Unmanaged.passUnretained(self).toOpaque()
+        for note in [kAXWindowCreatedNotification, kAXUIElementDestroyedNotification, kAXFocusedWindowChangedNotification] {
+            AXObserverAddNotification(obs, app, note as CFString, me)
+        }
+        CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .commonModes)
+        observers[pid] = obs
+    }
+
+    private func requestTick() {
+        guard !tickQueued else { return }
+        tickQueued = true
+        DispatchQueue.main.async { [weak self] in
+            self?.tickQueued = false
+            self?.tick()
+        }
+    }
+
     // MARK: - The loop
 
     private func tick() {
@@ -74,6 +121,8 @@ final class Controller {
             applied = [:]
         }
         if paused { border.hide(); updateStatus(); return }
+
+        observeApps()
 
         // 1. reconcile the set of windows
         let current = Windows.list(excluding: myPid)
@@ -94,6 +143,7 @@ final class Controller {
             known[id] = nil
             applied[id] = nil
             retries[id] = nil
+            settled[id] = nil
         }
 
         if current.count != lastWindowCount {
@@ -139,6 +189,9 @@ final class Controller {
                 guard case .frame(let want) = placement, !engine.isFloating(id),
                       (retries[id] ?? 0) < 6,
                       let actual = Windows.frame(of: w.element), !Windows.framesMatch(actual, want) else { continue }
+                // The app could not reach the tile and stayed where our last attempt left it: not an
+                // intervention by the app, so do not fight it.
+                if let s = settled[id], Windows.framesMatch(actual, s) { continue }
                 retries[id] = (retries[id] ?? 0) + 1
             }
             if Log.debug {
@@ -149,6 +202,7 @@ final class Controller {
             case .hidden(let m): Windows.hide(w.element, on: monitors[min(m, monitors.count - 1)])
             }
             applied[id] = placement
+            if case .frame = placement { settled[id] = Windows.frame(of: w.element) } else { settled[id] = nil }
         }
     }
 
