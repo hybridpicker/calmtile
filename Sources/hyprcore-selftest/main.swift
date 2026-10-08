@@ -205,6 +205,19 @@ do {
     check(e.currentWorkspace == 1 && e.focused == 1, "activate back")
 }
 
+// 14. launcher matching and themes
+do {
+    check(fuzzyScore("", "Safari") == 0, "empty query matches")
+    check(fuzzyScore("sfr", "Safari") != nil, "subsequence matches")
+    check(fuzzyScore("xyz", "Safari") == nil, "missing letters do not match")
+    check(fuzzyScore("saf", "Safari")! > fuzzyScore("saf", "Microsoft Access Forms")!, "prefix beats scattered match")
+    check(fuzzyScore("ff", "Final Fantasy")! > fuzzyScore("ff", "Offline")!, "word starts score higher")
+    check(Set(Theme.all.map { $0.name }).count == Theme.all.count, "theme names are unique")
+    check(Theme.all.allSatisfy { [$0.background, $0.foreground, $0.accent].allSatisfy { $0.count == 7 && $0.hasPrefix("#") } }, "theme colours are #rrggbb")
+    check(Theme.after(Theme.all.last!.name) == Theme.all[0], "theme-next wraps")
+    check(Theme.named("Nord")?.name == "nord", "theme lookup ignores case")
+}
+
 if failures == 0 {
     print("OK - \(checks) checks passed")
 } else {

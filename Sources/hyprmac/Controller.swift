@@ -6,6 +6,8 @@ final class Controller {
     private let engine: Engine
     private let hotkeys = HotkeyTap()
     private let border = BorderOverlay()
+    private let launcher = Launcher()
+    private var theme = Theme.all[0]
     private var known = [WindowID: AXWin]()
     private var applied = [WindowID: Placement]()
     private var retries = [WindowID: Int]()
@@ -46,6 +48,8 @@ final class Controller {
             notify("Allow hyprmac under System Settings > Privacy & Security > Accessibility, then start it again.")
         }
         setUpMenu()
+        launcher.provider = { [weak self] in self?.launcherItems() ?? [] }
+        launcher.onClose = { [weak self] in self?.focusEngineChoice() }
         hotkeys.handler = { [weak self] action in self?.handle(action) ?? false }
         hotkeys.mouseHandler = { [weak self] type, p, flags in self?.handleMouse(type, p, flags) ?? false }
         let tapOK = hotkeys.start()
@@ -68,8 +72,9 @@ final class Controller {
         engine.preferredMonitor = { $0 <= n ? 0 : 1 }
         hotkeys.table = config.table()
         border.width = config.borderWidth
+        border.inside = config.gap < config.borderWidth
         border.radius = config.borderRadius
-        border.color = NSColor(hex: config.borderColor) ?? .systemBlue
+        applyTheme()
     }
 
     private func reload() {
@@ -229,6 +234,66 @@ final class Controller {
         if let id = engine.focused, let w = known[id] { Windows.focus(w) }
     }
 
+    // MARK: - Themes
+
+    private static var themeFile: String {
+        return NSString(string: "~/.config/hyprmac/theme").expandingTildeInPath
+    }
+
+    /// The theme picked at runtime (kept in ~/.config/hyprmac/theme) wins over the config file.
+    private func applyTheme() {
+        let saved = (try? String(contentsOfFile: Controller.themeFile, encoding: .utf8))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        theme = saved.flatMap { Theme.named($0) } ?? Theme.named(config.theme) ?? Theme.all[0]
+        border.color = NSColor(hex: config.borderColor ?? theme.accent) ?? .systemBlue
+        launcher.theme = theme
+    }
+
+    private func setTheme(_ name: String) {
+        guard let t = Theme.named(name) else { return }
+        try? FileManager.default.createDirectory(atPath: (Controller.themeFile as NSString).deletingLastPathComponent,
+                                                 withIntermediateDirectories: true)
+        try? t.name.write(toFile: Controller.themeFile, atomically: true, encoding: .utf8)
+        applyTheme()
+        Log.write("theme \(t.name)")
+    }
+
+    // MARK: - Launcher
+
+    private func launcherItems() -> [LauncherItem] {
+        var out = [LauncherItem]()
+        for n in engine.workspaceNumbers {
+            for id in engine.windows(in: n) {
+                guard let w = known[id] else { continue }
+                let app = NSRunningApplication(processIdentifier: w.pid)?.localizedName ?? w.bundleID
+                let title = Windows.title(of: w.element) ?? ""
+                out.append(LauncherItem(kind: .window, title: title.isEmpty ? app : "\(app) \u{2013} \(title)",
+                                        detail: "window \u{00B7} workspace \(n)") { [weak self] in self?.menuSelect(id) })
+            }
+        }
+        for app in Apps.installed() {
+            out.append(LauncherItem(kind: .app, title: app.name, detail: "application") {
+                NSWorkspace.shared.openApplication(at: app.url, configuration: NSWorkspace.OpenConfiguration())
+            })
+        }
+        func act(_ title: String, _ action: Action) {
+            out.append(LauncherItem(kind: .action, title: title, detail: "action") { [weak self] in _ = self?.perform(action) })
+        }
+        act("Toggle floating", .toggleFloat)
+        act("Toggle fullscreen", .toggleFullscreen)
+        act("Flip split", .toggleSplit)
+        act("Close window", .close)
+        act("Reload config", .reload)
+        act("Pause / resume tiling", .togglePause)
+        act("Next theme", .themeNext)
+        for n in 1...9 {
+            act("Go to workspace \(n)", .workspace(n))
+            act("Move window to workspace \(n)", .moveToWorkspace(n))
+        }
+        for t in Theme.all { act("Theme: \(t.title)", .theme(t.name)) }
+        return out
+    }
+
     // MARK: - Mouse
 
     /// ⌘⌥ (configurable) + left drag moves, + right drag resizes. Returns true when the event is consumed.
@@ -310,6 +375,15 @@ final class Controller {
            config.passthroughApps.contains(front) {
             return false
         }
+        if launcher.isVisible {
+            // Only the launcher key itself works while it is open (it closes the panel).
+            if case .launcher = action { launcher.hide(); return true }
+            return false
+        }
+        return perform(action)
+    }
+
+    private func perform(_ action: Action) -> Bool {
         switch action {
         case .workspace(let n):
             engine.switchWorkspace(n)
@@ -353,8 +427,15 @@ final class Controller {
             // Terminal only gets a new window when it is handed a folder.
             p.arguments = app == "Terminal" ? ["-a", app, NSHomeDirectory()] : ["-a", app]
             try? p.run()
+        case .launcher:
+            launcher.show()
+        case .theme(let name):
+            setTheme(name)
+        case .themeNext:
+            setTheme(Theme.after(theme.name).name)
         case .togglePause:
-            break
+            paused.toggle()
+            updateStatus()
         }
         return true
     }

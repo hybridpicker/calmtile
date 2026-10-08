@@ -41,6 +41,9 @@ enum Action {
     case reload
     case togglePause
     case open(String)
+    case launcher
+    case theme(String)
+    case themeNext
 
     static func parse(_ s: String) -> Action? {
         let parts = s.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true).map(String.init)
@@ -59,6 +62,9 @@ enum Action {
         case "back-and-forth": return .backAndForth
         case "reload": return .reload
         case "pause": return .togglePause
+        case "launcher": return .launcher
+        case "theme": return arg.isEmpty ? nil : .theme(arg)
+        case "theme-next": return .themeNext
         case "open": return arg.isEmpty ? nil : .open(arg)
         default: return nil
         }
@@ -125,7 +131,9 @@ struct Config {
     /// Outline around the focused window; borderWidth 0 turns it off.
     var borderWidth: CGFloat = 3
     var borderRadius: CGFloat = 12
-    var borderColor = "#89b4fa"
+    /// nil: use the theme's accent colour.
+    var borderColor: String?
+    var theme = "catppuccin"
     /// Hold these keys and drag: left button moves, right button resizes. "" turns the mouse off.
     var mouseModifier = "cmd-alt"
     var bindings: [String: String] = Config.defaultBindings
@@ -155,6 +163,8 @@ struct Config {
         b["cmd-return"] = "open Terminal"
         b["cmd-shift-return"] = "open Google Chrome"
         b["ctrl-alt-return"] = "open Terminal"
+        b["ctrl-alt-space"] = "launcher"
+        b["ctrl-alt-shift-space"] = "theme-next"
         return b
     }()
 
@@ -176,6 +186,9 @@ struct Config {
             if let v = obj["borderRadius"] as? Double { cfg.borderRadius = CGFloat(v) }
             if let v = obj["borderColor"] as? String {
                 if NSColor(hex: v) == nil { problems.append("borderColor must look like #rrggbb: \(v)") } else { cfg.borderColor = v }
+            }
+            if let v = obj["theme"] as? String {
+                if Theme.named(v) == nil { problems.append("unknown theme: \(v) (\(Theme.all.map { $0.name }.joined(separator: ", ")))") } else { cfg.theme = v }
             }
             if let v = obj["mouseModifier"] as? String {
                 if !v.isEmpty && parseMods(v) == nil { problems.append("unknown mouseModifier: \(v)") } else { cfg.mouseModifier = v }
@@ -205,11 +218,12 @@ struct Config {
     }
 
     func json() -> String {
-        let obj: [String: Any] = [
+        var obj: [String: Any] = [
             "mouseModifier": mouseModifier, "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces,
-            "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "borderColor": borderColor,
+            "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "theme": theme,
             "floatApps": floatApps, "passthroughApps": passthroughApps, "bindings": bindings,
         ]
+        if let c = borderColor { obj["borderColor"] = c }
         let data = (try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])) ?? Data()
         return String(data: data, encoding: .utf8) ?? "{}"
     }

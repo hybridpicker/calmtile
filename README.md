@@ -27,6 +27,8 @@ First start: allow it under System Settings → Privacy & Security → **Accessi
 | `⌃⌥Tab` | previous workspace |
 | `⌘Return` / `⌃⌥Return` | open a new Terminal window |
 | `⇧⌘Return` | open Google Chrome |
+| `⌃⌥Space` | launcher: search windows, apps, actions and themes |
+| `⌃⌥⇧Space` | next theme |
 | `⌃⌥R` / `⌃⌥P` | reload config / pause tiling |
 
 ## Mouse
@@ -39,6 +41,16 @@ Hold `⌘⌥` (`"mouseModifier"` in the config, `""` turns it off):
   from their top-left corner.
 
 Option-letter combos are avoided on purpose: on a German keyboard `⌥L` types `@`.
+
+## Launcher and themes
+
+`⌃⌥Space` opens a search field: type to filter open windows (jump there), installed apps and
+hyprmac actions (workspaces, float, themes …); `↑↓`/`Tab` select, `Return` runs, `Esc` closes.
+
+Themes: catppuccin, tokyo-night, gruvbox, nord, rose-pine, everforest, kanagawa,
+catppuccin-latte. They colour the focused-window border and the launcher. Pick one in the
+launcher (`Theme: …`) or cycle with `⌃⌥⇧Space`; the choice is kept in `~/.config/hyprmac/theme`.
+`"theme"` in the config sets the default, `"borderColor": "#rrggbb"` overrides the border colour.
 
 ## Layout rules
 
@@ -66,7 +78,7 @@ Option-letter combos are avoided on purpose: on a German keyboard `⌥L` types `
 
 `passthroughApps`: no hotkey is intercepted while one of these is frontmost (e.g. apps where
 `⌘1…9` must keep its own meaning). A binding set to `""` removes the default.
-Actions: `workspace N`, `move-to-workspace N`, `focus|swap|resize <left|right|up|down>`,
+Actions: `launcher`, `theme <name>`, `theme-next`, `workspace N`, `move-to-workspace N`, `focus|swap|resize <left|right|up|down>`,
 `toggle-float`, `toggle-fullscreen`, `toggle-split`, `close`, `back-and-forth`, `reload`,
 `pause`, `open <App name>`.
 

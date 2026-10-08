@@ -7,6 +7,8 @@ final class BorderOverlay {
     private var lastFrame: CGRect?
 
     var width: CGFloat = 3
+    /// Draw inside the window edge (no room between tiles for an outside border).
+    var inside = false
     var radius: CGFloat = 12
     var color: NSColor = NSColor(hex: "#89b4fa") ?? .systemBlue {
         didSet { shape.strokeColor = color.cgColor }
@@ -33,7 +35,7 @@ final class BorderOverlay {
         guard width > 0, let mainHeight = NSScreen.screens.first?.frame.height else { hide(); return }
         if frame == lastFrame, window.isVisible { return }
         lastFrame = frame
-        let outer = frame.insetBy(dx: -width, dy: -width)
+        let outer = inside ? frame : frame.insetBy(dx: -width, dy: -width)
         let rect = NSRect(x: outer.minX, y: mainHeight - outer.maxY, width: outer.width, height: outer.height)
         window.setFrame(rect, display: false)
         CATransaction.begin()
