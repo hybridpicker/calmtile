@@ -19,13 +19,14 @@ First start: allow it under System Settings → Privacy & Security → **Accessi
 |---|---|
 | `⌘1…9` | switch workspace |
 | `⌘⌥1…9` | send focused window to workspace |
-| `⌃⌥←↑↓→` or `⌃⌥H/J/K/L` | focus neighbour |
+| `⌘←↑↓→`, `⌃⌥←↑↓→` or `⌃⌥H/J/K/L` | focus neighbour (`⌘`-arrows pass through when there is no neighbour) |
 | `⌃⌥⇧←↑↓→` | swap with neighbour |
 | `⌃⌥⌘←↑↓→` | move the nearest divider |
 | `⌃⌥F` / `⌃⌥T` / `⌃⌥S` | fullscreen / float / flip split |
 | `⌃⌥W` | close window |
 | `⌃⌥Tab` | previous workspace |
 | `⌘Return` / `⌃⌥Return` | open a new Terminal window |
+| `⇧⌘Return` | open Google Chrome |
 | `⌃⌥R` / `⌃⌥P` | reload config / pause tiling |
 
 Option-letter combos are avoided on purpose: on a German keyboard `⌥L` types `@`.

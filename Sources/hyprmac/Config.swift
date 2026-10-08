@@ -121,6 +121,7 @@ struct Config {
         }
         for (name, dir) in [("left", "left"), ("right", "right"), ("up", "up"), ("down", "down")] {
             b["ctrl-alt-\(name)"] = "focus \(dir)"
+            b["cmd-\(name)"] = "focus \(dir)"   // Omarchy: Super+arrows
             b["ctrl-alt-shift-\(name)"] = "swap \(dir)"
             b["ctrl-alt-cmd-\(name)"] = "resize \(dir)"
         }
@@ -135,6 +136,7 @@ struct Config {
         b["ctrl-alt-r"] = "reload"
         b["ctrl-alt-p"] = "pause"
         b["cmd-return"] = "open Terminal"
+        b["cmd-shift-return"] = "open Google Chrome"
         b["ctrl-alt-return"] = "open Terminal"
         return b
     }()

@@ -231,7 +231,9 @@ final class Controller {
             applyPlan()
             focusEngineChoice()
         case .focus(let d):
-            if engine.focus(d) { focusEngineChoice() }
+            // No neighbour that way: hand the key back (e.g. ⌘← still moves the text cursor).
+            guard engine.focus(d) else { return false }
+            focusEngineChoice()
         case .swap(let d):
             engine.swap(d)
             applyPlan()
