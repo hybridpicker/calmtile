@@ -43,9 +43,15 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-# Ad-hoc signature keeps the Accessibility permission attached to this bundle across rebuilds
-# as long as the path stays the same.
-codesign --force --sign - "$APP"
+# Sign with a stable identity when one exists (override with HYPRMAC_SIGN_ID): macOS then keeps the
+# Accessibility permission across rebuilds. An ad-hoc signature changes every build and loses it.
+SIGN_ID="${HYPRMAC_SIGN_ID:-$(security find-identity -v -p codesigning | awk '/Apple Development/ {print $2; exit}')}"
+if [ -n "$SIGN_ID" ]; then
+  codesign --force --sign "$SIGN_ID" "$APP"
+else
+  echo "no signing identity found: ad-hoc signature (Accessibility must be re-granted after each build)"
+  codesign --force --sign - "$APP"
+fi
 echo "built $APP"
 
 if [ "${1:-}" = "install" ]; then

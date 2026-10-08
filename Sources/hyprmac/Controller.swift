@@ -5,6 +5,7 @@ final class Controller {
     private var config: Config
     private let engine: Engine
     private let hotkeys = HotkeyTap()
+    private let border = BorderOverlay()
     private var known = [WindowID: AXWin]()
     private var applied = [WindowID: Placement]()
     private var retries = [WindowID: Int]()
@@ -50,6 +51,9 @@ final class Controller {
         let n = config.mainWorkspaces
         engine.preferredMonitor = { $0 <= n ? 0 : 1 }
         hotkeys.table = config.table()
+        border.width = config.borderWidth
+        border.radius = config.borderRadius
+        border.color = NSColor(hex: config.borderColor) ?? .systemBlue
     }
 
     private func reload() {
@@ -69,7 +73,7 @@ final class Controller {
             monitorsDirty = false
             applied = [:]
         }
-        if paused { updateStatus(); return }
+        if paused { border.hide(); updateStatus(); return }
 
         // 1. reconcile the set of windows
         let current = Windows.list(excluding: myPid)
@@ -106,7 +110,16 @@ final class Controller {
 
         // 4. apply what changed
         applyPlan()
+        updateBorder()
         updateStatus()
+    }
+
+    /// Outline the focused window, unless it is parked, fullscreen-native, or gone.
+    private func updateBorder() {
+        guard let id = engine.focused, let w = known[id] else { border.hide(); return }
+        if case .hidden? = applied[id] { border.hide(); return }
+        guard let f = Windows.frame(of: w.element) else { border.hide(); return }
+        border.show(around: f)
     }
 
     private func applyPlan() {

@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import HyprCore
@@ -106,6 +107,10 @@ struct Config {
     ]
     /// While one of these apps is frontmost, no hotkey is intercepted.
     var passthroughApps: [String] = []
+    /// Outline around the focused window; borderWidth 0 turns it off.
+    var borderWidth: CGFloat = 3
+    var borderRadius: CGFloat = 12
+    var borderColor = "#89b4fa"
     var bindings: [String: String] = Config.defaultBindings
 
     static var defaultBindings: [String: String] = {
@@ -147,6 +152,11 @@ struct Config {
             }
             if let v = obj["gap"] as? Double { cfg.gap = CGFloat(v) }
             if let v = obj["outerGap"] as? Double { cfg.outerGap = CGFloat(v) }
+            if let v = obj["borderWidth"] as? Double { cfg.borderWidth = CGFloat(v) }
+            if let v = obj["borderRadius"] as? Double { cfg.borderRadius = CGFloat(v) }
+            if let v = obj["borderColor"] as? String {
+                if NSColor(hex: v) == nil { problems.append("borderColor must look like #rrggbb: \(v)") } else { cfg.borderColor = v }
+            }
             if let v = obj["mainWorkspaces"] as? Int { cfg.mainWorkspaces = v }
             if let v = obj["floatApps"] as? [String] { cfg.floatApps = v }
             if let v = obj["passthroughApps"] as? [String] { cfg.passthroughApps = v }
@@ -174,6 +184,7 @@ struct Config {
     func json() -> String {
         let obj: [String: Any] = [
             "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces,
+            "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "borderColor": borderColor,
             "floatApps": floatApps, "passthroughApps": passthroughApps, "bindings": bindings,
         ]
         let data = (try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])) ?? Data()
