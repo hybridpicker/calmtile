@@ -271,6 +271,31 @@ final class Controller {
         Log.write("theme \(t.name)")
     }
 
+    /// `open -a` on a running app only activates it; its windows may all sit on other workspaces
+    /// (parked off screen), so nothing would appear here. In that case ask the app for a new window.
+    /// Returns true when handled.
+    private func openInCurrentWorkspace(_ name: String) -> Bool {
+        guard name != "Terminal",   // Terminal gets a fresh window from `open` already
+              let running = NSWorkspace.shared.runningApplications.first(where: {
+                  $0.activationPolicy == .regular && !$0.isTerminated && ($0.localizedName == name || $0.bundleIdentifier == name)
+              }) else { return false }
+        let here = engine.windows(in: engine.currentWorkspace)
+        if here.contains(where: { known[$0]?.pid == running.processIdentifier }) { return false }
+        let pid = running.processIdentifier
+        running.activate(options: [.activateIgnoringOtherApps])
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            // Cmd+N (key code 45) straight to the app: File > New Window in Chrome, Safari, Finder, ...
+            let src = CGEventSource(stateID: .hidSystemState)
+            for down in [true, false] {
+                let e = CGEvent(keyboardEventSource: src, virtualKey: 45, keyDown: down)
+                e?.flags = .maskCommand
+                e?.postToPid(pid)
+            }
+        }
+        Log.write("open \(name): no window on workspace \(engine.currentWorkspace), requesting a new one")
+        return true
+    }
+
     // MARK: - Launcher
 
     private func launcherItems() -> [LauncherItem] {
@@ -444,6 +469,7 @@ final class Controller {
         case .reload:
             reload()
         case .open(let app):
+            if openInCurrentWorkspace(app) { break }
             let p = Process()
             p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
             // Terminal only gets a new window when it is handed a folder.
