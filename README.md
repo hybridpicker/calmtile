@@ -107,6 +107,11 @@ Actions: `scratchpad`, `move-to-scratchpad`, `launcher`, `theme <name>`, `theme-
 `toggle-float`, `toggle-fullscreen`, `toggle-split`, `close`, `back-and-forth`, `reload`,
 `pause`, `open <App name>`.
 
+## Start at login
+
+Off by default. The menu item "Start at login" (or `hyprmac --install-login` / `--uninstall-login`)
+writes/removes `~/Library/LaunchAgents/local.hyprmac.plist`, which opens `~/Applications/hyprmac.app`.
+
 ## Spotlight: applications only
 
 While hyprmac runs, `⌘Space` Spotlight lists only applications (no documents, mail, folders …).

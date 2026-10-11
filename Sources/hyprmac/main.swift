@@ -20,6 +20,9 @@ if CommandLine.arguments.contains("--apply-spotlight") {   // manual test of the
     exit(0)
 }
 
+if CommandLine.arguments.contains("--install-login") { LoginItem.install(); exit(0) }
+if CommandLine.arguments.contains("--uninstall-login") { LoginItem.uninstall(); exit(0) }
+
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)   // menu bar only, no Dock icon
 let controller = Controller()

@@ -577,6 +577,9 @@ final class Controller {
         let sp = menu.addItem(withTitle: "Spotlight: applications only", action: #selector(MenuTarget.toggleSpotlight), keyEquivalent: "")
         sp.target = target
         sp.state = spotlightOn ? .on : .off
+        let login = menu.addItem(withTitle: "Start at login", action: #selector(MenuTarget.toggleLogin), keyEquivalent: "")
+        login.target = target
+        login.state = LoginItem.isInstalled ? .on : .off
         menu.addItem(withTitle: "Pause / resume tiling", action: #selector(MenuTarget.pause), keyEquivalent: "").target = target
         menu.addItem(NSMenuItem.separator())
         menu.addItem(withTitle: "Quit hyprmac", action: #selector(MenuTarget.quit), keyEquivalent: "q").target = target
@@ -649,6 +652,7 @@ final class MenuTarget: NSObject, NSMenuDelegate {
     }
     @objc func reload() { controller?.menuReload() }
     @objc func pause() { controller?.menuPause() }
+    @objc func toggleLogin() { LoginItem.toggle() }
     @objc func toggleSpotlight() { controller?.menuToggleSpotlight() }
     @objc func quit() { NSApp.terminate(nil) }
 }
