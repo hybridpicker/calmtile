@@ -240,6 +240,21 @@ do {
     check(!e.toggleScratchpad(), "a closed scratchpad window is forgotten")
 }
 
+// resize smart grows/shrinks the focused window along its split
+do {
+    let e = makeEngine()
+    e.windowAppeared(1, floating: false)
+    e.windowAppeared(2, floating: false)
+    e.setFocused(1)
+    let w0 = frame(e.plan()[1])!.width
+    e.resizeSmart(grow: true)
+    check(frame(e.plan()[1])!.width > w0, "smart grow widens the first window")
+    e.setFocused(2)
+    let w1 = frame(e.plan()[2])!.width
+    e.resizeSmart(grow: false)
+    check(frame(e.plan()[2])!.width < w1, "smart shrink narrows the second window")
+}
+
 // Spotlight categories
 do {
     let fresh = SpotlightCategories.appsOnly(from: nil)

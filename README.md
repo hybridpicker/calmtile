@@ -26,6 +26,7 @@ First start: allow it under System Settings → Privacy & Security → **Accessi
 | `⌃⌥W` | close window |
 | `⌃⌥Tab` / `⌥Tab` | previous workspace |
 | `⌥←↑↓→`, `⌥H/K` / `⌥⇧←↑↓→` | focus / swap neighbour (AeroSpace keys; `⌥`-arrows pass through when there is no neighbour) |
+| `⌥-` / `⌥=` | shrink / grow the focused window |
 | `⌥J` / `⌥W` / `⌥F` / `⌥V` | flip split / close / fullscreen / float (AeroSpace keys) |
 | `⌘Return` / `⌃⌥Return` | open a new Terminal window |
 | `⇧⌘Return` | open Google Chrome |
@@ -106,7 +107,7 @@ windows. To give an app its keys back completely, add its bundle id to `passthro
 `passthroughApps`: no hotkey is intercepted while one of these is frontmost (e.g. apps where
 `⌘1…9` must keep its own meaning). A binding set to `""` removes the default.
 Actions: `scratchpad`, `move-to-scratchpad`, `launcher`, `theme <name>`, `theme-next`, `workspace N`, `move-to-workspace N`, `focus|swap|resize <left|right|up|down>`,
-`toggle-float`, `toggle-fullscreen`, `toggle-split`, `close`, `back-and-forth`, `reload`,
+`resize-grow`, `resize-shrink`, `toggle-float`, `toggle-fullscreen`, `toggle-split`, `close`, `back-and-forth`, `reload`,
 `pause`, `open <App name>`.
 
 ## Start at login

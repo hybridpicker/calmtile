@@ -457,6 +457,9 @@ final class Controller {
         case .resize(let d):
             engine.resize(d)
             applyPlan()
+        case .resizeSmart(let grow):
+            engine.resizeSmart(grow: grow)
+            applyPlan()
         case .toggleFloat:
             engine.toggleFloating()
             applyPlan()

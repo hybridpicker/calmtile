@@ -258,6 +258,11 @@ public final class Engine {
         ws.tree.moveDivider(of: id, direction: d, amount: amount)
     }
 
+    public func resizeSmart(grow: Bool, amount: CGFloat = 0.05) {
+        guard let id = focused, let ws = workspaces[currentWorkspace] else { return }
+        ws.tree.resizeSmart(of: id, grow: grow, amount: amount)
+    }
+
     /// Exchange two tiled windows of the current workspace (mouse drop).
     public func swapWindows(_ a: WindowID, _ b: WindowID) {
         guard let ws = workspaces[currentWorkspace] else { return }

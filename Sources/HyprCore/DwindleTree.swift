@@ -150,6 +150,14 @@ public final class DwindleTree {
         }
     }
 
+    /// AeroSpace `resize smart`: grow or shrink `id` along its nearest split, whichever side it is on.
+    public func resizeSmart(of id: WindowID, grow: Bool, amount: CGFloat) {
+        guard let leaf = leaf(of: id), let p = leaf.parent else { return }
+        let isFirst = p.first === leaf
+        let sign: CGFloat = (grow == isFirst) ? 1 : -1
+        p.ratio = min(0.9, max(0.1, p.ratio + sign * amount))
+    }
+
     /// Mouse resize: move the nearest horizontal and vertical dividers around `id` by pixels.
     /// `rect` and `gap` must match what `frames` was called with.
     public func dragDividers(of id: WindowID, dx: CGFloat, dy: CGFloat, in rect: CGRect, gap: CGFloat) {

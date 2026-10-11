@@ -33,6 +33,7 @@ enum Action {
     case focus(Direction)
     case swap(Direction)
     case resize(Direction)
+    case resizeSmart(grow: Bool)
     case toggleFloat
     case toggleFullscreen
     case toggleSplit
@@ -57,6 +58,8 @@ enum Action {
         case "focus": return Direction(rawValue: arg).map { .focus($0) }
         case "swap": return Direction(rawValue: arg).map { .swap($0) }
         case "resize": return Direction(rawValue: arg).map { .resize($0) }
+        case "resize-grow": return .resizeSmart(grow: true)
+        case "resize-shrink": return .resizeSmart(grow: false)
         case "toggle-float": return .toggleFloat
         case "toggle-fullscreen": return .toggleFullscreen
         case "toggle-split": return .toggleSplit
@@ -179,6 +182,8 @@ struct Config {
         b["alt-f"] = "toggle-fullscreen"
         b["alt-v"] = "toggle-float"
         b["alt-tab"] = "back-and-forth"
+        b["alt-minus"] = "resize-shrink"
+        b["alt-equal"] = "resize-grow"
         b["ctrl-alt-f"] = "toggle-fullscreen"
         b["ctrl-alt-t"] = "toggle-float"
         b["ctrl-alt-s"] = "toggle-split"
