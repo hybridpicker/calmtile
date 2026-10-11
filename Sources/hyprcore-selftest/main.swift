@@ -255,6 +255,31 @@ do {
     check(frame(e.plan()[2])!.width < w1, "smart shrink narrows the second window")
 }
 
+// monitors: workspaces 6-9 fall back to the main display, hot-plug moves them, workspace can move by hand
+do {
+    let m0 = Monitor(id: 0, frame: CGRect(x: 0, y: 0, width: 1000, height: 800))
+    let m1 = Monitor(id: 1, frame: CGRect(x: 1000, y: 0, width: 1000, height: 800))
+    let e = Engine(monitors: [m0])
+    e.switchWorkspace(7)
+    e.windowAppeared(1, floating: false)
+    check(frame(e.plan()[1])!.maxX <= 1000, "workspace 7 falls back to the main display")
+    e.setMonitors([m0, m1])
+    check(frame(e.plan()[1])!.minX >= 1000, "workspace 7 moves to the second display when it appears")
+    e.setMonitors([m0])
+    check(frame(e.plan()[1])!.maxX <= 1000, "unplugging returns it to the main display")
+    e.setMonitors([m0, m1])
+    e.moveWorkspaceToNextMonitor()
+    check(frame(e.plan()[1])!.minX < 1000, "move-workspace-to-monitor wraps to the first display")
+    e.setMonitors([m0])
+    e.setMonitors([m0, m1])
+    check(frame(e.plan()[1])!.minX < 1000, "the manual monitor choice survives hot-plug")
+    let f = Engine(monitors: [m0, m1])
+    f.switchWorkspace(6)
+    f.windowAppeared(9, floating: true, frame: CGRect(x: 1200, y: 100, width: 400, height: 300))
+    f.setMonitors([m0])
+    check(frame(f.plan()[9])!.intersects(m0.frame), "a floating window of an unplugged display is brought back")
+}
+
 // Spotlight categories
 do {
     let fresh = SpotlightCategories.appsOnly(from: nil)

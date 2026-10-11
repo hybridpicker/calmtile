@@ -472,6 +472,11 @@ final class Controller {
             applyPlan()
         case .close:
             if let id = engine.focused, let w = known[id] { Windows.close(w) }
+        case .moveWorkspaceToMonitor:
+            engine.moveWorkspaceToNextMonitor()
+            applied = [:]
+            applyPlan()
+            focusEngineChoice()
         case .backAndForth:
             engine.backAndForth()
             applyPlan()

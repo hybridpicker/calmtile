@@ -39,6 +39,7 @@ enum Action {
     case toggleSplit
     case close
     case backAndForth
+    case moveWorkspaceToMonitor
     case reload
     case togglePause
     case open(String)
@@ -65,6 +66,7 @@ enum Action {
         case "toggle-split": return .toggleSplit
         case "close": return .close
         case "back-and-forth": return .backAndForth
+        case "move-workspace-to-monitor": return .moveWorkspaceToMonitor
         case "reload": return .reload
         case "pause": return .togglePause
         case "launcher": return .launcher
@@ -182,6 +184,7 @@ struct Config {
         b["alt-f"] = "toggle-fullscreen"
         b["alt-v"] = "toggle-float"
         b["alt-tab"] = "back-and-forth"
+        b["alt-shift-tab"] = "move-workspace-to-monitor"
         b["alt-minus"] = "resize-shrink"
         b["alt-equal"] = "resize-grow"
         b["ctrl-alt-f"] = "toggle-fullscreen"

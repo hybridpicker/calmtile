@@ -45,6 +45,8 @@ public final class Engine {
     public private(set) var previousWorkspace = 1
 
     private var workspaces = [Int: Workspace]()
+    /// Workspaces the user moved to another monitor by hand (workspace -> monitor).
+    private var monitorOverride = [Int: Int]()
     private var visible = [Int: Int]()          // monitor id -> workspace number
     private var home = [WindowID: Int]()        // window -> workspace number
     private var floatFrames = [WindowID: CGRect]()
@@ -167,6 +169,18 @@ public final class Engine {
         switchWorkspace(n)
         focused = id
         ws.lastFocused = id
+    }
+
+    /// AeroSpace `move-workspace-to-monitor --wrap-around next`: the current workspace goes to the next monitor.
+    public func moveWorkspaceToNextMonitor() {
+        guard monitors.count > 1, let ws = workspaces[currentWorkspace] else { return }
+        let old = ws.monitor
+        let new = (old + 1) % monitors.count
+        monitorOverride[ws.number] = new
+        ws.monitor = new
+        visible[new] = ws.number
+        // The monitor it left shows another workspace that lives there, if any.
+        visible[old] = workspaces.values.sorted { $0.number < $1.number }.first { $0.monitor == old && $0.number != ws.number }?.number
     }
 
     public func backAndForth() { switchWorkspace(previousWorkspace) }
@@ -312,7 +326,13 @@ public final class Engine {
             }
             for (id, f) in ws.tree.frames(in: rect(of: ws), gap: gap) { out[id] = .frame(f) }
             for id in ws.floating {
-                if let f = floatFrames[id] { out[id] = .frame(f) }
+                guard var f = floatFrames[id] else { continue }
+                let area = monitors[ws.monitor].frame
+                if !f.intersects(area) {   // its monitor was unplugged: bring it back into view
+                    f.origin = CGPoint(x: (area.midX - f.width / 2).rounded(), y: (area.midY - f.height / 2).rounded())
+                    floatFrames[id] = f
+                }
+                out[id] = .frame(f)
             }
             if let fs = ws.fullscreen, home[fs] != nil {
                 out[fs] = .frame(monitors[ws.monitor].frame)
@@ -361,7 +381,7 @@ public final class Engine {
     }
 
     private func clampedMonitor(_ n: Int) -> Int {
-        return max(0, min(preferredMonitor(n), monitors.count - 1))
+        return max(0, min(monitorOverride[n] ?? preferredMonitor(n), monitors.count - 1))
     }
 
     private func ensure(_ n: Int) -> Workspace {
