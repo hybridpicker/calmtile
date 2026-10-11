@@ -79,6 +79,7 @@ launcher (`Theme: …`) or cycle with `⌃⌥⇧Space`; the choice is kept in `~
   "gap": 4,
   "outerGap": 6,
   "mainWorkspaces": 5,
+  "spotlightAppsOnly": true,
   "floatApps": ["com.apple.calculator"],
   "passthroughApps": ["com.apple.Terminal"],
   "bindings": { "cmd-alt-return": "open Safari", "ctrl-alt-p": "" }
@@ -90,6 +91,23 @@ launcher (`Theme: …`) or cycle with `⌃⌥⇧Space`; the choice is kept in `~
 Actions: `scratchpad`, `move-to-scratchpad`, `launcher`, `theme <name>`, `theme-next`, `workspace N`, `move-to-workspace N`, `focus|swap|resize <left|right|up|down>`,
 `toggle-float`, `toggle-fullscreen`, `toggle-split`, `close`, `back-and-forth`, `reload`,
 `pause`, `open <App name>`.
+
+## Spotlight: applications only
+
+While hyprmac runs, `⌘Space` Spotlight lists only applications (no documents, mail, folders …).
+This **changes a system setting** (`orderedItems` in `com.apple.Spotlight`, the same list as System
+Settings → Spotlight → Search Results), so hyprmac handles it carefully:
+
+- On start the current list (or "key not set") is saved to `~/.config/hyprmac/spotlight-backup.plist`,
+  every category except `APPLICATIONS` is switched off, and the Spotlight UI process is restarted.
+- It is **reset to the original on quit** (menu, `SIGTERM`/`SIGINT`/`SIGHUP`), on **pause**, and when
+  `"spotlightAppsOnly": false` is set and reloaded. A backup that already exists is never overwritten, so after a
+  crash the next start (or `hyprmac --restore-spotlight`) still restores the true original.
+- `"spotlightAppsOnly": false` (default `true`) disables it; the menu item "Spotlight: applications only"
+  toggles it for the current run.
+- Not verified visually on macOS 26.5: the preference write and restore were checked with `defaults`; whether
+  Spotlight honours the key was not observed (no screen access in the dev session). If categories still show,
+  restore with `hyprmac --restore-spotlight` and set `"spotlightAppsOnly": false`.
 
 ## Structure
 

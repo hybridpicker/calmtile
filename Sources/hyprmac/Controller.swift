@@ -31,6 +31,8 @@ final class Controller {
     private var statusItem: NSStatusItem?
     private var timer: Timer?
     private var paused = false
+    /// Menu toggle for this run; starts from `spotlightAppsOnly` and follows it on reload.
+    private var spotlightOn = false
     private var monitorsDirty = true
     private var lastWindowCount = -1
     private let myPid = ProcessInfo.processInfo.processIdentifier
@@ -38,6 +40,7 @@ final class Controller {
     init() {
         let (cfg, _) = Config.load()
         config = cfg
+        spotlightOn = cfg.spotlightAppsOnly
         engine = Engine(monitors: Screens.monitors())
         applyConfig()
     }
@@ -50,6 +53,8 @@ final class Controller {
             notify("Allow hyprmac under System Settings > Privacy & Security > Accessibility, then start it again.")
         }
         setUpMenu()
+        updateSpotlight()
+        installTerminationHandlers()
         launcher.provider = { [weak self] in self?.launcherItems() ?? [] }
         launcher.onClose = { [weak self] in self?.focusEngineChoice() }
         hotkeys.handler = { [weak self] action in self?.handle(action) ?? false }
@@ -83,6 +88,8 @@ final class Controller {
         let (cfg, problems) = Config.load()
         config = cfg
         applyConfig()
+        spotlightOn = config.spotlightAppsOnly
+        updateSpotlight()
         monitorsDirty = true
         applied = [:]
         if !problems.isEmpty { notify(problems.joined(separator: "\n")) }
@@ -416,7 +423,7 @@ final class Controller {
     /// Returns true when the key was consumed.
     private func handle(_ action: Action) -> Bool {
         Log.write("hotkey \(action)")
-        if case .togglePause = action { paused.toggle(); updateStatus(); return true }
+        if case .togglePause = action { togglePaused(); return true }
         if paused { return false }
         if let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
            config.passthroughApps.contains(front) {
@@ -494,8 +501,7 @@ final class Controller {
         case .themeNext:
             setTheme(Theme.after(theme.name).name)
         case .togglePause:
-            paused.toggle()
-            updateStatus()
+            togglePaused()
         }
         return true
     }
@@ -568,6 +574,9 @@ final class Controller {
         }
         menu.addItem(NSMenuItem.separator())
         menu.addItem(withTitle: "Reload config", action: #selector(MenuTarget.reload), keyEquivalent: "").target = target
+        let sp = menu.addItem(withTitle: "Spotlight: applications only", action: #selector(MenuTarget.toggleSpotlight), keyEquivalent: "")
+        sp.target = target
+        sp.state = spotlightOn ? .on : .off
         menu.addItem(withTitle: "Pause / resume tiling", action: #selector(MenuTarget.pause), keyEquivalent: "").target = target
         menu.addItem(NSMenuItem.separator())
         menu.addItem(withTitle: "Quit hyprmac", action: #selector(MenuTarget.quit), keyEquivalent: "q").target = target
@@ -582,7 +591,40 @@ final class Controller {
     }
 
     fileprivate func menuReload() { reload() }
-    fileprivate func menuPause() { paused.toggle(); updateStatus() }
+    fileprivate func menuPause() { togglePaused() }
+
+    private func togglePaused() {
+        paused.toggle()
+        updateSpotlight()
+        updateStatus()
+    }
+
+    // MARK: - Spotlight (apps only)
+
+    /// Spotlight is restricted only while tiling is active and the mode is on.
+    private func updateSpotlight() {
+        if spotlightOn && !paused { SpotlightMode.enableAppsOnly() } else { SpotlightMode.restore() }
+    }
+
+    fileprivate func menuToggleSpotlight() {
+        spotlightOn.toggle()
+        updateSpotlight()
+    }
+
+    /// Restore the system setting however we are asked to stop; a crash is covered by the backup file at next start.
+    private var signalSources = [DispatchSourceSignal]()
+    private func installTerminationHandlers() {
+        for sig in [SIGTERM, SIGINT, SIGHUP] {
+            signal(sig, SIG_IGN)
+            let src = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+            src.setEventHandler { SpotlightMode.restore(); exit(0) }
+            src.resume()
+            signalSources.append(src)
+        }
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
+            SpotlightMode.restore()
+        }
+    }
 
     private func updateStatus() {
         let title = paused ? "\u{25A6} \u{23F8}" : "\u{25A6} \(engine.currentWorkspace)"
@@ -607,5 +649,6 @@ final class MenuTarget: NSObject, NSMenuDelegate {
     }
     @objc func reload() { controller?.menuReload() }
     @objc func pause() { controller?.menuPause() }
+    @objc func toggleSpotlight() { controller?.menuToggleSpotlight() }
     @objc func quit() { NSApp.terminate(nil) }
 }

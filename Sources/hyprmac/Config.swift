@@ -142,6 +142,8 @@ struct Config {
     var scratchpadApp = "Terminal"
     /// Hold these keys and drag: left button moves, right button resizes. "" turns the mouse off.
     var mouseModifier = "cmd-alt"
+    /// Spotlight lists applications only while hyprmac runs (original categories restored on quit/pause).
+    var spotlightAppsOnly = true
     var bindings: [String: String] = Config.defaultBindings
 
     static var defaultBindings: [String: String] = {
@@ -202,6 +204,7 @@ struct Config {
             if let v = obj["mouseModifier"] as? String {
                 if !v.isEmpty && parseMods(v) == nil { problems.append("unknown mouseModifier: \(v)") } else { cfg.mouseModifier = v }
             }
+            if let v = obj["spotlightAppsOnly"] as? Bool { cfg.spotlightAppsOnly = v }
             if let v = obj["mainWorkspaces"] as? Int { cfg.mainWorkspaces = v }
             if let v = obj["floatApps"] as? [String] { cfg.floatApps = v }
             if let v = obj["passthroughApps"] as? [String] { cfg.passthroughApps = v }
@@ -230,7 +233,7 @@ struct Config {
         var obj: [String: Any] = [
             "mouseModifier": mouseModifier, "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces,
             "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "theme": theme, "scratchpadApp": scratchpadApp,
-            "floatApps": floatApps, "passthroughApps": passthroughApps, "bindings": bindings,
+            "spotlightAppsOnly": spotlightAppsOnly, "floatApps": floatApps, "passthroughApps": passthroughApps, "bindings": bindings,
         ]
         if let c = borderColor { obj["borderColor"] = c }
         let data = (try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])) ?? Data()

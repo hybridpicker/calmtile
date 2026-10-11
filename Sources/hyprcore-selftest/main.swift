@@ -240,6 +240,18 @@ do {
     check(!e.toggleScratchpad(), "a closed scratchpad window is forgotten")
 }
 
+// Spotlight categories
+do {
+    let fresh = SpotlightCategories.appsOnly(from: nil)
+    check(fresh.filter { $0.enabled }.map { $0.name } == ["APPLICATIONS"], "apps-only enables only applications")
+    check(fresh.count == SpotlightCategories.defaults.count, "apps-only from absent key lists all defaults")
+    let custom = [SpotlightCategory(name: "DOCUMENTS", enabled: true), SpotlightCategory(name: "APPLICATIONS", enabled: false)]
+    let r = SpotlightCategories.appsOnly(from: custom)
+    check(r.map { $0.name } == ["DOCUMENTS", "APPLICATIONS"] && r[1].enabled && !r[0].enabled, "order kept, applications forced on")
+    check(SpotlightCategories.appsOnly(from: [SpotlightCategory(name: "PDF", enabled: true)]).first?.name == "APPLICATIONS", "applications added when missing")
+    check(SpotlightCategories.parse(SpotlightCategories.plist(custom)) == custom, "plist round trip")
+}
+
 if failures == 0 {
     print("OK - \(checks) checks passed")
 } else {
