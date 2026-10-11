@@ -24,7 +24,9 @@ First start: allow it under System Settings → Privacy & Security → **Accessi
 | `⌃⌥⌘←↑↓→` | move the nearest divider |
 | `⌃⌥F` / `⌃⌥T` / `⌃⌥S` | fullscreen / float / flip split |
 | `⌃⌥W` | close window |
-| `⌃⌥Tab` | previous workspace |
+| `⌃⌥Tab` / `⌥Tab` | previous workspace |
+| `⌥←↑↓→`, `⌥H/K` / `⌥⇧←↑↓→` | focus / swap neighbour (AeroSpace keys; `⌥`-arrows pass through when there is no neighbour) |
+| `⌥J` / `⌥W` / `⌥F` / `⌥V` | flip split / close / fullscreen / float (AeroSpace keys) |
 | `⌘Return` / `⌃⌥Return` | open a new Terminal window |
 | `⇧⌘Return` | open Google Chrome |
 | `⌃⌥Q` / `⌃⌥⇧Q` | show/hide the scratchpad / send the focused window there |

@@ -167,6 +167,18 @@ struct Config {
         for (k, dir) in [("h", "left"), ("l", "right"), ("k", "up"), ("j", "down")] {
             b["ctrl-alt-\(k)"] = "focus \(dir)"
         }
+        // AeroSpace parity (the Option-based keys of ~/.config/aerospace/aerospace.toml)
+        for name in ["left", "right", "up", "down"] {
+            b["alt-\(name)"] = "focus \(name)"
+            b["alt-shift-\(name)"] = "swap \(name)"
+        }
+        b["alt-h"] = "focus left"
+        b["alt-k"] = "focus up"
+        b["alt-j"] = "toggle-split"
+        b["alt-w"] = "close"
+        b["alt-f"] = "toggle-fullscreen"
+        b["alt-v"] = "toggle-float"
+        b["alt-tab"] = "back-and-forth"
         b["ctrl-alt-f"] = "toggle-fullscreen"
         b["ctrl-alt-t"] = "toggle-float"
         b["ctrl-alt-s"] = "toggle-split"
