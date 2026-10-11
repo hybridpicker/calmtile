@@ -142,7 +142,8 @@ Settings → Spotlight → Search Results), so hyprmac handles it carefully:
 
 - Apps with a minimum size (Terminal, Chrome) cannot always shrink to the tile; they overlap.
 - Windows are moved by the app after they open (no compositor), so there is a short flicker.
-- Windows are re-placed when the plan changes, not when you drag them; a dragged tiled window
-  snaps back after the next layout change.
+- A tiled window dragged by its title bar swaps with the tile it is dropped on, or snaps back to its own
+  tile (detected by polling every 0.25 s, so a very quick tiny drag may be missed). Resizing a tiled
+  window by its edge snaps back; use the mouse modifier + right drag to move dividers.
 - macOS native fullscreen windows are left alone.
 - Not run on a live session yet: only the layout core is covered by tests.

@@ -16,6 +16,8 @@ final class Controller {
     private var observers = [pid_t: AXObserver]()
     private var tickQueued = false
     private var drag: Drag?
+    /// A tiled window the user is dragging by its title bar (not with the mouse modifier).
+    private var nativeDrag: WindowID?
     /// Set when the scratchpad was toggled while empty: the next window of `scratchpadApp` is captured.
     private var pendingScratch: Date?
 
@@ -204,10 +206,37 @@ final class Controller {
             if case .frame? = applied[id], let f = Windows.frame(of: w.element) { engine.noteFloatFrame(id, f) }
         }
 
+        trackNativeDrag()
+
         // 4. apply what changed
         applyPlan()
         updateBorder()
         updateStatus()
+    }
+
+    /// A tiled window pulled by its title bar follows the pointer; on release it swaps with the tile under
+    /// the pointer, or snaps back to its own tile.
+    private func trackNativeDrag() {
+        let down = NSEvent.pressedMouseButtons & 1 != 0
+        if down {
+            guard nativeDrag == nil, drag == nil, let id = engine.focused, !engine.isFloating(id), let w = known[id],
+                  case .frame(let want)? = applied[id], let actual = Windows.frame(of: w.element) else { return }
+            let rest = settled[id] ?? want
+            let moved = hypot(actual.minX - rest.minX, actual.minY - rest.minY) > 8
+            let sameSize = abs(actual.width - rest.width) <= 3 && abs(actual.height - rest.height) <= 3
+            if moved && sameSize { nativeDrag = id }
+        } else if let id = nativeDrag {
+            nativeDrag = nil
+            let mouse = NSEvent.mouseLocation
+            let height = NSScreen.screens.first?.frame.height ?? 0
+            let p = CGPoint(x: mouse.x, y: height - mouse.y)
+            if let target = engine.tiledFrames().first(where: { $0.key != id && $0.value.contains(p) })?.key {
+                engine.swapWindows(id, target)
+            }
+            applied[id] = nil
+            retries[id] = 0
+            Log.write("title-bar drag released")
+        }
     }
 
     /// Outline the focused window, unless it is parked, fullscreen-native, or gone.
@@ -224,6 +253,7 @@ final class Controller {
         for (id, placement) in plan {
             guard let w = known[id] else { continue }
             if let d = drag, d.id == id, !d.resize || d.floating { continue }   // the user is placing it by hand
+            if nativeDrag == id { continue }
             if applied[id] != placement {
                 retries[id] = 0
             } else {
