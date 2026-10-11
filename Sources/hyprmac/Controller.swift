@@ -183,13 +183,20 @@ final class Controller {
             }
             known[w.id] = w
         }
+        let focusedBefore = engine.focused
+        var focusedClosed = false
         for id in Array(known.keys) where !seen.contains(id) {
+            if id == focusedBefore { focusedClosed = true }
             engine.windowGone(id)
             known[id] = nil
             applied[id] = nil
             retries[id] = nil
             settled[id] = nil
         }
+
+        // The focused window was closed: focus returns to the window the engine picked (the last one
+        // used on this workspace), not to whatever the OS happens to raise.
+        if focusedClosed, !paused, let id = engine.focused, known[id] != nil { focusEngineChoice() }
 
         if current.count != lastWindowCount {
             Log.write("windows seen=\(current.count) trusted=\(Windows.isTrusted(prompt: false))")

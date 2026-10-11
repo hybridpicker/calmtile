@@ -146,4 +146,8 @@ Settings → Spotlight → Search Results), so hyprmac handles it carefully:
   tile (detected by polling every 0.25 s, so a very quick tiny drag may be missed). Resizing a tiled
   window by its edge snaps back; use the mouse modifier + right drag to move dividers.
 - macOS native fullscreen windows are left alone.
-- Not run on a live session yet: only the layout core is covered by tests.
+- Verified live: start/quit, Spotlight preference write and restore, window inspection. Not verified (no
+  screen or input automation in the dev session): title-bar drag swap, Chrome/VLC/Calendar/Finder popups in
+  daily use, and whether Spotlight visibly honours the category list.
+- Secondary windows that are real standard windows (VLC playlist, Chrome DevTools in its own window) tile; add
+  their app to `floatApps` if you prefer them floating.
