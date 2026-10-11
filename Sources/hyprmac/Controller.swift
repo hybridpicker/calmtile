@@ -160,7 +160,7 @@ final class Controller {
         observeApps()
 
         // 1. reconcile the set of windows
-        let current = Windows.list(excluding: myPid)
+        let current = Windows.list(excluding: myPid, ignoring: config.ignoreApps)
         var seen = Set<WindowID>()
         for w in current {
             seen.insert(w.id)

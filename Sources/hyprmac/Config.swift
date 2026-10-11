@@ -130,8 +130,14 @@ struct Config {
         "com.apple.systempreferences", "com.apple.calculator", "com.apple.ActivityMonitor",
         "com.apple.archiveutility", "com.apple.PreferencePanes.Preview",
     ]
-    /// While one of these apps is frontmost, no hotkey is intercepted.
-    var passthroughApps: [String] = []
+    /// Apps whose windows are never touched at all (system alert helpers).
+    var ignoreApps: [String] = [
+        "com.apple.LocalAuthentication.UIAgent", "com.apple.accessibility.universalAccessAuthWarn",
+        "com.apple.SecurityAgent", "com.apple.UserNotificationCenter", "com.apple.coreservices.uiagent",
+        "com.apple.AuthenticationServices.Helper",
+    ]
+    /// While one of these apps is frontmost, no hotkey is intercepted (password manager: never touch its input).
+    var passthroughApps: [String] = ["com.dashlane.dashlanephonefinal"]
     /// Outline around the focused window; borderWidth 0 turns it off.
     var borderWidth: CGFloat = 3
     var borderRadius: CGFloat = 12
@@ -207,6 +213,7 @@ struct Config {
             if let v = obj["spotlightAppsOnly"] as? Bool { cfg.spotlightAppsOnly = v }
             if let v = obj["mainWorkspaces"] as? Int { cfg.mainWorkspaces = v }
             if let v = obj["floatApps"] as? [String] { cfg.floatApps = v }
+            if let v = obj["ignoreApps"] as? [String] { cfg.ignoreApps = v }
             if let v = obj["passthroughApps"] as? [String] { cfg.passthroughApps = v }
             if let v = obj["bindings"] as? [String: String] {
                 for (k, a) in v {
@@ -233,7 +240,7 @@ struct Config {
         var obj: [String: Any] = [
             "mouseModifier": mouseModifier, "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces,
             "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "theme": theme, "scratchpadApp": scratchpadApp,
-            "spotlightAppsOnly": spotlightAppsOnly, "floatApps": floatApps, "passthroughApps": passthroughApps, "bindings": bindings,
+            "spotlightAppsOnly": spotlightAppsOnly, "floatApps": floatApps, "ignoreApps": ignoreApps, "passthroughApps": passthroughApps, "bindings": bindings,
         ]
         if let c = borderColor { obj["borderColor"] = c }
         let data = (try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])) ?? Data()

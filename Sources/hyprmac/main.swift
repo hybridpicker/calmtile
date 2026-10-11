@@ -5,6 +5,11 @@ if CommandLine.arguments.contains("--print-config") {
     exit(0)
 }
 
+if CommandLine.arguments.contains("--dump-windows") {
+    print(Windows.dump())
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--restore-spotlight") {
     SpotlightMode.restore()
     exit(0)

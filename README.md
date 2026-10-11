@@ -67,7 +67,21 @@ launcher (`Theme: …`) or cycle with `⌃⌥⇧Space`; the choice is kept in `~
   to its sibling.
 - Workspaces 1–5 live on the main display, 6–9 on a second display (if none, on the main one).
 - Inactive workspaces are parked at the bottom-right corner of the screen (1 px visible).
-- Apps whose window cannot be resized, and the apps in `floatApps`, float.
+- Only `AXStandardWindow` windows are managed. Dialogs, sheets, floating panels, popovers, Picture-in-Picture,
+  the Finder desktop and system dialogs are not standard windows and are never tiled, parked or moved.
+- Standard windows that cannot be resized float; the apps in `floatApps` float.
+- Standard windows with no resize and no close/minimize button (transient popups) and the apps in
+  `ignoreApps` (system alert helpers) are not touched at all.
+- Dashlane is in `passthroughApps` by default: no hotkey is intercepted while it is frontmost.
+- Inspect real windows (no titles are printed):
+  `open -n -a ~/Applications/hyprmac.app --stdout out.txt --args --dump-windows`.
+
+### Key conflicts with apps
+
+Workspace keys win everywhere, as in the AeroSpace setup: `⌘1…9` switches workspace even in Chrome
+(tab 1…9) and Terminal (window 1…9). Use `⌃Tab` / `⌃⇧Tab` or `⌘⌥←/→` for Chrome tabs, `⌘\`` for Terminal
+windows. To give an app its keys back completely, add its bundle id to `passthroughApps`
+(`com.google.Chrome`, `com.apple.Terminal`); that disables all hyprmac hotkeys while it is frontmost.
 
 ## Config
 
@@ -81,6 +95,7 @@ launcher (`Theme: …`) or cycle with `⌃⌥⇧Space`; the choice is kept in `~
   "mainWorkspaces": 5,
   "spotlightAppsOnly": true,
   "floatApps": ["com.apple.calculator"],
+  "ignoreApps": ["com.apple.SecurityAgent"],
   "passthroughApps": ["com.apple.Terminal"],
   "bindings": { "cmd-alt-return": "open Safari", "ctrl-alt-p": "" }
 }

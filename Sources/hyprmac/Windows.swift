@@ -41,10 +41,11 @@ enum Windows {
         return ref as? T
     }
 
-    static func list(excluding selfPid: pid_t) -> [AXWin] {
+    static func list(excluding selfPid: pid_t, ignoring ignored: [String] = []) -> [AXWin] {
         var out = [AXWin]()
         let apps = NSWorkspace.shared.runningApplications
-            .filter { $0.activationPolicy == .regular && $0.processIdentifier != selfPid && !$0.isTerminated }
+            .filter { $0.activationPolicy == .regular && $0.processIdentifier != selfPid && !$0.isTerminated
+                && !ignored.contains($0.bundleIdentifier ?? "") }
         for app in apps {
             let ax = AXUIElementCreateApplication(app.processIdentifier)
             AXUIElementSetMessagingTimeout(ax, 0.25)
@@ -59,11 +60,40 @@ enum Windows {
                 guard _AXUIElementGetWindow(w, &wid) == .success, wid != 0 else { continue }
                 var settable = DarwinBoolean(false)
                 _ = AXUIElementIsAttributeSettable(w, kAXSizeAttribute as CFString, &settable)
+                // Transient popups and system alerts claim to be standard windows but have no window
+                // buttons and cannot be resized: leave them completely alone (never tile, park or move).
+                if !settable.boolValue, (attr(w, kAXCloseButtonAttribute) as AXUIElement?) == nil,
+                   (attr(w, kAXMinimizeButtonAttribute) as AXUIElement?) == nil { continue }
                 out.append(AXWin(id: wid, element: w, pid: app.processIdentifier,
                                  bundleID: app.bundleIdentifier ?? "?", resizable: settable.boolValue))
             }
         }
         return out
+    }
+
+    /// One line per window of every regular app: role, subrole and capabilities, never the title.
+    /// Run through `open -a hyprmac --stdout <file> --args --dump-windows` (it needs the Accessibility grant).
+    static func dump() -> String {
+        var lines = [String]()
+        for app in NSWorkspace.shared.runningApplications where app.activationPolicy != .prohibited && !app.isTerminated {
+            let ax = AXUIElementCreateApplication(app.processIdentifier)
+            AXUIElementSetMessagingTimeout(ax, 0.5)
+            guard let wins: [AXUIElement] = attr(ax, kAXWindowsAttribute), !wins.isEmpty else { continue }
+            for w in wins {
+                let role: String = attr(w, kAXRoleAttribute) ?? "?"
+                let sub: String = attr(w, kAXSubroleAttribute) ?? "-"
+                var settable = DarwinBoolean(false)
+                _ = AXUIElementIsAttributeSettable(w, kAXSizeAttribute as CFString, &settable)
+                let modal: Bool = attr(w, "AXModal") ?? false
+                let min: Bool = attr(w, kAXMinimizedAttribute) ?? false
+                let hasClose = (attr(w, kAXCloseButtonAttribute) as AXUIElement?) != nil
+                let hasMin = (attr(w, kAXMinimizeButtonAttribute) as AXUIElement?) != nil
+                let hasFull = (attr(w, kAXFullScreenButtonAttribute) as AXUIElement?) != nil
+                let f = frame(of: w)
+                lines.append("\(app.bundleIdentifier ?? "?") role=\(role) subrole=\(sub) resizable=\(settable.boolValue) modal=\(modal) min=\(min) close=\(hasClose) minimize=\(hasMin) full=\(hasFull) size=\(f.map { "\(Int($0.width))x\(Int($0.height))" } ?? "?")")
+            }
+        }
+        return lines.joined(separator: "\n")
     }
 
     static func title(of el: AXUIElement) -> String? {
