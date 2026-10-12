@@ -40,6 +40,9 @@ public final class Engine {
     public var preferredMonitor: (Int) -> Int = { $0 <= 5 ? 0 : 1 }
 
     /// A tile is never split below this size: the new window floats instead (0 turns the rule off).
+    /// A window that does not fit may move to another workspace. Off when workspaces are real macOS Spaces,
+    /// where hyprmac cannot move windows between them.
+    public var allowOverflow = true
     public var minTile = CGSize(width: 420, height: 280)
 
     public private(set) var monitors: [Monitor]
@@ -167,6 +170,7 @@ public final class Engine {
 
     /// The next workspace (wrapping, same monitor) that can take one more window without overlap.
     private func roomyWorkspace(after ws: Workspace, needing m: CGSize = .zero) -> Int? {
+        guard allowOverflow else { return nil }
         for step in 1...9 {
             let n = (ws.number - 1 + step) % 9 + 1
             guard n != ws.number, clampedMonitor(n) == ws.monitor else { continue }
@@ -250,6 +254,24 @@ public final class Engine {
         currentWorkspace = n
         visible[ws.monitor] = n
         focused = ws.lastFocused ?? ws.tree.windows.first ?? ws.floating.first
+    }
+
+    /// The window now lives on workspace `n` (macOS moved it to another Space): re-home it without switching.
+    public func relocate(_ id: WindowID, to n: Int) {
+        guard let old = home[id], old != 0, old != n, let from = workspaces[old] else { return }
+        let wasFloating = from.floating.contains(id)
+        let frame = floatFrames[id]
+        detach(id, from: from)
+        let to = ensure(n)
+        home[id] = n
+        if wasFloating {
+            to.floating.append(id)
+            floatFrames[id] = frame
+        } else {
+            insertTiled(id, into: to)
+        }
+        to.lastFocused = id
+        if focused == id && currentWorkspace == old { focused = from.lastFocused }
     }
 
     /// Bring a window into view and focus it, switching workspace if it lives on another one.

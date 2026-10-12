@@ -8,6 +8,8 @@ final class HotkeyTap {
     var handler: ((Action) -> Bool)?
     /// Mouse events; return true to swallow. Only consulted for down/drag/up of the left and right button.
     var mouseHandler: ((CGEventType, CGPoint, CGEventFlags) -> Bool)?
+    /// Set while hyprmac itself drives the mouse (moving a window to another desktop).
+    var suspendMouse = false
     private var tap: CFMachPort?
 
     func start() -> Bool {
@@ -22,7 +24,7 @@ final class HotkeyTap {
                 return Unmanaged.passUnretained(event)
             }
             if type != .keyDown {
-                if let h = me.mouseHandler, h(type, event.location, event.flags) { return nil }
+                if !me.suspendMouse, let h = me.mouseHandler, h(type, event.location, event.flags) { return nil }
                 return Unmanaged.passUnretained(event)
             }
             let combo = KeyCombo(keyCode: event.getIntegerValueField(.keyboardEventKeycode),

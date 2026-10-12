@@ -100,6 +100,7 @@ windows. To give an app its keys back completely, add its bundle id to `passthro
   "gap": 4,
   "outerGap": 6,
   "mainWorkspaces": 5,
+  "useSpaces": false,
   "minTileWidth": 420,
   "minTileHeight": 280,
   "spotlightAppsOnly": false,
@@ -130,6 +131,24 @@ overview instead of a pile in the corner. When it closes, windows are parked aga
 window you picked becomes current. Measured: windows spread within ~0.1 s of opening, parked again after
 closing; how smooth the macOS animation looks was not observed. Real macOS Spaces per workspace are not used
 (there is no public API to move windows between Spaces).
+
+## Real desktops (`"useSpaces": true`)
+
+Opt-in. Workspace N is the Nth macOS desktop (Space) of the display: `⌘N` switches desktops, windows stay
+where macOS puts them, nothing is parked in a corner and Mission Control shows a clean desktop per
+workspace. Create the desktops in Mission Control first (`⌘N` on a missing desktop does nothing and logs it).
+
+- Tiling works per desktop; trackpad swipes and Mission Control are followed (the active desktop becomes the
+  current workspace, a window dragged to another desktop changes workspace).
+- A window that does not fit is not moved to another desktop (hyprmac cannot move windows between Spaces: the
+  private call has no effect on macOS 26.5, verified); it floats instead.
+- `⌘⌥N` (send window to desktop N) drags the window's title bar while pressing the system shortcut
+  `⌃N`. That needs "Switch to Desktop N" enabled in System Settings → Keyboard → Keyboard Shortcuts →
+  Mission Control; without it hyprmac beeps and logs the hint. This path is not tested live (the shortcuts
+  are disabled on the dev machine and hyprmac does not change that setting).
+- Only normal desktops of the display holding the active desktop count; full-screen app Spaces are skipped and
+  workspaces 6–9 do not move to a second display in this mode.
+- Verified live: `⌘1/⌘2/⌘3` switch desktops, a missing desktop is refused, windows of other desktops stay known.
 
 ## Own Spotlight: applications only (`⌘Space`)
 

@@ -85,7 +85,8 @@ final class Controller {
         engine.outerGap = config.outerGap
         engine.minTile = CGSize(width: config.minTileWidth, height: config.minTileHeight)
         let n = config.mainWorkspaces
-        engine.preferredMonitor = { $0 <= n ? 0 : 1 }
+        engine.preferredMonitor = config.useSpaces ? { _ in 0 } : { $0 <= n ? 0 : 1 }
+        engine.allowOverflow = !config.useSpaces
         hotkeys.table = config.table()
         border.width = config.borderWidth
         border.inside = config.gap < config.borderWidth
@@ -141,7 +142,7 @@ final class Controller {
     /// While Mission Control is open every window sits at its layout position (not parked in a corner), so
     /// macOS shows a proper overview. On leaving it, the workspace of the window you picked becomes current.
     private func checkOverview() {
-        guard !paused else { return }
+        guard !paused, !config.useSpaces else { return }
         let open = Windows.overviewOpen()
         if open == overview { return }
         overview = open
@@ -193,12 +194,20 @@ final class Controller {
         }
 
         observeApps()
+        if config.useSpaces, let n = Spaces.activeNumber(), n != engine.currentWorkspace {
+            engine.switchWorkspace(n)   // the user switched desktops by gesture or Mission Control
+        }
 
         // 1. reconcile the set of windows
         let current = Windows.list(excluding: myPid, ignoring: config.ignoreApps)
         var seen = Set<WindowID>()
         for w in current {
             seen.insert(w.id)
+            // Dragged here from another desktop by macOS itself: it now belongs to this workspace.
+            if config.useSpaces, let home = engine.workspaceOf(w.id), home != 0, home != engine.currentWorkspace {
+                engine.relocate(w.id, to: engine.currentWorkspace)
+                applied[w.id] = nil
+            }
             if known[w.id] == nil {
                 let float = !w.resizable || config.floatApps.contains(w.bundleID) || titleFloats(w)
                 engine.windowAppeared(w.id, floating: float, frame: float ? Windows.frame(of: w.element) : nil)
@@ -218,7 +227,13 @@ final class Controller {
         }
         let focusedBefore = engine.focused
         var focusedClosed = false
+        let living: Set<WindowID> = config.useSpaces ? Spaces.existingWindowIDs() : []
         for id in Array(known.keys) where !seen.contains(id) {
+            if config.useSpaces, living.contains(id), let n = Spaces.number(ofWindow: id) {
+                // On another desktop (not visible to Accessibility right now): keep it, follow it if it moved.
+                if let home = engine.workspaceOf(id), home != 0, home != n { engine.relocate(id, to: n) }
+                continue
+            }
             if id == focusedBefore { focusedClosed = true }
             engine.windowGone(id)
             known[id] = nil
@@ -315,6 +330,10 @@ final class Controller {
         let monitors = engine.monitors
         for (id, placement) in plan {
             guard let w = known[id] else { continue }
+            if config.useSpaces, let home = engine.workspaceOf(id), home != 0 {
+                if case .hidden = placement { continue }              // nothing is parked: the desktops do that
+                if home != engine.currentWorkspace { continue }       // lives on another desktop
+            }
             if let d = drag, d.id == id, !d.resize || d.floating { continue }   // the user is placing it by hand
             if nativeDrag == id { continue }
             if applied[id] != placement {
@@ -541,12 +560,80 @@ final class Controller {
         return perform(action)
     }
 
+    private func mouseEvent(_ type: CGEventType, _ p: CGPoint) {
+        CGEvent(mouseEventSource: CGEventSource(stateID: .hidSystemState), mouseType: type, mouseCursorPosition: p,
+                mouseButton: .left)?.post(tap: .cghidEventTap)
+    }
+
+    /// macOS offers no way to move a window to another desktop, except dragging it there while the system
+    /// shortcut "Switch to Desktop N" (⌃N) fires. So: grab the title bar, press ⌃N, let go, come back.
+    /// Needs those shortcuts enabled (System Settings > Keyboard > Keyboard Shortcuts > Mission Control);
+    /// moving a window through a private call was tried and has no effect on macOS 26.
+    private func moveFocusedToDesktop(_ n: Int) {
+        let from = engine.currentWorkspace
+        guard n != from, n <= Spaces.count, let id = engine.focused, let w = known[id],
+              let f = Windows.frame(of: w.element) else { return }
+        guard Spaces.desktopShortcutEnabled(n) else {
+            Log.write("move to desktop \(n): enable the system shortcut \"Switch to Desktop \(n)\" (Control+\(n)) first")
+            NSSound.beep()
+            return
+        }
+        let digitKeys: [Int: Int64] = [1: 18, 2: 19, 3: 20, 4: 21, 5: 23, 6: 22, 7: 26, 8: 28, 9: 25]
+        guard let key = digitKeys[n] else { return }
+        let grab = CGPoint(x: f.minX + min(80, f.width / 2), y: f.minY + 12)
+        let moved = CGPoint(x: grab.x + 6, y: grab.y + 2)
+        let saved = CGEvent(source: nil)?.location ?? grab
+        hotkeys.suspendMouse = true
+        mouseEvent(.leftMouseDown, grab)
+        mouseEvent(.leftMouseDragged, moved)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            let src = CGEventSource(stateID: .hidSystemState)
+            for down in [true, false] {
+                let e = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(key), keyDown: down)
+                e?.flags = .maskControl
+                e?.post(tap: .cghidEventTap)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self?.mouseEvent(.leftMouseUp, moved)
+                CGWarpMouseCursorPosition(saved)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    self?.hotkeys.suspendMouse = false
+                    self?.engine.relocate(id, to: n)
+                    Spaces.switchTo(from)
+                    self?.engine.switchWorkspace(from)
+                    self?.applied = [:]
+                    Log.write("moved window to desktop \(n)")
+                }
+            }
+        }
+    }
+
+    /// Switch workspace; with `useSpaces` that is the Nth macOS desktop.
+    private func goTo(_ n: Int) {
+        if config.useSpaces {
+            guard Spaces.switchTo(n) else {
+                Log.write("desktop \(n) does not exist: create it in Mission Control")
+                return
+            }
+            engine.switchWorkspace(n)
+            applied = [:]
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                self?.applyPlan()
+                self?.focusEngineChoice()
+            }
+            return
+        }
+        engine.switchWorkspace(n)
+        applyPlan()
+        focusEngineChoice()
+    }
+
     private func perform(_ action: Action) -> Bool {
         switch action {
         case .workspace(let n):
-            engine.switchWorkspace(n)
-            applyPlan()
-            focusEngineChoice()
+            goTo(n)
+        case .moveToWorkspace(let n) where config.useSpaces:
+            moveFocusedToDesktop(n)
         case .moveToWorkspace(let n):
             engine.moveFocused(toWorkspace: n)
             applyPlan()
@@ -582,9 +669,7 @@ final class Controller {
             applyPlan()
             focusEngineChoice()
         case .backAndForth:
-            engine.backAndForth()
-            applyPlan()
-            focusEngineChoice()
+            goTo(engine.previousWorkspace)
         case .reload:
             reload()
         case .open(let app):

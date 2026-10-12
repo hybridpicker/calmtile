@@ -263,6 +263,21 @@ do {
     check(g.workspaceOf(2) == 2 && g.currentWorkspace == 2 && isHidden(g.plan()[1]) && frame(g.plan()[2]) != nil, "minimums that cannot both fit send one window to the next workspace")
 }
 
+// relocate: a window moved to another desktop by macOS changes workspace without switching
+do {
+    let e = makeEngine()
+    e.allowOverflow = false
+    e.windowAppeared(1, floating: false)
+    e.windowAppeared(2, floating: false)
+    e.relocate(2, to: 3)
+    check(e.workspaceOf(2) == 3 && e.currentWorkspace == 1, "relocate re-homes without switching")
+    check(frame(e.plan()[1]) == CGRect(x: 8, y: 8, width: 1904, height: 1064), "the remaining window takes the area")
+    let f = makeEngine()
+    f.allowOverflow = false
+    for id in 1...8 { f.windowAppeared(WindowID(id), floating: false) }
+    check(f.currentWorkspace == 1 && f.windows(in: 1).count == 8, "no overflow to another workspace when disabled")
+}
+
 // resize smart grows/shrinks the focused window along its split
 do {
     let e = makeEngine()
