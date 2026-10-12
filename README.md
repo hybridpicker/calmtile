@@ -81,6 +81,8 @@ launcher (`Theme: …`) or cycle with `⌃⌥⇧Space`; the choice is kept in `~
   manual `⌃⌥T` back to tiled sticks. Titles are only compared in memory, never logged.
   Finder info/copy/connect dialogs are not resizable and float on their own.
 - Dashlane is in `passthroughApps` by default: no hotkey is intercepted while it is frontmost.
+- Test aid: `open -n -a ~/Applications/hyprmac.app --args --post-key cmd-space` synthesizes a key press for the running
+  instance (it must be launched through `open` so macOS applies the app's Accessibility grant).
 - Inspect real windows (no titles are printed):
   `open -n -a ~/Applications/hyprmac.app --stdout out.txt --args --dump-windows`.
 
