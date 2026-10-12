@@ -201,9 +201,9 @@ Settings → Spotlight → Search Results), so hyprmac handles it carefully:
   window by its edge snaps back; use the mouse modifier + right drag to move dividers.
 - macOS native fullscreen windows are left alone (they live on their own Space and are invisible to hyprmac).
 - Verified live (by synthesized keys and window dumps): start/quit, `⌘Space` and `⌘1…9` interception, Mission
-  Control spreading and re-parking, Spotlight preference write and restore, window inspection of Calendar,
+  Control spreading and re-parking, desktop switching with `useSpaces`, Spotlight preference write and restore, window inspection of Calendar,
   VLC, Terminal, Dashlane, Notes, Mail, Finder, Safari, Preview, Teams, Zoom and VS Code. Not verified (no
   mouse or screen access in the dev session): title-bar drag swap, Chrome with several windows and
-  Picture-in-Picture (Chrome was in native fullscreen), Zoom meetings, Xcode, a second display (self-tests
+  Picture-in-Picture (Chrome was in native fullscreen), `⌘⌥N` with `useSpaces`, Zoom meetings, Xcode, a second display (self-tests
   only), and whether Spotlight visibly honours the category list.
 - Title rules depend on the app's language; add your words to `floatTitles` if a secondary window still tiles.
