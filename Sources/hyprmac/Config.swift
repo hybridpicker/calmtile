@@ -137,6 +137,12 @@ struct Config {
         "com.apple.systempreferences", "com.apple.calculator", "com.apple.ActivityMonitor",
         "com.apple.archiveutility", "com.apple.PreferencePanes.Preview",
     ]
+    /// Windows of these apps float when their title contains one of the words (secondary windows that are
+    /// standard windows: playlists, inspectors, DevTools). Matching is case-insensitive; titles are never logged.
+    var floatTitles: [String: [String]] = [
+        "org.videolan.vlc": ["Playlist", "Wiedergabeliste", "Media Information", "Medieninformation", "Inspector", "Inspektor", "Controller", "Equalizer", "Effects", "Effekte", "Messages", "Nachrichten"],
+        "com.google.Chrome": ["DevTools", "Developer Tools"],
+    ]
     /// Apps whose windows are never touched at all (system alert helpers).
     var ignoreApps: [String] = [
         "com.apple.LocalAuthentication.UIAgent", "com.apple.accessibility.universalAccessAuthWarn",
@@ -236,6 +242,7 @@ struct Config {
             if let v = obj["spotlightAppsOnly"] as? Bool { cfg.spotlightAppsOnly = v }
             if let v = obj["mainWorkspaces"] as? Int { cfg.mainWorkspaces = v }
             if let v = obj["floatApps"] as? [String] { cfg.floatApps = v }
+            if let v = obj["floatTitles"] as? [String: [String]] { cfg.floatTitles = v }
             if let v = obj["ignoreApps"] as? [String] { cfg.ignoreApps = v }
             if let v = obj["passthroughApps"] as? [String] { cfg.passthroughApps = v }
             if let v = obj["bindings"] as? [String: String] {
@@ -263,7 +270,7 @@ struct Config {
         var obj: [String: Any] = [
             "mouseModifier": mouseModifier, "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces,
             "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "theme": theme, "scratchpadApp": scratchpadApp,
-            "spotlightAppsOnly": spotlightAppsOnly, "floatApps": floatApps, "ignoreApps": ignoreApps, "passthroughApps": passthroughApps, "bindings": bindings,
+            "spotlightAppsOnly": spotlightAppsOnly, "floatApps": floatApps, "floatTitles": floatTitles, "ignoreApps": ignoreApps, "passthroughApps": passthroughApps, "bindings": bindings,
         ]
         if let c = borderColor { obj["borderColor"] = c }
         let data = (try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])) ?? Data()

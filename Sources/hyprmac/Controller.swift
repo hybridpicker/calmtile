@@ -167,7 +167,7 @@ final class Controller {
         for w in current {
             seen.insert(w.id)
             if known[w.id] == nil {
-                let float = !w.resizable || config.floatApps.contains(w.bundleID)
+                let float = !w.resizable || config.floatApps.contains(w.bundleID) || titleFloats(w)
                 engine.windowAppeared(w.id, floating: float, frame: float ? Windows.frame(of: w.element) : nil)
                 if let t = pendingScratch {
                     if Date().timeIntervalSince(t) > 5 {
@@ -192,6 +192,7 @@ final class Controller {
             applied[id] = nil
             retries[id] = nil
             settled[id] = nil
+            titleChecked.remove(id)
         }
 
         // The focused window was closed: focus returns to the window the engine picked (the last one
@@ -214,11 +215,33 @@ final class Controller {
         }
 
         trackNativeDrag()
+        floatByTitle()
 
         // 4. apply what changed
         applyPlan()
         updateBorder()
         updateStatus()
+    }
+
+    private func titleFloats(_ w: AXWin) -> Bool {
+        guard let words = config.floatTitles[w.bundleID], !words.isEmpty,
+              let t = Windows.title(of: w.element)?.lowercased(), !t.isEmpty else { return false }
+        return words.contains { t.contains($0.lowercased()) }
+    }
+
+    /// Titles often arrive after the window exists (DevTools, playlists): float a tiled window once it matches.
+    /// Done once per window, so toggling it back to tiled by hand sticks.
+    private var titleChecked = Set<WindowID>()
+    private func floatByTitle() {
+        for (id, w) in known where !titleChecked.contains(id) && config.floatTitles[w.bundleID] != nil {
+            guard !engine.isFloating(id), engine.workspaceOf(id) != 0 else { titleChecked.insert(id); continue }
+            if titleFloats(w), let f = Windows.frame(of: w.element) {
+                titleChecked.insert(id)
+                engine.makeFloating(id, frame: f.insetBy(dx: 0, dy: 0))
+                applied[id] = nil
+                Log.write("float by title rule (\(w.bundleID))")
+            }
+        }
     }
 
     /// A tiled window pulled by its title bar follows the pointer; on release it swaps with the tile under

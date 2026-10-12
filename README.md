@@ -76,6 +76,10 @@ launcher (`Theme: …`) or cycle with `⌃⌥⇧Space`; the choice is kept in `~
 - Standard windows that cannot be resized float; the apps in `floatApps` float.
 - Standard windows with no resize and no close/minimize button (transient popups) and the apps in
   `ignoreApps` (system alert helpers) are not touched at all.
+- `floatTitles` (`{"bundle id": ["word", …]}`): standard windows whose title contains a word float (VLC
+  playlist/inspector/controller, Chrome DevTools by default). Checked until it matches, once per window, so a
+  manual `⌃⌥T` back to tiled sticks. Titles are only compared in memory, never logged.
+  Finder info/copy/connect dialogs are not resizable and float on their own.
 - Dashlane is in `passthroughApps` by default: no hotkey is intercepted while it is frontmost.
 - Inspect real windows (no titles are printed):
   `open -n -a ~/Applications/hyprmac.app --stdout out.txt --args --dump-windows`.
@@ -159,5 +163,4 @@ Settings → Spotlight → Search Results), so hyprmac handles it carefully:
 - Verified live: start/quit, Spotlight preference write and restore, window inspection. Not verified (no
   screen or input automation in the dev session): title-bar drag swap, Chrome/VLC/Calendar/Finder popups in
   daily use, and whether Spotlight visibly honours the category list.
-- Secondary windows that are real standard windows (VLC playlist, Chrome DevTools in its own window) tile; add
-  their app to `floatApps` if you prefer them floating.
+- Title rules depend on the app's language; add your words to `floatTitles` if a secondary window still tiles.

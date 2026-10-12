@@ -129,6 +129,15 @@ public final class Engine {
         focused = id
     }
 
+    /// Turn a tiled window into a floating one at `frame` (title rules: playlists, inspectors, DevTools).
+    public func makeFloating(_ id: WindowID, frame: CGRect) {
+        guard let n = home[id], n != 0, let ws = workspaces[n], ws.tree.contains(id) else { return }
+        ws.tree.remove(id)
+        ws.floating.append(id)
+        if ws.fullscreen == id { ws.fullscreen = nil }
+        floatFrames[id] = frame
+    }
+
     /// The app could not get as small as its tile. Remember the size it insists on so the neighbours make
     /// room; when even that cannot fit the workspace, it floats at that size instead.
     public func noteMinSize(_ id: WindowID, want: CGSize, got: CGSize) {
