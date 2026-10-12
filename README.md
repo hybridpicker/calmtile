@@ -32,6 +32,7 @@ First start: allow it under System Settings → Privacy & Security → **Accessi
 | `⌘Return` / `⌃⌥Return` | open a new Terminal window |
 | `⇧⌘Return` | open Google Chrome |
 | `⌃⌥Q` / `⌃⌥⇧Q` | show/hide the scratchpad / send the focused window there |
+| `⌘Space` | own Spotlight: applications only (replaces system Spotlight while hyprmac runs) |
 | `⌃⌥Space` | launcher: search windows, apps, actions and themes |
 | `⌃⌥⇧Space` | next theme |
 | `⌃⌥R` / `⌃⌥P` | reload config / pause tiling |
@@ -81,10 +82,6 @@ launcher (`Theme: …`) or cycle with `⌃⌥⇧Space`; the choice is kept in `~
   manual `⌃⌥T` back to tiled sticks. Titles are only compared in memory, never logged.
   Finder info/copy/connect dialogs are not resizable and float on their own.
 - Dashlane is in `passthroughApps` by default: no hotkey is intercepted while it is frontmost.
-- Test aid: `open -n -a ~/Applications/hyprmac.app --args --post-key cmd-space` synthesizes a key press for the running
-  instance (it must be launched through `open` so macOS applies the app's Accessibility grant).
-- Inspect real windows (no titles are printed):
-  `open -n -a ~/Applications/hyprmac.app --stdout out.txt --args --dump-windows`.
 
 ### Key conflicts with apps
 
@@ -104,8 +101,10 @@ windows. To give an app its keys back completely, add its bundle id to `passthro
   "outerGap": 6,
   "mainWorkspaces": 5,
   "minTileWidth": 420,
+  "minTileHeight": 280,
   "spotlightAppsOnly": false,
   "floatApps": ["com.apple.calculator"],
+  "floatTitles": { "org.videolan.vlc": ["Playlist"] },
   "ignoreApps": ["com.apple.SecurityAgent"],
   "passthroughApps": ["com.apple.Terminal"],
   "bindings": { "cmd-alt-return": "open Safari", "ctrl-alt-p": "" }
@@ -114,7 +113,7 @@ windows. To give an app its keys back completely, add its bundle id to `passthro
 
 `passthroughApps`: no hotkey is intercepted while one of these is frontmost (e.g. apps where
 `⌘1…9` must keep its own meaning). A binding set to `""` removes the default.
-Actions: `scratchpad`, `move-to-scratchpad`, `launcher`, `theme <name>`, `theme-next`, `workspace N`, `move-to-workspace N`, `focus|swap|resize <left|right|up|down>`,
+Actions: `scratchpad`, `move-to-scratchpad`, `launcher`, `app-launcher`, `theme <name>`, `theme-next`, `workspace N`, `move-to-workspace N`, `focus|swap|resize <left|right|up|down>`,
 `resize-grow`, `resize-shrink`, `toggle-float`, `toggle-fullscreen`, `toggle-split`, `close`, `back-and-forth`, `move-workspace-to-monitor`, `reload`,
 `pause`, `open <App name>`.
 
@@ -156,10 +155,20 @@ Settings → Spotlight → Search Results), so hyprmac handles it carefully:
   Spotlight honours the key was not observed (no screen access in the dev session). If categories still show,
   restore with `hyprmac --restore-spotlight` and set `"spotlightAppsOnly": false`.
 
+## Development aids
+
+- Test aid: `open -n -a ~/Applications/hyprmac.app --args --post-key cmd-space` synthesizes a key press for the running
+  instance (it must be launched through `open` so macOS applies the app's Accessibility grant).
+- Inspect real windows (no titles are printed):
+  `open -n -a ~/Applications/hyprmac.app --stdout out.txt --args --dump-windows`.
+- `hyprmac --print-config` prints the effective config; `--restore-spotlight`, `--install-login`,
+  `--uninstall-login` are the one-shot commands described above. `HYPRMAC_DEBUG=1` (environment) logs
+  placements to `~/Library/Logs/hyprmac.log`; window titles are never logged.
+
 ## Structure
 
 - `Sources/HyprCore` – dwindle tree, workspaces, focus; no AppKit, self-tested (`hyprcore-selftest`).
-- `Sources/hyprmac` – Accessibility windows, key tap, config, menu bar.
+- `Sources/hyprmac` – Accessibility windows, key tap, config, menu bar, launcher, Spotlight switch, login item.
 
 ## Known limits
 
@@ -172,7 +181,10 @@ Settings → Spotlight → Search Results), so hyprmac handles it carefully:
   tile (detected by polling every 0.25 s, so a very quick tiny drag may be missed). Resizing a tiled
   window by its edge snaps back; use the mouse modifier + right drag to move dividers.
 - macOS native fullscreen windows are left alone (they live on their own Space and are invisible to hyprmac).
-- Verified live: start/quit, Spotlight preference write and restore, window inspection. Not verified (no
-  screen or input automation in the dev session): title-bar drag swap, Chrome/VLC/Calendar/Finder popups in
-  daily use, and whether Spotlight visibly honours the category list.
+- Verified live (by synthesized keys and window dumps): start/quit, `⌘Space` and `⌘1…9` interception, Mission
+  Control spreading and re-parking, Spotlight preference write and restore, window inspection of Calendar,
+  VLC, Terminal, Dashlane, Notes, Mail, Finder, Safari, Preview, Teams, Zoom and VS Code. Not verified (no
+  mouse or screen access in the dev session): title-bar drag swap, Chrome with several windows and
+  Picture-in-Picture (Chrome was in native fullscreen), Zoom meetings, Xcode, a second display (self-tests
+  only), and whether Spotlight visibly honours the category list.
 - Title rules depend on the app's language; add your words to `floatTitles` if a secondary window still tiles.
