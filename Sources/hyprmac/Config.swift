@@ -44,6 +44,7 @@ enum Action {
     case togglePause
     case open(String)
     case launcher
+    case appLauncher
     case scratchpad
     case moveToScratchpad
     case theme(String)
@@ -70,6 +71,7 @@ enum Action {
         case "reload": return .reload
         case "pause": return .togglePause
         case "launcher": return .launcher
+        case "app-launcher": return .appLauncher
         case "scratchpad": return .scratchpad
         case "move-to-scratchpad": return .moveToScratchpad
         case "theme": return arg.isEmpty ? nil : .theme(arg)
@@ -154,7 +156,7 @@ struct Config {
     /// Hold these keys and drag: left button moves, right button resizes. "" turns the mouse off.
     var mouseModifier = "cmd-alt"
     /// Spotlight lists applications only while hyprmac runs (original categories restored on quit/pause).
-    var spotlightAppsOnly = true
+    var spotlightAppsOnly = false
     var bindings: [String: String] = Config.defaultBindings
 
     static var defaultBindings: [String: String] = {
@@ -198,6 +200,7 @@ struct Config {
         b["cmd-shift-return"] = "open Google Chrome"
         b["ctrl-alt-return"] = "open Terminal"
         b["ctrl-alt-space"] = "launcher"
+        b["cmd-space"] = "app-launcher"   // own Spotlight: applications only (takes ⌘Space from Spotlight)
         b["ctrl-alt-q"] = "scratchpad"
         b["ctrl-alt-shift-q"] = "move-to-scratchpad"
         b["ctrl-alt-shift-space"] = "theme-next"

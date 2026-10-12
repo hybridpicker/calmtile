@@ -97,7 +97,7 @@ windows. To give an app its keys back completely, add its bundle id to `passthro
   "gap": 4,
   "outerGap": 6,
   "mainWorkspaces": 5,
-  "spotlightAppsOnly": true,
+  "spotlightAppsOnly": false,
   "floatApps": ["com.apple.calculator"],
   "ignoreApps": ["com.apple.SecurityAgent"],
   "passthroughApps": ["com.apple.Terminal"],
@@ -116,7 +116,14 @@ Actions: `scratchpad`, `move-to-scratchpad`, `launcher`, `theme <name>`, `theme-
 Off by default. The menu item "Start at login" (or `hyprmac --install-login` / `--uninstall-login`)
 writes/removes `~/Library/LaunchAgents/local.hyprmac.plist`, which opens `~/Applications/hyprmac.app`.
 
-## Spotlight: applications only
+## Own Spotlight: applications only (`⌘Space`)
+
+`⌘Space` opens hyprmac's launcher restricted to applications (installed, with running ones just launching/
+activating). hyprmac sees the key before Spotlight, so Spotlight itself no longer opens while hyprmac runs and
+nothing in the system settings is touched. Remove it with `"bindings": {"cmd-space": ""}`; `app-launcher` is the
+action name. `⌃⌥Space` stays the full launcher (windows, apps, actions, themes).
+
+## Spotlight: applications only (system setting, off by default)
 
 While hyprmac runs, `⌘Space` Spotlight lists only applications (no documents, mail, folders …).
 This **changes a system setting** (`orderedItems` in `com.apple.Spotlight`, the same list as System
@@ -127,7 +134,7 @@ Settings → Spotlight → Search Results), so hyprmac handles it carefully:
 - It is **reset to the original on quit** (menu, `SIGTERM`/`SIGINT`/`SIGHUP`), on **pause**, and when
   `"spotlightAppsOnly": false` is set and reloaded. A backup that already exists is never overwritten, so after a
   crash the next start (or `hyprmac --restore-spotlight`) still restores the true original.
-- `"spotlightAppsOnly": false` (default `true`) disables it; the menu item "Spotlight: applications only"
+- `"spotlightAppsOnly": true` enables it (default `false`, because the own `⌘Space` launcher above does the job without touching the system); the menu item "Spotlight: applications only"
   toggles it for the current run.
 - Not verified visually on macOS 26.5: the preference write and restore were checked with `defaults`; whether
   Spotlight honours the key was not observed (no screen access in the dev session). If categories still show,

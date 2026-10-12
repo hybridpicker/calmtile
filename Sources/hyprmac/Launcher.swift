@@ -17,6 +17,7 @@ enum Apps {
     static func installed() -> [(name: String, url: URL)] {
         if Date().timeIntervalSince(scanned) < 60 { return cache }
         let dirs = ["/Applications", "/Applications/Utilities", "/System/Applications", "/System/Applications/Utilities",
+                    "/System/Library/CoreServices", "/System/Library/CoreServices/Applications",
                     NSString(string: "~/Applications").expandingTildeInPath]
         var seen = Set<String>()
         var out = [(name: String, url: URL)]()
@@ -110,8 +111,9 @@ final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
         redraw()
     }
 
-    func show() {
-        items = provider?() ?? []
+    /// `appsOnly`: a Spotlight replacement that lists installed and running applications and nothing else.
+    func show(appsOnly: Bool = false) {
+        items = (provider?() ?? []).filter { !appsOnly || $0.kind == .app }
         field.stringValue = ""
         selected = 0
         closing = false

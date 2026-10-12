@@ -469,6 +469,7 @@ final class Controller {
         if launcher.isVisible {
             // Only the launcher key itself works while it is open (it closes the panel).
             if case .launcher = action { launcher.hide(); return true }
+            if case .appLauncher = action { launcher.hide(); return true }
             return false
         }
         return perform(action)
@@ -541,6 +542,8 @@ final class Controller {
             focusEngineChoice()
         case .launcher:
             launcher.show()
+        case .appLauncher:
+            launcher.show(appsOnly: true)
         case .theme(let name):
             setTheme(name)
         case .themeNext:
