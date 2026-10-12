@@ -159,7 +159,7 @@ Settings → Spotlight → Search Results), so hyprmac handles it carefully:
 - A tiled window dragged by its title bar swaps with the tile it is dropped on, or snaps back to its own
   tile (detected by polling every 0.25 s, so a very quick tiny drag may be missed). Resizing a tiled
   window by its edge snaps back; use the mouse modifier + right drag to move dividers.
-- macOS native fullscreen windows are left alone.
+- macOS native fullscreen windows are left alone (they live on their own Space and are invisible to hyprmac).
 - Verified live: start/quit, Spotlight preference write and restore, window inspection. Not verified (no
   screen or input automation in the dev session): title-bar drag swap, Chrome/VLC/Calendar/Finder popups in
   daily use, and whether Spotlight visibly honours the category list.

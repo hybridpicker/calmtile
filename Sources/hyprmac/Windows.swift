@@ -41,6 +41,15 @@ enum Windows {
         return ref as? T
     }
 
+    private static var enabledPids = Set<pid_t>()
+
+    /// Chromium and Electron apps (Chrome, Slack, Teams, VS Code) expose no windows until an assistive
+    /// client asks for it; AXManualAccessibility is their documented switch (no UI side effects).
+    static func enableAccessibility(_ ax: AXUIElement, pid: pid_t) {
+        guard enabledPids.insert(pid).inserted else { return }
+        AXUIElementSetAttributeValue(ax, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+    }
+
     static func list(excluding selfPid: pid_t, ignoring ignored: [String] = []) -> [AXWin] {
         var out = [AXWin]()
         let apps = NSWorkspace.shared.runningApplications
@@ -49,6 +58,7 @@ enum Windows {
         for app in apps {
             let ax = AXUIElementCreateApplication(app.processIdentifier)
             AXUIElementSetMessagingTimeout(ax, 0.25)
+            enableAccessibility(ax, pid: app.processIdentifier)
             guard let wins: [AXUIElement] = attr(ax, kAXWindowsAttribute) else { continue }
             for w in wins {
                 let role: String? = attr(w, kAXRoleAttribute)
@@ -78,8 +88,16 @@ enum Windows {
         for app in NSWorkspace.shared.runningApplications where app.activationPolicy != .prohibited && !app.isTerminated {
             let ax = AXUIElementCreateApplication(app.processIdentifier)
             AXUIElementSetMessagingTimeout(ax, 0.5)
-            guard let wins: [AXUIElement] = attr(ax, kAXWindowsAttribute), !wins.isEmpty else { continue }
+            enableAccessibility(ax, pid: app.processIdentifier)
+            guard let wins: [AXUIElement] = attr(ax, kAXWindowsAttribute), !wins.isEmpty else {
+                var ref: CFTypeRef?
+                let err = AXUIElementCopyAttributeValue(ax, kAXWindowsAttribute as CFString, &ref)
+                if app.activationPolicy == .regular { lines.append("\(app.bundleIdentifier ?? "?") no windows (AX error \(err.rawValue))") }
+                continue
+            }
             for w in wins {
+                let fullscreen: Bool = attr(w, "AXFullScreen") ?? false
+                if fullscreen { lines.append("\(app.bundleIdentifier ?? "?") fullscreen window") }
                 let role: String = attr(w, kAXRoleAttribute) ?? "?"
                 let sub: String = attr(w, kAXSubroleAttribute) ?? "-"
                 var settable = DarwinBoolean(false)
