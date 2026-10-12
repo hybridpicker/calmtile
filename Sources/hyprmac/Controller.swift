@@ -15,6 +15,8 @@ final class Controller {
     private var settled = [WindowID: CGRect]()
     private var observers = [pid_t: AXObserver]()
     private var tickQueued = false
+    private var overview = false
+    private var overviewTimer: Timer?
     private var drag: Drag?
     /// A tiled window the user is dragging by its title bar (not with the mouse modifier).
     private var nativeDrag: WindowID?
@@ -68,6 +70,10 @@ final class Controller {
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { [weak self] _ in self?.monitorsDirty = true }
+        // Mission Control opens within a fraction of a second: poll for it faster than the main tick.
+        let ot = Timer(timeInterval: 0.06, repeats: true) { [weak self] _ in self?.checkOverview() }
+        RunLoop.main.add(ot, forMode: .common)
+        overviewTimer = ot
         let t = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in self?.tick() }
         RunLoop.main.add(t, forMode: .common)
         timer = t
@@ -132,6 +138,31 @@ final class Controller {
         observers[pid] = obs
     }
 
+    /// While Mission Control is open every window sits at its layout position (not parked in a corner), so
+    /// macOS shows a proper overview. On leaving it, the workspace of the window you picked becomes current.
+    private func checkOverview() {
+        guard !paused else { return }
+        let open = Windows.overviewOpen()
+        if open == overview { return }
+        overview = open
+        if open {
+            border.hide()
+            for (id, f) in engine.overviewPlan() {
+                guard let w = known[id], case .hidden? = applied[id] else { continue }
+                Windows.setFrame(w.element, f)
+            }
+            Log.write("overview opened")
+        } else {
+            if let f = Windows.focusedWindowID(), known[f.id] != nil,
+               let n = engine.workspaceOf(f.id), n != 0, n != engine.currentWorkspace {
+                engine.activate(f.id)
+            }
+            applied = [:]
+            Log.write("overview closed")
+            tick()
+        }
+    }
+
     private func requestTick() {
         guard !tickQueued else { return }
         tickQueued = true
@@ -153,6 +184,7 @@ final class Controller {
             applied = [:]
         }
         if paused { border.hide(); updateStatus(); return }
+        if overview { return }
         // Locked screen / screen saver: apps expose no windows, which would empty the layout.
         if let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
            ["com.apple.loginwindow", "com.apple.ScreenSaver.Engine"].contains(front) {

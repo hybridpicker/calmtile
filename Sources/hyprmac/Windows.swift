@@ -108,7 +108,7 @@ enum Windows {
                 let hasMin = (attr(w, kAXMinimizeButtonAttribute) as AXUIElement?) != nil
                 let hasFull = (attr(w, kAXFullScreenButtonAttribute) as AXUIElement?) != nil
                 let f = frame(of: w)
-                lines.append("\(app.bundleIdentifier ?? "?") role=\(role) subrole=\(sub) resizable=\(settable.boolValue) modal=\(modal) min=\(min) close=\(hasClose) minimize=\(hasMin) full=\(hasFull) size=\(f.map { "\(Int($0.width))x\(Int($0.height))" } ?? "?")")
+                lines.append("\(app.bundleIdentifier ?? "?") role=\(role) subrole=\(sub) resizable=\(settable.boolValue) modal=\(modal) min=\(min) close=\(hasClose) minimize=\(hasMin) full=\(hasFull) size=\(f.map { "\(Int($0.width))x\(Int($0.height))" } ?? "?") at=\(f.map { "\(Int($0.minX)),\(Int($0.minY))" } ?? "?")")
             }
         }
         return lines.joined(separator: "\n")
@@ -155,6 +155,19 @@ enum Windows {
     static func setSize(_ el: AXUIElement, _ s: CGSize) {
         var size = s
         if let sv = AXValueCreate(.cgSize, &size) { AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sv) }
+    }
+
+    /// Mission Control (also App Exposé, Launchpad) puts full-screen Dock windows above everything. One such
+    /// window is always there; two or more mean an overview is open (measured on macOS 26: 1 idle, 3 open).
+    static func overviewOpen() -> Bool {
+        guard let raw = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID),
+              let list = (raw as NSArray) as? [[String: Any]] else { return false }
+        var n = 0
+        for w in list where (w["kCGWindowOwnerName"] as? String) == "Dock" && ((w["kCGWindowLayer"] as? Int) ?? 0) > 0 {
+            if let b = w["kCGWindowBounds"] as? [String: Any], let r = CGRect(dictionaryRepresentation: b as CFDictionary),
+               r.width >= 800, r.height >= 500 { n += 1 }
+        }
+        return n >= 2
     }
 
     /// Topmost normal window under `p` (Accessibility coordinates), front to back.

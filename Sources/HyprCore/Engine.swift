@@ -441,6 +441,17 @@ public final class Engine {
         return out
     }
 
+    /// Every window of every workspace at its own layout position, as if all workspaces were visible.
+    /// Used while Mission Control is open, so macOS lays the windows out instead of showing a pile in one corner.
+    public func overviewPlan() -> [WindowID: CGRect] {
+        var out = [WindowID: CGRect]()
+        for ws in workspaces.values {
+            for (id, f) in ws.tree.frames(in: rect(of: ws), gap: gap) { out[id] = f }
+            for id in ws.floating { if let f = floatFrames[id] { out[id] = f } }
+        }
+        return out
+    }
+
     // MARK: - Helpers
 
     /// Nearest window in `d` that overlaps the focused one on the other axis.

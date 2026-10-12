@@ -123,6 +123,15 @@ Actions: `scratchpad`, `move-to-scratchpad`, `launcher`, `theme <name>`, `theme-
 Off by default. The menu item "Start at login" (or `hyprmac --install-login` / `--uninstall-login`)
 writes/removes `~/Library/LaunchAgents/local.hyprmac.plist`, which opens `~/Applications/hyprmac.app`.
 
+## Mission Control
+
+All workspaces live on one macOS Space; inactive ones are parked in a corner. While Mission Control is open
+(four-finger swipe up, `⌃↑`) hyprmac moves every window to its layout position, so macOS shows a proper
+overview instead of a pile in the corner. When it closes, windows are parked again and the workspace of the
+window you picked becomes current. Measured: windows spread within ~0.1 s of opening, parked again after
+closing; how smooth the macOS animation looks was not observed. Real macOS Spaces per workspace are not used
+(there is no public API to move windows between Spaces).
+
 ## Own Spotlight: applications only (`⌘Space`)
 
 `⌘Space` opens hyprmac's launcher restricted to applications (installed, with running ones just launching/
