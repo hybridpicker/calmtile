@@ -161,6 +161,9 @@ struct Config {
     var scratchpadApp = "Terminal"
     /// Hold these keys and drag: left button moves, right button resizes. "" turns the mouse off.
     var mouseModifier = "cmd-alt"
+    /// A tile is never split below this size; the new window goes to a workspace with room instead.
+    var minTileWidth: CGFloat = 420
+    var minTileHeight: CGFloat = 280
     /// Spotlight lists applications only while hyprmac runs (original categories restored on quit/pause).
     var spotlightAppsOnly = false
     var bindings: [String: String] = Config.defaultBindings
@@ -225,6 +228,8 @@ struct Config {
             guard let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
                 return (cfg, ["config.json is not a JSON object - using defaults"])
             }
+            if let v = obj["minTileWidth"] as? Double { cfg.minTileWidth = CGFloat(v) }
+            if let v = obj["minTileHeight"] as? Double { cfg.minTileHeight = CGFloat(v) }
             if let v = obj["gap"] as? Double { cfg.gap = CGFloat(v) }
             if let v = obj["outerGap"] as? Double { cfg.outerGap = CGFloat(v) }
             if let v = obj["borderWidth"] as? Double { cfg.borderWidth = CGFloat(v) }
@@ -269,6 +274,7 @@ struct Config {
     func json() -> String {
         var obj: [String: Any] = [
             "mouseModifier": mouseModifier, "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces,
+            "minTileWidth": Double(minTileWidth), "minTileHeight": Double(minTileHeight),
             "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "theme": theme, "scratchpadApp": scratchpadApp,
             "spotlightAppsOnly": spotlightAppsOnly, "floatApps": floatApps, "floatTitles": floatTitles, "ignoreApps": ignoreApps, "passthroughApps": passthroughApps, "bindings": bindings,
         ]

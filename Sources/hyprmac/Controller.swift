@@ -77,6 +77,7 @@ final class Controller {
     private func applyConfig() {
         engine.gap = config.gap
         engine.outerGap = config.outerGap
+        engine.minTile = CGSize(width: config.minTileWidth, height: config.minTileHeight)
         let n = config.mainWorkspaces
         engine.preferredMonitor = { $0 <= n ? 0 : 1 }
         hotkeys.table = config.table()

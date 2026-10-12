@@ -101,6 +101,7 @@ windows. To give an app its keys back completely, add its bundle id to `passthro
   "gap": 4,
   "outerGap": 6,
   "mainWorkspaces": 5,
+  "minTileWidth": 420,
   "spotlightAppsOnly": false,
   "floatApps": ["com.apple.calculator"],
   "ignoreApps": ["com.apple.SecurityAgent"],
@@ -152,7 +153,7 @@ Settings → Spotlight → Search Results), so hyprmac handles it carefully:
 ## Known limits
 
 - No overlap by design: hyprmac learns the minimum size an app insists on and gives that window the room
-  (neighbours shrink). A tile is never split below 420×280 px. If a window cannot fit on the workspace without
+  (neighbours shrink). A tile is never split below 420×280 px (`minTileWidth`/`minTileHeight`, 0 turns it off). If a window cannot fit on the workspace without
   overlapping (e.g. Calendar ≥ 908 px plus another app ≥ 600 px on a 1440 px screen), it opens on / moves to the
   next workspace with room and hyprmac switches there; `⌘1…9` goes back. Only when no workspace has room it floats.
 - Windows are moved by the app after they open (no compositor), so there is a short flicker.
