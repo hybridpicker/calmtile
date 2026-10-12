@@ -60,6 +60,22 @@ public final class DwindleTree {
         return find(root)
     }
 
+    /// Minimum size an app insists on (learned by the engine); a split never gives a window less.
+    public var minSize: (WindowID) -> CGSize = { _ in .zero }
+
+    /// Smallest area `n` can be laid out in.
+    func minimum(of n: Node, gap: CGFloat) -> CGSize {
+        if let w = n.window { return minSize(w) }
+        guard let a = n.first, let b = n.second else { return .zero }
+        let ma = minimum(of: a, gap: gap), mb = minimum(of: b, gap: gap)
+        switch n.axis {
+        case .horizontal: return CGSize(width: ma.width + mb.width + gap, height: max(ma.height, mb.height))
+        case .vertical: return CGSize(width: max(ma.width, mb.width), height: ma.height + mb.height + gap)
+        }
+    }
+
+    public func minimum(gap: CGFloat) -> CGSize { return root.map { minimum(of: $0, gap: gap) } ?? .zero }
+
     public func frames(in rect: CGRect, gap: CGFloat) -> [WindowID: CGRect] {
         var out = [WindowID: CGRect]()
         func place(_ n: Node, _ r: CGRect) {
@@ -67,11 +83,19 @@ public final class DwindleTree {
             guard let a = n.first, let b = n.second else { return }
             switch n.axis {
             case .horizontal:
-                let w1 = ((r.width - gap) * n.ratio).rounded()
+                var w1 = ((r.width - gap) * n.ratio).rounded()
+                let ma = minimum(of: a, gap: gap).width, mb = minimum(of: b, gap: gap).width
+                if ma + mb + gap <= r.width {   // a minimum is only honoured when both sides can have theirs
+                    w1 = min(max(w1, ma), r.width - gap - mb)
+                }
                 place(a, CGRect(x: r.minX, y: r.minY, width: w1, height: r.height))
                 place(b, CGRect(x: r.minX + w1 + gap, y: r.minY, width: r.width - gap - w1, height: r.height))
             case .vertical:
-                let h1 = ((r.height - gap) * n.ratio).rounded()
+                var h1 = ((r.height - gap) * n.ratio).rounded()
+                let ma = minimum(of: a, gap: gap).height, mb = minimum(of: b, gap: gap).height
+                if ma + mb + gap <= r.height {
+                    h1 = min(max(h1, ma), r.height - gap - mb)
+                }
                 place(a, CGRect(x: r.minX, y: r.minY, width: r.width, height: h1))
                 place(b, CGRect(x: r.minX, y: r.minY + h1 + gap, width: r.width, height: r.height - gap - h1))
             }

@@ -240,6 +240,29 @@ do {
     check(!e.toggleScratchpad(), "a closed scratchpad window is forgotten")
 }
 
+// minimum tile size: windows that would not fit float instead of being squeezed
+do {
+    let e = makeEngine()   // 1920x1080
+    for id in 1...8 { e.windowAppeared(WindowID(id), floating: false) }
+    let tiled = e.tiledFrames()
+    check(tiled.values.allSatisfy { $0.width >= 420 && $0.height >= 280 }, "no tile below the minimum size")
+    check(tiled.count == 4 && e.workspaceOf(8) == 2 && e.currentWorkspace == 2, "the overflow window opens on the next workspace")
+    let f = makeEngine()
+    f.windowAppeared(1, floating: false)
+    f.windowAppeared(2, floating: false)
+    f.floatTooBig(2, actual: CGSize(width: 900, height: 700))
+    check(f.isFloating(2) && frame(f.plan()[2])?.size == CGSize(width: 900, height: 700), "a too-big window floats at its own size")
+    check(frame(f.plan()[1]) == CGRect(x: 8, y: 8, width: 1904, height: 1064), "the other window gets the whole area back")
+    let g = makeEngine()
+    g.windowAppeared(1, floating: false)
+    g.windowAppeared(2, floating: false)
+    g.noteMinSize(1, want: CGSize(width: 944, height: 1064), got: CGSize(width: 1200, height: 1064))
+    let g1 = frame(g.plan()[1])!, g2 = frame(g.plan()[2])!
+    check(g1.width >= 1200 && g1.maxX <= g2.minX, "a window with a minimum width gets it and the neighbour shrinks")
+    g.noteMinSize(2, want: g2.size, got: CGSize(width: 1200, height: g2.height))
+    check(g.workspaceOf(2) == 2 && g.currentWorkspace == 2 && isHidden(g.plan()[1]) && frame(g.plan()[2]) != nil, "minimums that cannot both fit send one window to the next workspace")
+}
+
 // resize smart grows/shrinks the focused window along its split
 do {
     let e = makeEngine()

@@ -284,6 +284,16 @@ final class Controller {
             }
             applied[id] = placement
             if case .frame = placement { settled[id] = Windows.frame(of: w.element) } else { settled[id] = nil }
+            // A minimum size larger than the tile would overlap the neighbours: tell the engine, which
+            // makes room for it (or floats the window when the workspace cannot hold it).
+            if case .frame(let want) = placement, !engine.isFloating(id), engine.tiledFrames().count > 1,
+               let got = settled[id], got.width > want.width + 8 || got.height > want.height + 8 {
+                Log.write("minimum size exceeds the tile (\(w.bundleID))")
+                engine.noteMinSize(id, want: want.size, got: got.size)
+                applied = [:]
+                requestTick()
+                return
+            }
         }
     }
 

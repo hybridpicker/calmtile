@@ -39,12 +39,17 @@ public final class Engine {
     /// Which monitor a workspace lives on (clamped to the monitors that exist).
     public var preferredMonitor: (Int) -> Int = { $0 <= 5 ? 0 : 1 }
 
+    /// A tile is never split below this size: the new window floats instead (0 turns the rule off).
+    public var minTile = CGSize(width: 420, height: 280)
+
     public private(set) var monitors: [Monitor]
     public private(set) var focused: WindowID?
     public private(set) var currentWorkspace = 1
     public private(set) var previousWorkspace = 1
 
     private var workspaces = [Int: Workspace]()
+    /// Minimum sizes apps turned out to insist on (window -> size, 0 = no limit on that axis).
+    private var minSizes = [WindowID: CGSize]()
     /// Workspaces the user moved to another monitor by hand (workspace -> monitor).
     private var monitorOverride = [Int: Int]()
     private var visible = [Int: Int]()          // monitor id -> workspace number
@@ -102,15 +107,97 @@ public final class Engine {
         if floating {
             ws.floating.append(id)
             if let f = frame { floatFrames[id] = f }
-        } else {
+        } else if fits(into: ws) {
             insertTiled(id, into: ws)
+        } else if let other = roomyWorkspace(after: ws) {
+            // No room here without overlapping or squeezing: it opens on the next workspace with room.
+            let target = ensure(other)
+            home[id] = other
+            insertTiled(id, into: target)
+            target.lastFocused = id
+            focused = id
+            switchWorkspace(other)
+            focused = id
+            return
+        } else {
+            // Nowhere to go: a centred floating window.
+            ws.floating.append(id)
+            floatFrames[id] = centered(CGSize(width: monitors[ws.monitor].frame.width * 0.6,
+                                              height: monitors[ws.monitor].frame.height * 0.7), on: ws.monitor)
         }
         ws.lastFocused = id
         focused = id
     }
 
+    /// The app could not get as small as its tile. Remember the size it insists on so the neighbours make
+    /// room; when even that cannot fit the workspace, it floats at that size instead.
+    public func noteMinSize(_ id: WindowID, want: CGSize, got: CGSize) {
+        guard let n = home[id], n != 0, let ws = workspaces[n], ws.tree.contains(id) else { return }
+        let m = CGSize(width: got.width > want.width + 8 ? got.width : 0, height: got.height > want.height + 8 ? got.height : 0)
+        guard m.width > 0 || m.height > 0 else { return }
+        minSizes[id] = m
+        let area = rect(of: ws), need = ws.tree.minimum(gap: gap)
+        if need.width > area.width || need.height > area.height {
+            // Cannot sit beside its neighbours without overlapping them: move it to a workspace with room.
+            ws.tree.remove(id)
+            if ws.lastFocused == id { ws.lastFocused = ws.tree.windows.last ?? ws.floating.last }
+            if let other = roomyWorkspace(after: ws, needing: m) {
+                let target = ensure(other)
+                home[id] = other
+                insertTiled(id, into: target)
+                target.lastFocused = id
+                switchWorkspace(other)
+                focused = id
+            } else {
+                minSizes[id] = nil
+                ws.floating.append(id)
+                floatFrames[id] = centered(got, on: ws.monitor)
+            }
+        }
+    }
+
+    /// The next workspace (wrapping, same monitor) that can take one more window without overlap.
+    private func roomyWorkspace(after ws: Workspace, needing m: CGSize = .zero) -> Int? {
+        for step in 1...9 {
+            let n = (ws.number - 1 + step) % 9 + 1
+            guard n != ws.number, clampedMonitor(n) == ws.monitor else { continue }
+            guard let cand = workspaces[n] else { return n }
+            if cand.tree.windows.isEmpty { return n }
+            let area = rect(of: cand)
+            let need = cand.tree.minimum(gap: gap)
+            if fits(into: cand), need.width + m.width + gap <= area.width { return n }
+        }
+        return nil
+    }
+
+    /// The app cannot get as small as its tile (minimum size): let it float at the size it insists on.
+    public func floatTooBig(_ id: WindowID, actual: CGSize) {
+        guard let n = home[id], n != 0, let ws = workspaces[n], ws.tree.contains(id) else { return }
+        ws.tree.remove(id)
+        ws.floating.append(id)
+        if ws.fullscreen == id { ws.fullscreen = nil }
+        floatFrames[id] = centered(actual, on: ws.monitor)
+    }
+
+    private func centered(_ size: CGSize, on monitor: Int) -> CGRect {
+        let m = monitors[monitor].frame
+        let w = min(size.width, m.width), h = min(size.height, m.height)
+        return CGRect(x: (m.midX - w / 2).rounded(), y: (m.midY - h / 2).rounded(), width: w.rounded(), height: h.rounded())
+    }
+
+    /// Would splitting the tile next to the focus keep both halves at least `minTile`?
+    private func fits(into ws: Workspace) -> Bool {
+        guard minTile.width > 0 || minTile.height > 0, !ws.tree.windows.isEmpty else { return true }
+        let frames = ws.tree.frames(in: rect(of: ws), gap: gap)
+        let near = ws.lastFocused.flatMap { ws.tree.contains($0) ? $0 : nil } ?? ws.tree.windows.last!
+        guard let f = frames[near] else { return true }
+        if f.width >= f.height { return (f.width - gap) / 2 >= minTile.width }
+        return (f.height - gap) / 2 >= minTile.height
+    }
+
     public func windowGone(_ id: WindowID) {
         guard let n = home.removeValue(forKey: id) else { return }
+        minSizes[id] = nil
         if n == 0 {
             scratch.removeAll { $0 == id }
             floatFrames[id] = nil
@@ -387,6 +474,7 @@ public final class Engine {
     private func ensure(_ n: Int) -> Workspace {
         if let ws = workspaces[n] { return ws }
         let ws = Workspace(number: n, monitor: clampedMonitor(n))
+        ws.tree.minSize = { [unowned self] id in self.minSizes[id] ?? .zero }
         workspaces[n] = ws
         if visible[ws.monitor] == nil { visible[ws.monitor] = n }
         return ws

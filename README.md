@@ -147,7 +147,10 @@ Settings → Spotlight → Search Results), so hyprmac handles it carefully:
 
 ## Known limits
 
-- Apps with a minimum size (Terminal, Chrome) cannot always shrink to the tile; they overlap.
+- No overlap by design: hyprmac learns the minimum size an app insists on and gives that window the room
+  (neighbours shrink). A tile is never split below 420×280 px. If a window cannot fit on the workspace without
+  overlapping (e.g. Calendar ≥ 908 px plus another app ≥ 600 px on a 1440 px screen), it opens on / moves to the
+  next workspace with room and hyprmac switches there; `⌘1…9` goes back. Only when no workspace has room it floats.
 - Windows are moved by the app after they open (no compositor), so there is a short flicker.
 - A tiled window dragged by its title bar swaps with the tile it is dropped on, or snaps back to its own
   tile (detected by polling every 0.25 s, so a very quick tiny drag may be missed). Resizing a tiled
