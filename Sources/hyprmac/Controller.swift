@@ -229,8 +229,10 @@ final class Controller {
         var focusedClosed = false
         let living: Set<WindowID> = config.useSpaces ? Spaces.existingWindowIDs() : []
         for id in Array(known.keys) where !seen.contains(id) {
-            if config.useSpaces, living.contains(id), let n = Spaces.number(ofWindow: id) {
+            if config.useSpaces, living.contains(id), let n = Spaces.number(ofWindow: id), n != engine.currentWorkspace {
                 // On another desktop (not visible to Accessibility right now): keep it, follow it if it moved.
+                // A window that still exists on THIS desktop but is gone from Accessibility is hidden or
+                // closed by its app (Word's start gallery, say): it must not keep a tile.
                 if let home = engine.workspaceOf(id), home != 0, home != n { engine.relocate(id, to: n) }
                 continue
             }
