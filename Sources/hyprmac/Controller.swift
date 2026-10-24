@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 import HyprCore
 
 final class Controller {
@@ -22,6 +23,10 @@ final class Controller {
     private var nativeDrag: WindowID?
     /// Set when the scratchpad was toggled while empty: the next window of `scratchpadApp` is captured.
     private var pendingScratch: Date?
+    /// Mission Control is being driven to create a desktop: ticks and further workspace keys wait.
+    private var creatingDesktop = false
+    /// Secure Keyboard Entry is on somewhere: no hotkey can arrive (shown in the menu bar, logged once).
+    private var secureInput = false
 
     private struct Drag {
         let id: WindowID
@@ -61,7 +66,7 @@ final class Controller {
         installTerminationHandlers()
         launcher.provider = { [weak self] in self?.launcherItems() ?? [] }
         launcher.onClose = { [weak self] in self?.focusEngineChoice() }
-        hotkeys.handler = { [weak self] action in self?.handle(action) ?? false }
+        hotkeys.handler = { [weak self] action, late in self?.handle(action, late: late) ?? false }
         hotkeys.mouseHandler = { [weak self] type, p, flags in self?.handleMouse(type, p, flags) ?? false }
         let tapOK = hotkeys.start()
         Log.write("key tap installed=\(tapOK) bindings=\(hotkeys.table.count)")
@@ -88,6 +93,7 @@ final class Controller {
         engine.preferredMonitor = config.useSpaces ? { _ in 0 } : { $0 <= n ? 0 : 1 }
         engine.allowOverflow = !config.useSpaces
         hotkeys.table = config.table()
+        hotkeys.mouseModifier = parseMods(config.mouseModifier)
         border.width = config.borderWidth
         border.inside = config.gap < config.borderWidth
         border.radius = config.borderRadius
@@ -185,13 +191,14 @@ final class Controller {
             applied = [:]
         }
         if paused { border.hide(); updateStatus(); return }
-        if overview { return }
+        if overview || creatingDesktop { return }
         // Locked screen / screen saver: apps expose no windows, which would empty the layout.
         if let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
            ["com.apple.loginwindow", "com.apple.ScreenSaver.Engine"].contains(front) {
             border.hide()
             return
         }
+        watchSecureInput()
 
         observeApps()
         if config.useSpaces, let n = Spaces.activeNumber(), n != engine.currentWorkspace {
@@ -476,6 +483,12 @@ final class Controller {
 
     /// ⌘⌥ (configurable) + left drag moves, + right drag resizes. Returns true when the event is consumed.
     private func handleMouse(_ type: CGEventType, _ p: CGPoint, _ flags: CGEventFlags) -> Bool {
+        let consumed = mouseStep(type, p, flags)
+        hotkeys.dragActive = drag != nil
+        return consumed
+    }
+
+    private func mouseStep(_ type: CGEventType, _ p: CGPoint, _ flags: CGEventFlags) -> Bool {
         switch type {
         case .leftMouseDown, .rightMouseDown:
             if Log.debug { Log.write("mouse down flags=\(Mods(flags: flags).rawValue) want=\(parseMods(config.mouseModifier)?.rawValue ?? -1) at \(p)") }
@@ -544,9 +557,11 @@ final class Controller {
 
     // MARK: - Hotkeys
 
-    /// Returns true when the key was consumed.
-    private func handle(_ action: Action) -> Bool {
-        Log.write("hotkey \(action)")
+    /// Returns true when the key was consumed. `late`: the key tap already let the key through because this thread
+    /// was busy; a focus key is then dropped (the app got its arrow key), everything else still runs.
+    private func handle(_ action: Action, late: Bool = false) -> Bool {
+        Log.write("hotkey \(action)\(late ? " (late)" : "")")
+        if late, case .focus = action { return false }
         if case .togglePause = action { togglePaused(); return true }
         if paused { return false }
         if let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
@@ -573,15 +588,20 @@ final class Controller {
     /// moving a window through a private call was tried and has no effect on macOS 26.
     private func moveFocusedToDesktop(_ n: Int) {
         let from = engine.currentWorkspace
-        guard n != from, n <= Spaces.count, let id = engine.focused, let w = known[id],
-              let f = Windows.frame(of: w.element) else { return }
-        guard Spaces.desktopShortcutEnabled(n) else {
-            Log.write("move to desktop \(n): enable the system shortcut \"Switch to Desktop \(n)\" (Control+\(n)) first")
+        guard n != from, let id = engine.focused, let w = known[id], let f = Windows.frame(of: w.element) else { return }
+        guard let position = Spaces.position(of: n) else {
+            Log.write("move to desktop \(n): it does not exist yet (go there with the workspace key first)")
+            NSSound.beep()
+            return
+        }
+        // The system shortcut counts desktops by their position in the Dock's order, not by workspace number.
+        guard Spaces.desktopShortcutEnabled(position: position) else {
+            Log.write("move to desktop \(n): enable the system shortcut \"Switch to Desktop \(position)\" (Control+\(position)) first")
             NSSound.beep()
             return
         }
         let digitKeys: [Int: Int64] = [1: 18, 2: 19, 3: 20, 4: 21, 5: 23, 6: 22, 7: 26, 8: 28, 9: 25]
-        guard let key = digitKeys[n] else { return }
+        guard let key = digitKeys[position] else { return }
         let grab = CGPoint(x: f.minX + min(80, f.width / 2), y: f.minY + 12)
         let moved = CGPoint(x: grab.x + 6, y: grab.y + 2)
         let saved = CGEvent(source: nil)?.location ?? grab
@@ -610,24 +630,39 @@ final class Controller {
         }
     }
 
-    /// Switch workspace; with `useSpaces` that is the Nth macOS desktop.
+    /// Switch workspace; with `useSpaces` that is the Nth macOS desktop, created on the spot when it does not
+    /// exist yet (Hyprland semantics: a workspace exists as soon as you go there).
     private func goTo(_ n: Int) {
         if config.useSpaces {
-            guard Spaces.switchTo(n) else {
-                Log.write("desktop \(n) does not exist: create it in Mission Control")
-                return
-            }
-            engine.switchWorkspace(n)
-            applied = [:]
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                self?.applyPlan()
-                self?.focusEngineChoice()
+            if Spaces.switchTo(n) { desktopSwitched(to: n, after: 0.05); return }
+            guard !creatingDesktop else { return }
+            creatingDesktop = true
+            Log.write("desktop \(n) does not exist: creating it through Mission Control")
+            Spaces.createAndSwitch(to: n) { [weak self] ok in
+                guard let self = self else { return }
+                self.creatingDesktop = false
+                if ok {
+                    Log.write("created desktop \(n)")
+                    self.desktopSwitched(to: n, after: 0.6)   // the overview closes with an animation
+                } else {
+                    Log.write("could not create desktop \(n): Mission Control did not show its Spaces bar")
+                    NSSound.beep()
+                }
             }
             return
         }
         engine.switchWorkspace(n)
         applyPlan()
         focusEngineChoice()
+    }
+
+    private func desktopSwitched(to n: Int, after delay: TimeInterval) {
+        engine.switchWorkspace(n)
+        applied = [:]
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.applyPlan()
+            self?.focusEngineChoice()
+        }
     }
 
     private func perform(_ action: Action) -> Bool {
@@ -774,6 +809,12 @@ final class Controller {
             }
         }
         menu.addItem(NSMenuItem.separator())
+        if secureInput {
+            let holder = Spaces.secureInputPID().flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName }
+            let hint = NSMenuItem(title: "Hotkeys blocked: secure keyboard entry" + (holder.map { " (\($0))" } ?? ""), action: nil, keyEquivalent: "")
+            hint.isEnabled = false
+            menu.addItem(hint)
+        }
         menu.addItem(withTitle: "Reload config", action: #selector(MenuTarget.reload), keyEquivalent: "").target = target
         let sp = menu.addItem(withTitle: "Spotlight: applications only", action: #selector(MenuTarget.toggleSpotlight), keyEquivalent: "")
         sp.target = target
@@ -830,8 +871,24 @@ final class Controller {
         }
     }
 
+    /// Secure Keyboard Entry (Terminal's menu item, password fields, password managers) stops every event tap from
+    /// receiving keys; hotkeys silently "do nothing" until it ends. Say so in the menu bar and the log.
+    private func watchSecureInput() {
+        let on = IsSecureEventInputEnabled()
+        guard on != secureInput else { return }
+        secureInput = on
+        if on {
+            let holder = Spaces.secureInputPID().flatMap { NSRunningApplication(processIdentifier: $0)?.bundleIdentifier }
+            Log.write("secure keyboard entry on (\(holder ?? "holder unknown")): no hotkey can be received until it ends")
+        } else {
+            Log.write("secure keyboard entry off: hotkeys work again")
+        }
+        updateStatus()
+    }
+
     private func updateStatus() {
-        let title = paused ? "\u{25A6} \u{23F8}" : "\u{25A6} \(engine.currentWorkspace)"
+        var title = paused ? "\u{25A6} \u{23F8}" : "\u{25A6} \(engine.currentWorkspace)"
+        if secureInput { title += " \u{1F512}" }
         if statusItem?.button?.title != title { statusItem?.button?.title = title }
     }
 

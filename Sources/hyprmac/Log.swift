@@ -10,8 +10,11 @@ enum Log {
     }()
 
     static let debug = ProcessInfo.processInfo.environment["HYPRMAC_DEBUG"] != nil
+    private static let lock = NSLock()   // written from the main and the key tap thread
 
     static func write(_ s: String) {
+        lock.lock()
+        defer { lock.unlock() }
         let line = "\(fmt.string(from: Date())) \(s)\n"
         guard let data = line.data(using: .utf8) else { return }
         if let h = try? FileHandle(forWritingTo: url) {

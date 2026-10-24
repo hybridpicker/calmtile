@@ -11,7 +11,8 @@ open ~/Applications/hyprmac.app
 ```
 
 First start: allow it under System Settings → Privacy & Security → **Accessibility**
-(and **Input Monitoring** if macOS asks), then start it again. The menu bar shows `▦ <workspace>`.
+(and **Input Monitoring** if macOS asks), then start it again. The menu bar shows `▦ <workspace>`
+(`▦ ⏸` while paused, `🔒` while secure keyboard entry blocks all hotkeys).
 
 ## Default keys
 
@@ -85,10 +86,25 @@ launcher (`Theme: …`) or cycle with `⌃⌥⇧Space`; the choice is kept in `~
 
 ### Key conflicts with apps
 
-Workspace keys win everywhere, as in the AeroSpace setup: `⌘1…9` switches workspace even in Chrome
-(tab 1…9) and Terminal (window 1…9). Use `⌃Tab` / `⌃⇧Tab` or `⌘⌥←/→` for Chrome tabs, `⌘\`` for Terminal
-windows. To give an app its keys back completely, add its bundle id to `passthroughApps`
-(`com.google.Chrome`, `com.apple.Terminal`); that disables all hyprmac hotkeys while it is frontmost.
+Workspace keys win everywhere, as in Hyprland and the AeroSpace setup: hyprmac takes every bound key out of
+the event stream before the focused app sees it, so `⌘1…9` switches workspace even in Chrome (tab 1…9) and
+Terminal (window 1…9); the apps' own shortcuts need no change. Use `⌃Tab` / `⌃⇧Tab` or `⌘⌥←/→` for Chrome
+tabs, `⌘\`` for Terminal windows. To give an app its keys back completely, add its bundle id to
+`passthroughApps` (`com.google.Chrome`, `com.apple.Terminal`); that disables all hyprmac hotkeys while it is
+frontmost.
+
+The key tap runs on its own thread: an app that stops answering Accessibility calls can delay a workspace
+switch, but the key is still swallowed and never reaches the app (the log then says `main thread busy`;
+`⌘`-arrows pass through in that case, since the app may own them).
+
+When a hotkey "does nothing" anyway, one of these is the reason:
+
+- **Secure keyboard entry** is on: a password field, a password manager or Terminal's "Secure Keyboard Entry"
+  menu item. macOS then delivers keys to no hotkey tool at all. The menu bar shows `▦ 2 🔒`, the menu names
+  the app holding it, and the log says `secure keyboard entry on`; hotkeys return as soon as it ends.
+- Another hotkey tool started after hyprmac grabs the same key (AeroSpace, Karabiner, Raycast …): later taps
+  see the key first. Run only one.
+- With `"useSpaces": true`, the desktop is being created (see below); the switch follows within a second.
 
 ## Config
 
@@ -134,9 +150,22 @@ closing; how smooth the macOS animation looks was not observed. Real macOS Space
 
 ## Real desktops (`"useSpaces": true`)
 
-Opt-in. Workspace N is the Nth macOS desktop (Space) of the display: `⌘N` switches desktops, windows stay
-where macOS puts them, nothing is parked in a corner and Mission Control shows a clean desktop per
-workspace. Create the desktops in Mission Control first (`⌘N` on a missing desktop does nothing and logs it).
+Opt-in. Workspace N is a macOS desktop (Space) of the display: `⌘N` switches desktops, windows stay where
+macOS puts them, nothing is parked in a corner and Mission Control shows a clean desktop per workspace.
+
+- **Numbers stay with their desktops.** macOS moves the most recently used desktops to the front whenever
+  Mission Control opens ("Automatically rearrange Spaces based on most recent use", on by default), so "the
+  Nth desktop" is a moving target and `⌘2` would land somewhere else after every swipe up. hyprmac gives a
+  desktop the lowest free number when it first sees it (Dock order at the first start) and remembers it in
+  `~/.config/hyprmac/desktops.json`; the menu bar shows that number. Mission Control's own order and its
+  "Desktop N" labels may differ. With the setting off, the Dock's order is used as it is (a desktop dragged
+  elsewhere in Mission Control then takes its new position's number), like the system's `⌃N` shortcuts.
+- **A missing workspace is created when you go there** (Hyprland semantics): `⌘N` opens Mission Control for
+  about a second, presses its "add desktop" button and clicks the new desktop, which gets number N whatever
+  its position (`⌘5` with desktops 1–3 creates only 5). macOS has no API for this short of disabling SIP; the
+  Dock's Spaces bar is driven through Accessibility, as yabai does. Verified live on one display; with two
+  displays the Spaces bar of the display holding the active desktop is picked by position (not tested).
+  Desktops are never removed automatically; `--remove-desktop N` does it by hand.
 
 - Tiling works per desktop; trackpad swipes and Mission Control are followed (the active desktop becomes the
   current workspace, a window dragged to another desktop changes workspace).
@@ -177,7 +206,11 @@ Settings → Spotlight → Search Results), so hyprmac handles it carefully:
 ## Development aids
 
 - Test aid: `open -n -a ~/Applications/hyprmac.app --args --post-key cmd-space` synthesizes a key press for the running
-  instance (it must be launched through `open` so macOS applies the app's Accessibility grant).
+  instance (it must be launched through `open` so macOS applies the app's Accessibility grant; the bare binary
+  is not trusted and the key goes nowhere).
+- Desktops mode: `open -n -W -a ~/Applications/hyprmac.app --stdout out.txt --args --remove-desktop 4` removes
+  desktop 4 through Mission Control (undo for a desktop created by `⌘4`); `--dump-dock [depth]` prints the
+  Dock's accessibility tree while Mission Control is open (identifiers, no window titles).
 - Inspect real windows (no titles are printed):
   `open -n -a ~/Applications/hyprmac.app --stdout out.txt --args --dump-windows`.
 - `hyprmac --print-config` prints the effective config; `--restore-spotlight`, `--install-login`,

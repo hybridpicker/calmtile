@@ -10,6 +10,19 @@ if CommandLine.arguments.contains("--dump-windows") {
     exit(0)
 }
 
+if let i = CommandLine.arguments.firstIndex(of: "--dump-dock") {   // test aid: the Dock's accessibility tree while Mission Control is open
+    let depth = i + 1 < CommandLine.arguments.count ? Int(CommandLine.arguments[i + 1]) ?? 6 : 6
+    print(Spaces.dumpDock(depth: depth))
+    exit(0)
+}
+
+if let i = CommandLine.arguments.firstIndex(of: "--remove-desktop"), i + 1 < CommandLine.arguments.count,
+   let n = Int(CommandLine.arguments[i + 1]) {   // test aid: undo a desktop created by `--post-key cmd-N`
+    Spaces.readOnlyNumbers = true
+    Spaces.removeDesktop(n) { ok in print(ok ? "removed desktop \(n)" : "could not remove desktop \(n)"); exit(ok ? 0 : 1) }
+    RunLoop.main.run()
+}
+
 if CommandLine.arguments.contains("--restore-spotlight") {
     SpotlightMode.restore()
     exit(0)
