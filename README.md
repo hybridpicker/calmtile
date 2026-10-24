@@ -169,15 +169,24 @@ macOS puts them, nothing is parked in a corner and Mission Control shows a clean
 
 - Tiling works per desktop; trackpad swipes and Mission Control are followed (the active desktop becomes the
   current workspace, a window dragged to another desktop changes workspace).
-- A window that does not fit is not moved to another desktop (hyprmac cannot move windows between Spaces: the
-  private call has no effect on macOS 26.5, verified); it floats instead.
+- Which desktop a window is on is read from the window server, never from its presence in the Accessibility
+  window list: that list still shows the desktop just left for a moment after a switch. (Taking those windows as
+  "here" used to tile them into the new workspace, resize them on their own desktop and, when one of them was
+  focused, pull macOS straight back to it, so `⌘2` seemed not to get through.) Right after a switch, a window of the
+  new desktop that Accessibility has not listed yet keeps its tile; a window that is on the desktop but not drawn
+  (minimized, its app hidden, ordered out) loses it.
+- Windows always tile on their desktop, however small the tiles get (Hyprland): hyprmac cannot move windows
+  between Spaces (the private call has no effect on macOS 26.5, verified), so `minTileWidth`/`minTileHeight` only
+  apply without `useSpaces`. Only a window whose own minimum size cannot sit beside its neighbours floats.
 - `⌘⌥N` (send window to desktop N) drags the window's title bar while pressing the system shortcut
   `⌃N`. That needs "Switch to Desktop N" enabled in System Settings → Keyboard → Keyboard Shortcuts →
   Mission Control; without it hyprmac beeps and logs the hint. This path is not tested live (the shortcuts
   are disabled on the dev machine and hyprmac does not change that setting).
 - Only normal desktops of the display holding the active desktop count; full-screen app Spaces are skipped and
   workspaces 6–9 do not move to a second display in this mode.
-- Verified live: `⌘1/⌘2/⌘3` switch desktops, a missing desktop is refused, windows of other desktops stay known.
+- Verified live (2026-10-24, window-server check after each key): `⌘1→2→3→1` switches desktops and every window
+  stays on its own desktop at its size; no window is re-homed, no focus pulls macOS back; Terminal's 724 px
+  snapped width is trimmed to 716 px beside a 720 px neighbour.
 
 ## Own Spotlight: applications only (`⌘Space`)
 
@@ -205,9 +214,14 @@ Settings → Spotlight → Search Results), so hyprmac handles it carefully:
 
 ## Development aids
 
-- Test aid: `open -n -a ~/Applications/hyprmac.app --args --post-key cmd-space` synthesizes a key press for the running
+- Test aid: `open -g -n -a ~/Applications/hyprmac.app --args --post-key cmd-space` synthesizes a key press for the running
   instance (it must be launched through `open` so macOS applies the app's Accessibility grant; the bare binary
-  is not trusted and the key goes nowhere).
+  is not trusted and the key goes nowhere). `-g` keeps the helper from taking the foreground, which would close the
+  launcher it just opened. Bare keys are allowed here (`--post-key escape`).
+- Desktops mode: `open -g -n -W -a ~/Applications/hyprmac.app --stdout out.txt --args --probe-switch 2` switches to
+  desktop 2 and back, printing every 50 ms which desktop is active and which windows Accessibility lists (bundle
+  ids). Note that one-shot helpers see a placeholder instead of windows for Electron apps, whose accessibility tree
+  is only built after `AXManualAccessibility` is switched on; the running instance has done that long before.
 - Desktops mode: `open -n -W -a ~/Applications/hyprmac.app --stdout out.txt --args --remove-desktop 4` removes
   desktop 4 through Mission Control (undo for a desktop created by `⌘4`); `--dump-dock [depth]` prints the
   Dock's accessibility tree while Mission Control is open (identifiers, no window titles).
@@ -229,6 +243,9 @@ Settings → Spotlight → Search Results), so hyprmac handles it carefully:
   overlapping (e.g. Calendar ≥ 908 px plus another app ≥ 600 px on a 1440 px screen), it opens on / moves to the
   next workspace with room and hyprmac switches there; `⌘1…9` goes back. Only when no workspace has room it floats.
 - Windows are moved by the app after they open (no compositor), so there is a short flicker.
+- Apps that snap their size to a grid (Terminal: character cells) come out a few pixels larger than their tile
+  and would overlap the neighbour; hyprmac then asks once more for a size reduced by the overshoot, so the snapped
+  result stays inside the tile.
 - A tiled window dragged by its title bar swaps with the tile it is dropped on, or snaps back to its own
   tile (detected by polling every 0.25 s, so a very quick tiny drag may be missed). Resizing a tiled
   window by its edge snaps back; use the mouse modifier + right drag to move dividers.
@@ -238,5 +255,7 @@ Settings → Spotlight → Search Results), so hyprmac handles it carefully:
   VLC, Terminal, Dashlane, Notes, Mail, Finder, Safari, Preview, Teams, Zoom and VS Code. Not verified (no
   mouse or screen access in the dev session): title-bar drag swap, Chrome with several windows and
   Picture-in-Picture (Chrome was in native fullscreen), `⌘⌥N` with `useSpaces`, Zoom meetings, Xcode, a second display (self-tests
-  only), and whether Spotlight visibly honours the category list.
+  only), and whether Spotlight visibly honours the category list. The `⌘Space` launcher was seen on screen with
+  Spotlight staying closed; whether it holds keyboard focus right away on macOS 26 (the app activates itself from
+  an event tap, which the system may grant late, so it asks twice) was checked only behind a locked screen.
 - Title rules depend on the app's language; add your words to `floatTitles` if a secondary window still tiles.

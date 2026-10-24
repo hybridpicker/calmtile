@@ -23,6 +23,26 @@ if let i = CommandLine.arguments.firstIndex(of: "--remove-desktop"), i + 1 < Com
     RunLoop.main.run()
 }
 
+if let i = CommandLine.arguments.firstIndex(of: "--probe-switch"), i + 1 < CommandLine.arguments.count,
+   let n = Int(CommandLine.arguments[i + 1]) {   // test aid: how long the Accessibility window list lags a desktop switch
+    Spaces.readOnlyNumbers = true
+    let before = Spaces.activeNumber()
+    let t0 = Date()
+    func sample() -> String {
+        let ms = Int(Date().timeIntervalSince(t0) * 1000)
+        let ax = Windows.list(excluding: getpid()).map { "\($0.bundleID.split(separator: ".").last.map(String.init) ?? "?")@\(Spaces.number(ofWindow: $0.id).map(String.init) ?? "-")" }
+        let drawn = Spaces.existingWindows().filter { $0.value }.keys.compactMap { Spaces.number(ofWindow: $0) }
+        return "\(ms) ms: active=\(Spaces.activeNumber().map(String.init) ?? "?") ax=\(ax.sorted()) onscreen=\(Set(drawn).sorted())"
+    }
+    print(sample())
+    print(Spaces.switchTo(n) ? "switched to \(n)" : "no desktop \(n)")
+    for _ in 0..<16 { usleep(50_000); print(sample()) }
+    if let b = before { Spaces.switchTo(b) }
+    usleep(800_000)
+    print(sample())
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--restore-spotlight") {
     SpotlightMode.restore()
     exit(0)
@@ -37,7 +57,8 @@ if CommandLine.arguments.contains("--install-login") { LoginItem.install(); exit
 if CommandLine.arguments.contains("--uninstall-login") { LoginItem.uninstall(); exit(0) }
 
 if let i = CommandLine.arguments.firstIndex(of: "--post-key"), i + 1 < CommandLine.arguments.count,
-   let combo = parseCombo(CommandLine.arguments[i + 1]) {   // test aid: synthesize a key press for the running instance
+   let combo = parseCombo(CommandLine.arguments[i + 1])
+    ?? keyCodes[CommandLine.arguments[i + 1].lowercased()].map({ KeyCombo(keyCode: $0, mods: []) }) {   // test aid: synthesize a key press (bare keys allowed here, e.g. escape)
     let src = CGEventSource(stateID: .hidSystemState)
     for down in [true, false] {
         let e = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(combo.keyCode), keyDown: down)

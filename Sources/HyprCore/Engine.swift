@@ -39,10 +39,11 @@ public final class Engine {
     /// Which monitor a workspace lives on (clamped to the monitors that exist).
     public var preferredMonitor: (Int) -> Int = { $0 <= 5 ? 0 : 1 }
 
-    /// A tile is never split below this size: the new window floats instead (0 turns the rule off).
-    /// A window that does not fit may move to another workspace. Off when workspaces are real macOS Spaces,
-    /// where hyprmac cannot move windows between them.
+    /// A window that does not fit its workspace may move to another one. Off when workspaces are real macOS
+    /// Spaces, where hyprmac cannot move windows between them; windows then always tile where they are.
     public var allowOverflow = true
+    /// A tile is never split below this size: the new window goes to another workspace instead (0 turns the
+    /// rule off). Only consulted while `allowOverflow` is on.
     public var minTile = CGSize(width: 420, height: 280)
 
     public private(set) var monitors: [Monitor]
@@ -103,14 +104,17 @@ public final class Engine {
         if let cur = workspaces[currentWorkspace] { visible[cur.monitor] = cur.number }
     }
 
-    public func windowAppeared(_ id: WindowID, floating: Bool, frame: CGRect? = nil) {
+    /// A new window. `workspace` names the one it opened on when that is known (real macOS desktops); otherwise
+    /// it joins the current workspace.
+    public func windowAppeared(_ id: WindowID, floating: Bool, frame: CGRect? = nil, workspace: Int? = nil) {
         guard home[id] == nil else { return }
-        let ws = ensure(currentWorkspace)
+        let ws = ensure(workspace ?? currentWorkspace)
         home[id] = ws.number
         if floating {
             ws.floating.append(id)
             if let f = frame { floatFrames[id] = f }
-        } else if fits(into: ws) {
+        } else if !allowOverflow || fits(into: ws) {
+            // Without another workspace to overflow to, a window tiles however small its tile gets (Hyprland).
             insertTiled(id, into: ws)
         } else if let other = roomyWorkspace(after: ws) {
             // No room here without overlapping or squeezing: it opens on the next workspace with room.
@@ -129,7 +133,7 @@ public final class Engine {
                                               height: monitors[ws.monitor].frame.height * 0.7), on: ws.monitor)
         }
         ws.lastFocused = id
-        focused = id
+        if ws.number == currentWorkspace { focused = id }
     }
 
     /// Turn a tiled window into a floating one at `frame` (title rules: playlists, inspectors, DevTools).

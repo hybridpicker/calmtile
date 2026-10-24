@@ -27,6 +27,8 @@ final class Controller {
     private var creatingDesktop = false
     /// Secure Keyboard Entry is on somewhere: no hotkey can arrive (shown in the menu bar, logged once).
     private var secureInput = false
+    /// When the current desktop last changed (desktops mode): the Accessibility window list lags behind for a moment.
+    private var switchedAt = Date.distantPast
 
     private struct Drag {
         let id: WindowID
@@ -203,21 +205,31 @@ final class Controller {
         observeApps()
         if config.useSpaces, let n = Spaces.activeNumber(), n != engine.currentWorkspace {
             engine.switchWorkspace(n)   // the user switched desktops by gesture or Mission Control
+            switchedAt = Date()
         }
 
         // 1. reconcile the set of windows
+        // Desktops mode: which desktop a window is on comes from the window server, never from its presence in
+        // the Accessibility list. That list lags a desktop switch by a moment and still shows the desktop just
+        // left; taking those windows as "here" tiled them into the wrong workspace, and focusing one of them
+        // then pulled macOS straight back to its desktop.
         let current = Windows.list(excluding: myPid, ignoring: config.ignoreApps)
         var seen = Set<WindowID>()
         for w in current {
             seen.insert(w.id)
-            // Dragged here from another desktop by macOS itself: it now belongs to this workspace.
-            if config.useSpaces, let home = engine.workspaceOf(w.id), home != 0, home != engine.currentWorkspace {
-                engine.relocate(w.id, to: engine.currentWorkspace)
+            let desktop: Int? = config.useSpaces ? (Spaces.number(ofWindow: w.id) ?? engine.currentWorkspace) : nil
+            if Log.debug, let d = desktop, d != engine.currentWorkspace {
+                Log.write("Accessibility still lists a window of \(w.bundleID) from desktop \(d) on \(engine.currentWorkspace)")
+            }
+            // Dragged to another desktop by macOS itself: it now belongs to that workspace.
+            if let d = desktop, let home = engine.workspaceOf(w.id), home != 0, home != d {
+                engine.relocate(w.id, to: d)
                 applied[w.id] = nil
+                Log.write("window of \(w.bundleID) is on desktop \(d) now (was \(home))")
             }
             if known[w.id] == nil {
                 let float = !w.resizable || config.floatApps.contains(w.bundleID) || titleFloats(w)
-                engine.windowAppeared(w.id, floating: float, frame: float ? Windows.frame(of: w.element) : nil)
+                engine.windowAppeared(w.id, floating: float, frame: float ? Windows.frame(of: w.element) : nil, workspace: desktop)
                 if let t = pendingScratch {
                     if Date().timeIntervalSince(t) > 5 {
                         pendingScratch = nil
@@ -234,14 +246,23 @@ final class Controller {
         }
         let focusedBefore = engine.focused
         var focusedClosed = false
-        let living: Set<WindowID> = config.useSpaces ? Spaces.existingWindowIDs() : []
+        let living: [WindowID: Bool] = config.useSpaces ? Spaces.existingWindows() : [:]
+        let justSwitched = Date().timeIntervalSince(switchedAt) < 0.8
         for id in Array(known.keys) where !seen.contains(id) {
-            if config.useSpaces, living.contains(id), let n = Spaces.number(ofWindow: id), n != engine.currentWorkspace {
-                // On another desktop (not visible to Accessibility right now): keep it, follow it if it moved.
-                // A window that still exists on THIS desktop but is gone from Accessibility is hidden or
-                // closed by its app (Word's start gallery, say): it must not keep a tile.
-                if let home = engine.workspaceOf(id), home != 0, home != n { engine.relocate(id, to: n) }
-                continue
+            if config.useSpaces, let onscreen = living[id] {
+                let n = Spaces.number(ofWindow: id)
+                if let n = n, n != engine.currentWorkspace {
+                    // On another desktop (not visible to Accessibility right now): keep it, follow it if it moved.
+                    if let home = engine.workspaceOf(id), home != 0, home != n {
+                        engine.relocate(id, to: n)
+                        Log.write("window of \(known[id]?.bundleID ?? "?") is on desktop \(n) now (was \(home))")
+                    }
+                    continue
+                }
+                // On this desktop but missing from Accessibility: right after a switch the list has simply not
+                // caught up yet, so the window stays. Otherwise its app hid, minimized or ordered it out (Word's
+                // start gallery, say) and it must not keep a tile.
+                if n != nil, onscreen || justSwitched { continue }
             }
             if id == focusedBefore { focusedClosed = true }
             engine.windowGone(id)
@@ -330,6 +351,8 @@ final class Controller {
     private func updateBorder() {
         guard let id = engine.focused, let w = known[id] else { border.hide(); return }
         if case .hidden? = applied[id] { border.hide(); return }
+        // Desktops mode: the window's frame can still be read while it sits on another desktop; no outline then.
+        if config.useSpaces, let n = Spaces.number(ofWindow: id), n != engine.currentWorkspace { border.hide(); return }
         guard let f = Windows.frame(of: w.element) else { border.hide(); return }
         border.show(around: f)
     }
@@ -363,7 +386,9 @@ final class Controller {
                 Log.write("place \(id) \(w.bundleID) want=\(placement) actual=\(Windows.frame(of: w.element).map { "\($0)" } ?? "?") retry=\(retries[id] ?? 0)")
             }
             switch placement {
-            case .frame(let r): Windows.setFrame(w.element, r)
+            case .frame(let r):
+                Windows.setFrame(w.element, r)
+                if !engine.isFloating(id) { Windows.trimOvershoot(w.element, to: r) }
             case .hidden(let m): Windows.hide(w.element, on: monitors[min(m, monitors.count - 1)])
             }
             applied[id] = placement
@@ -382,7 +407,10 @@ final class Controller {
     }
 
     private func focusEngineChoice() {
-        if let id = engine.focused, let w = known[id] { Windows.focus(w) }
+        guard let id = engine.focused, let w = known[id] else { return }
+        // Activating a window that sits on another desktop makes macOS switch there: never by accident.
+        if config.useSpaces, let n = Spaces.number(ofWindow: id), n != engine.currentWorkspace { return }
+        Windows.focus(w)
     }
 
     // MARK: - Themes
@@ -658,6 +686,7 @@ final class Controller {
 
     private func desktopSwitched(to n: Int, after delay: TimeInterval) {
         engine.switchWorkspace(n)
+        switchedAt = Date()
         applied = [:]
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             self?.applyPlan()

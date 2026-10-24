@@ -276,6 +276,19 @@ do {
     f.allowOverflow = false
     for id in 1...8 { f.windowAppeared(WindowID(id), floating: false) }
     check(f.currentWorkspace == 1 && f.windows(in: 1).count == 8, "no overflow to another workspace when disabled")
+    let tiles = Array(f.tiledFrames().values)
+    check(tiles.count == 8, "without overflow every window tiles, however small (Hyprland)")
+    check(tiles.allSatisfy { $0.width > 0 && $0.height > 0 }, "tiles keep a size")
+    check(!tiles.enumerated().contains { i, a in tiles.dropFirst(i + 1).contains { a.intersects($0) } }, "tiles never overlap")
+    // A window that opened on another desktop (window server says so) joins that workspace without becoming focused.
+    let g = makeEngine()
+    g.allowOverflow = false
+    g.windowAppeared(1, floating: false)
+    g.windowAppeared(2, floating: false, workspace: 3)
+    check(g.workspaceOf(2) == 3 && g.currentWorkspace == 1 && g.focused == 1, "a window of another desktop is homed there, focus stays")
+    check(frame(g.plan()[1]) == CGRect(x: 8, y: 8, width: 1904, height: 1064), "the current workspace is not disturbed")
+    g.switchWorkspace(3)
+    check(g.focused == 2 && frame(g.plan()[2]) != nil, "switching there focuses it")
 }
 
 // resize smart grows/shrinks the focused window along its split

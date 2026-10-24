@@ -114,6 +114,7 @@ final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
     /// `appsOnly`: a Spotlight replacement that lists installed and running applications and nothing else.
     func show(appsOnly: Bool = false) {
         items = (provider?() ?? []).filter { !appsOnly || $0.kind == .app }
+        field.placeholderString = appsOnly ? "Applications\u{2026}" : "Search windows, apps, actions\u{2026}"
         field.stringValue = ""
         selected = 0
         closing = false
@@ -125,12 +126,22 @@ final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         panel.makeFirstResponder(field)
+        // Activation asked for from an event tap completes asynchronously and may be refused once (macOS 14+
+        // cooperative activation). Without it the panel is on screen but keys go to the app behind it: ask again.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            guard let self = self, self.panel.isVisible, !self.panel.isKeyWindow else { return }
+            NSApp.activate(ignoringOtherApps: true)
+            self.panel.makeKeyAndOrderFront(nil)
+            Log.write("launcher: activation retried (app active=\(NSApp.isActive))")
+        }
+        Log.write("launcher shown: items=\(items.count) key=\(panel.isKeyWindow) appActive=\(NSApp.isActive)")
     }
 
-    func hide() {
+    func hide(reason: String = "action") {
         guard !closing, panel.isVisible else { return }
         closing = true
         panel.orderOut(nil)
+        Log.write("launcher hidden (\(reason))")
         onClose?()
     }
 
@@ -199,12 +210,12 @@ final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
         case #selector(NSResponder.insertNewline(_:)):
             if selected < shown.count { run(shown[selected]) }
         case #selector(NSResponder.cancelOperation(_:)):
-            hide()
+            hide(reason: "escape")
         default:
             return false
         }
         return true
     }
 
-    func windowDidResignKey(_ notification: Notification) { hide() }
+    func windowDidResignKey(_ notification: Notification) { hide(reason: "lost key window, app active=\(NSApp.isActive)") }
 }

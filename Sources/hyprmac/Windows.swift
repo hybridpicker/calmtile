@@ -144,6 +144,20 @@ enum Windows {
         if Log.debug { Log.write("  set -> \(codes.map { $0.rawValue }) now=\(frame(of: el).map { "\($0)" } ?? "?")") }
     }
 
+    /// Apps that snap their size to a grid (Terminal: character cells) come out a few pixels larger than asked
+    /// and overlap the neighbouring tile. Ask once more for a size smaller by the overshoot, so the snapped result
+    /// stays inside the tile. Larger differences are a minimum size, which the engine handles.
+    static func trimOvershoot(_ el: AXUIElement, to want: CGRect) {
+        guard let got = frame(of: el) else { return }
+        let dw = got.width - want.width, dh = got.height - want.height
+        let trimW = dw > 0 && dw <= 8, trimH = dh > 0 && dh <= 8
+        guard trimW || trimH else { return }
+        var size = CGSize(width: trimW ? want.width - dw : want.width, height: trimH ? want.height - dh : want.height)
+        guard let sv = AXValueCreate(.cgSize, &size) else { return }
+        AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sv)
+        if Log.debug { Log.write("  trimmed overshoot \(Int(dw))x\(Int(dh)) -> now=\(frame(of: el).map { "\($0)" } ?? "?")") }
+    }
+
     static func setPosition(_ el: AXUIElement, _ p: CGPoint) {
         var pos = p
         if let pv = AXValueCreate(.cgPoint, &pos) {

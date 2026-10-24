@@ -138,21 +138,28 @@ enum Spaces {
         return true
     }
 
-    /// Workspace number a window lives on (nil: unknown, full-screen Space or on another display).
+    /// Workspace number a window lives on, straight from the window server (nil: not on any desktop, such as a
+    /// window its app has ordered out, a full-screen Space, or another display). A window shown on every desktop
+    /// counts as the active one's. Unlike the Accessibility window list, which still shows the desktop just left
+    /// for a moment after a switch, this is current at once.
     static func number(ofWindow id: WindowID) -> Int? {
         guard let l = layout(),
-              let out = CGSCopySpacesForWindows(cid, 7, [NSNumber(value: id)] as CFArray) as? [NSNumber],
-              let space = out.first?.uint64Value else { return nil }
+              let out = CGSCopySpacesForWindows(cid, 7, [NSNumber(value: id)] as CFArray) as? [NSNumber] else { return nil }
+        let ids = out.map { $0.uint64Value }
+        let active = CGSGetActiveSpace(cid)
+        if ids.contains(active) { return number(of: active, in: l) }
+        guard ids.count == 1, let space = ids.first else { return nil }
         return number(of: space, in: l)
     }
 
-    /// Every normal window that exists, on any Space (the Accessibility list only shows the current one).
-    static func existingWindowIDs() -> Set<WindowID> {
+    /// Every normal window that exists, on any Space (the Accessibility list only shows the current one), with
+    /// whether the window server draws it right now (false: minimized, its app hidden, or ordered out).
+    static func existingWindows() -> [WindowID: Bool] {
         guard let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID),
-              let list = (raw as NSArray) as? [[String: Any]] else { return [] }
-        var out = Set<WindowID>()
+              let list = (raw as NSArray) as? [[String: Any]] else { return [:] }
+        var out = [WindowID: Bool]()
         for w in list where (w["kCGWindowLayer"] as? Int) == 0 {
-            if let n = w["kCGWindowNumber"] as? Int { out.insert(WindowID(n)) }
+            if let n = w["kCGWindowNumber"] as? Int { out[WindowID(n)] = (w["kCGWindowIsOnscreen"] as? Bool) ?? false }
         }
         return out
     }
