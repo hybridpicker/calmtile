@@ -53,6 +53,8 @@ final class BorderOverlay {
         lastFrame = nil
         if window.isVisible { window.orderOut(nil) }
     }
+
+    var isVisible: Bool { return window.isVisible }
 }
 
 extension NSColor {

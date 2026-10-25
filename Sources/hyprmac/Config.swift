@@ -154,6 +154,8 @@ struct Config {
     /// Outline around the focused window; borderWidth 0 turns it off.
     var borderWidth: CGFloat = 3
     var borderRadius: CGFloat = 12
+    /// Seconds the outline flashes when the focus moves to another window; 0 keeps it on all the time.
+    var borderFlash: Double = 0.6
     /// nil: use the theme's accent colour.
     var borderColor: String?
     var theme = "catppuccin"
@@ -237,6 +239,7 @@ struct Config {
             if let v = obj["outerGap"] as? Double { cfg.outerGap = CGFloat(v) }
             if let v = obj["borderWidth"] as? Double { cfg.borderWidth = CGFloat(v) }
             if let v = obj["borderRadius"] as? Double { cfg.borderRadius = CGFloat(v) }
+            if let v = obj["borderFlash"] as? Double { cfg.borderFlash = max(0, v) }
             if let v = obj["borderColor"] as? String {
                 if NSColor(hex: v) == nil { problems.append("borderColor must look like #rrggbb: \(v)") } else { cfg.borderColor = v }
             }
@@ -278,7 +281,7 @@ struct Config {
         var obj: [String: Any] = [
             "mouseModifier": mouseModifier, "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces, "useSpaces": useSpaces,
             "minTileWidth": Double(minTileWidth), "minTileHeight": Double(minTileHeight),
-            "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "theme": theme, "scratchpadApp": scratchpadApp,
+            "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "borderFlash": borderFlash, "theme": theme, "scratchpadApp": scratchpadApp,
             "spotlightAppsOnly": spotlightAppsOnly, "floatApps": floatApps, "floatTitles": floatTitles, "ignoreApps": ignoreApps, "passthroughApps": passthroughApps, "bindings": bindings,
         ]
         if let c = borderColor { obj["borderColor"] = c }

@@ -121,6 +121,9 @@ with `"bindings": {"cmd-space": ""}` to get Spotlight back.
 Themes colour the focused-window border and the launcher. Pick one in the launcher (`Theme: …`) or
 cycle with `⌃⌥⇧Space`; the choice is kept in `~/.config/hyprmac/theme`. `"theme"` in the config sets
 the default, `"borderColor": "#rrggbb"` overrides the border colour, `"borderWidth": 0` turns the border off.
+The border flashes for `borderFlash` seconds (default 0.6) whenever the focus moves to another window, and stays on
+while you drag a window with the mouse modifier; `"borderFlash": 0` keeps it on all the time. On a desktop switch it
+goes at once and the newly focused window flashes when the desktop has arrived.
 
 ## Scratchpad
 
@@ -181,6 +184,7 @@ When a hotkey "does nothing", one of these is the reason:
   "theme": "catppuccin",
   "borderWidth": 3,
   "borderRadius": 12,
+  "borderFlash": 0.6,
   "mouseModifier": "cmd-alt",
   "scratchpadApp": "Terminal",
   "spotlightAppsOnly": false,
@@ -199,6 +203,7 @@ When a hotkey "does nothing", one of these is the reason:
 | `useSpaces` | false | workspaces are real macOS desktops ([docs/desktops.md](docs/desktops.md)) |
 | `minTileWidth`, `minTileHeight` | 420, 280 | smallest tile in parked mode; 0 turns the rule off |
 | `theme`, `borderColor`, `borderWidth`, `borderRadius` | catppuccin, theme accent, 3, 12 | focused-window border and launcher colours |
+| `borderFlash` | 0.6 | seconds the border shows after the focus moves to another window; 0 = always on |
 | `mouseModifier` | `cmd-alt` | modifier for mouse move/resize, `""` off |
 | `scratchpadApp` | Terminal | app opened by `⌃⌥Q` on an empty scratchpad |
 | `spotlightAppsOnly` | false | restrict system Spotlight to applications while running (changes a system setting, see below) |

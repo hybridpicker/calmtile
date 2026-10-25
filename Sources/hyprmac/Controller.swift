@@ -27,6 +27,9 @@ final class Controller {
     private var creatingDesktop = false
     /// Secure Keyboard Entry is on somewhere: no hotkey can arrive (shown in the menu bar, logged once).
     private var secureInput = false
+    /// Window the outline was last flashed for; with `borderFlash` it hides itself after that time.
+    private var borderShownFor: WindowID?
+    private var borderTimer: Timer?
     /// When the current desktop last changed (desktops mode): the Accessibility window list lags behind for a moment.
     private var switchedAt = Date.distantPast
     /// Desktop a window was last reported on by the window server; a window is re-homed only when two ticks agree
@@ -80,6 +83,13 @@ final class Controller {
         }
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { [weak self] _ in self?.monitorsDirty = true }
+        // A desktop switch (ours, a swipe, Mission Control): the outline belongs to the desktop just left, so it goes
+        // at once instead of lingering until the next tick; the newly focused window flashes afterwards.
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
+                                                          object: nil, queue: .main) { [weak self] _ in
+            self?.hideBorder()
+            self?.requestTick()
+        }
         // Mission Control opens within a fraction of a second: poll for it faster than the main tick.
         let ot = Timer(timeInterval: 0.06, repeats: true) { [weak self] _ in self?.checkOverview() }
         RunLoop.main.add(ot, forMode: .common)
@@ -144,9 +154,12 @@ final class Controller {
         var created: AXObserver?
         guard AXObserverCreate(pid, callback, &created) == .success, let obs = created else { return }
         let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 1.0)
         let me = Unmanaged.passUnretained(self).toOpaque()
-        for note in [kAXWindowCreatedNotification, kAXUIElementDestroyedNotification, kAXFocusedWindowChangedNotification] {
-            AXObserverAddNotification(obs, app, note as CFString, me)
+        timed("observing \(NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? String(pid))") {
+            for note in [kAXWindowCreatedNotification, kAXUIElementDestroyedNotification, kAXFocusedWindowChangedNotification] {
+                AXObserverAddNotification(obs, app, note as CFString, me)
+            }
         }
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .commonModes)
         observers[pid] = obs
@@ -174,7 +187,7 @@ final class Controller {
         if open == overview { return }
         overview = open
         if open {
-            border.hide()
+            hideBorder()
             for (id, f) in engine.overviewPlan() {
                 guard let w = known[id], case .hidden? = applied[id] else { continue }
                 Windows.setFrame(w.element, f)
@@ -202,6 +215,17 @@ final class Controller {
 
     // MARK: - The loop
 
+    /// Run `work` and log it when it took long: a step that blocks the main thread holds up every hotkey
+    /// (the key is kept, but the action runs late) and every placement.
+    @discardableResult
+    private func timed<T>(_ what: @autoclosure () -> String, limit: TimeInterval = 0.5, _ work: () -> T) -> T {
+        let t0 = CACurrentMediaTime()
+        let r = work()
+        let dt = CACurrentMediaTime() - t0
+        if dt > limit { Log.write("slow: \(what()) took \(String(format: "%.1f", dt)) s") }
+        return r
+    }
+
     private func tick() {
         // The usable area also changes when the menu bar or Dock hide/show setting is switched, which
         // sends no notification, so compare on every tick (cheap) instead of waiting for an event.
@@ -211,18 +235,18 @@ final class Controller {
             monitorsDirty = false
             applied = [:]
         }
-        if paused { border.hide(); updateStatus(); return }
+        if paused { hideBorder(); updateStatus(); return }
         if overview || creatingDesktop { return }
         // Locked screen / screen saver: apps expose no windows, which would empty the layout.
         if let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
            ["com.apple.loginwindow", "com.apple.ScreenSaver.Engine"].contains(front) {
-            border.hide()
+            hideBorder()
             return
         }
         watchSecureInput()
         runCommandFile()
 
-        observeApps()
+        timed("observing apps", limit: 1.0) { observeApps() }
         // The Dock animates a switch hyprmac asked for; the window server reports the new desktop only when it is
         // done, so a switch of our own is not second-guessed for a moment.
         if config.useSpaces, Date().timeIntervalSince(switchedAt) > 0.8, let n = Spaces.activeNumber(), n != engine.currentWorkspace {
@@ -235,7 +259,7 @@ final class Controller {
         // the Accessibility list. That list lags a desktop switch by a moment and still shows the desktop just
         // left; taking those windows as "here" tiled them into the wrong workspace, and focusing one of them
         // then pulled macOS straight back to its desktop.
-        let current = Windows.list(excluding: myPid, ignoring: config.ignoreApps)
+        let current = timed("listing windows", limit: 1.0) { Windows.list(excluding: myPid, ignoring: config.ignoreApps) }
         // While the Dock draws a transition (two or more desktops shown) the per-window reports are not trusted.
         let settled = !config.useSpaces || Spaces.shownSpaces().count <= 1
         var seen = Set<WindowID>()
@@ -320,7 +344,7 @@ final class Controller {
         floatByTitle()
 
         // 4. apply what changed
-        applyPlan()
+        timed("placing windows", limit: 1.0) { applyPlan() }
         updateBorder()
         updateStatus()
     }
@@ -392,14 +416,40 @@ final class Controller {
         }
     }
 
-    /// Outline the focused window, unless it is parked, fullscreen-native, or gone.
+    /// Outline the focused window, unless it is parked, fullscreen-native, or gone. With `borderFlash` the outline
+    /// only flashes when the focus moves to another window (and stays on while a mouse drag is in progress).
     private func updateBorder() {
-        guard let id = engine.focused, let w = known[id] else { border.hide(); return }
-        if case .hidden? = applied[id] { border.hide(); return }
-        // Desktops mode: the window's frame can still be read while it sits on another desktop; no outline then.
-        if config.useSpaces, let n = Spaces.number(ofWindow: id), n != engine.currentWorkspace { border.hide(); return }
-        guard let f = Windows.frame(of: w.element) else { border.hide(); return }
+        guard let id = engine.focused, let w = known[id] else { hideBorder(); return }
+        if case .hidden? = applied[id] { hideBorder(); return }
+        if config.useSpaces {
+            // Desktops mode: the window's frame can still be read while it sits on another desktop; no outline then.
+            // While the Dock animates a switch the window server still reports the old desktop, so the new window's
+            // outline waits until the desktop has arrived instead of appearing over the sliding one.
+            if let n = Spaces.number(ofWindow: id), n != engine.currentWorkspace { hideBorder(); return }
+            if Spaces.activeNumber() != engine.currentWorkspace { hideBorder(); return }
+        }
+        guard let f = Windows.frame(of: w.element) else { hideBorder(); return }
+        if config.borderFlash > 0 {
+            if id == borderShownFor && drag == nil {
+                if border.isVisible { border.show(around: f) }   // follow the window while the flash lasts
+                return
+            }
+            borderShownFor = id
+            borderTimer?.invalidate()
+            let t = Timer(timeInterval: config.borderFlash, repeats: false) { [weak self] _ in self?.border.hide() }
+            RunLoop.main.add(t, forMode: .common)
+            borderTimer = t
+            if Log.debug { Log.write("border flash \(id)") }
+        }
         border.show(around: f)
+    }
+
+    /// Hide the outline; the focused window flashes again when it next qualifies.
+    private func hideBorder() {
+        borderShownFor = nil
+        borderTimer?.invalidate()
+        borderTimer = nil
+        border.hide()
     }
 
     private func applyPlan() {
@@ -699,6 +749,7 @@ final class Controller {
     /// Switch workspace; with `useSpaces` that is the Nth macOS desktop, created on the spot when it does not
     /// exist yet (Hyprland semantics: a workspace exists as soon as you go there).
     private func goTo(_ n: Int) {
+        hideBorder()   // the outline marks a window of the workspace being left
         if config.useSpaces {
             if Spaces.switchTo(n) { desktopSwitched(to: n, after: 0.05); return }
             guard !creatingDesktop else { return }
@@ -720,6 +771,7 @@ final class Controller {
         engine.switchWorkspace(n)
         applyPlan()
         focusEngineChoice()
+        updateBorder()
     }
 
     private func desktopSwitched(to n: Int, after delay: TimeInterval) {
@@ -746,6 +798,7 @@ final class Controller {
             // No neighbour that way: hand the key back (e.g. ⌘← still moves the text cursor).
             guard engine.focus(d) else { return false }
             focusEngineChoice()
+            updateBorder()
         case .swap(let d):
             engine.swap(d)
             applyPlan()

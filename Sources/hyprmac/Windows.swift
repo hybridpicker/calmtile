@@ -56,6 +56,11 @@ enum Windows {
             .filter { $0.activationPolicy == .regular && $0.processIdentifier != selfPid && !$0.isTerminated
                 && !ignored.contains($0.bundleIdentifier ?? "") }
         for app in apps {
+            let t0 = CACurrentMediaTime()
+            defer {
+                let dt = CACurrentMediaTime() - t0
+                if dt > 0.5 { Log.write("slow: listing \(app.bundleIdentifier ?? "?") took \(String(format: "%.1f", dt)) s") }
+            }
             let ax = AXUIElementCreateApplication(app.processIdentifier)
             AXUIElementSetMessagingTimeout(ax, 0.25)
             enableAccessibility(ax, pid: app.processIdentifier)
