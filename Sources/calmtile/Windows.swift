@@ -24,7 +24,7 @@ enum Screens {
         let ordered = [main] + all.dropFirst().sorted { $0.frame.minX < $1.frame.minX }
         return ordered.enumerated().map { (i, s) in
             let v = s.visibleFrame
-            return Monitor(id: i, frame: CGRect(x: v.minX, y: mainHeight - v.maxY, width: v.width, height: v.height))
+            return Monitor(id: i, frame: Monitor.aligned(CGRect(x: v.minX, y: mainHeight - v.maxY, width: v.width, height: v.height)))
         }
     }
 }

@@ -364,6 +364,73 @@ do {
     check(SpotlightCategories.parse(SpotlightCategories.plist(custom)) == custom, "plist round trip")
 }
 
+// pixel-exact tiles: random insert/remove/resize/flip sequences on several monitors, fractional ones too
+do {
+    var seed: UInt64 = 0x5eed
+    func rnd(_ n: Int) -> Int {
+        seed = seed &* 6364136223846793005 &+ 1442695040888963407
+        return Int((seed >> 33) % UInt64(n))
+    }
+    func integral(_ r: CGRect) -> Bool {
+        return [r.minX, r.minY, r.width, r.height].allSatisfy { $0 == $0.rounded() }
+    }
+    func overlap(_ a: CGRect, _ b: CGRect) -> CGFloat {
+        let w = min(a.maxX, b.maxX) - max(a.minX, b.minX), h = min(a.maxY, b.maxY) - max(a.minY, b.minY)
+        return w > 0 && h > 0 ? w * h : 0
+    }
+    let areas = [CGRect(x: 0, y: 0, width: 1440, height: 900), CGRect(x: 64.5, y: 24, width: 1375.5, height: 875.25),
+                 CGRect(x: 1440, y: -200, width: 2560, height: 1415), CGRect(x: 0, y: 0, width: 1001, height: 777)]
+    for area in areas {
+        for (gap, outer) in [(CGFloat(0), CGFloat(0)), (8, 8), (7.5, 3.25)] {
+            let e = Engine(monitors: [Monitor(id: 0, frame: area)])
+            e.gap = gap
+            e.outerGap = outer
+            e.allowOverflow = false
+            e.minTile = .zero
+            let inner = Monitor.aligned(area.insetBy(dx: outer, dy: outer))
+            var ids = [WindowID](), next: WindowID = 1
+            var notIntegral = 0, overlapping = 0, outside = 0, unfilled = 0, noNeighbour = 0
+            for _ in 0..<300 {
+                let r = rnd(10)
+                if r < 4 || ids.isEmpty {
+                    if ids.count < 12 { e.windowAppeared(next, floating: false); ids.append(next); next += 1 }
+                } else if r < 6 {
+                    let i = rnd(ids.count)
+                    e.windowGone(ids[i])
+                    ids.remove(at: i)
+                } else if r < 8 {
+                    e.setFocused(ids[rnd(ids.count)])
+                    e.resize([Direction.left, .right, .up, .down][rnd(4)])
+                } else {
+                    e.setFocused(ids[rnd(ids.count)])
+                    e.toggleSplit()
+                }
+                let tiles = e.tiledFrames()
+                let list = Array(tiles.values)
+                notIntegral += list.filter { !integral($0) }.count
+                outside += list.filter { !inner.contains($0) }.count
+                for i in 0..<list.count { for j in (i + 1)..<list.count where overlap(list[i], list[j]) > 0 { overlapping += 1 } }
+                guard gap == 0, !list.isEmpty else { continue }
+                if list.reduce(0, { $0 + $1.width * $1.height }) != inner.width * inner.height { unfilled += 1 }
+                for (id, f) in tiles {
+                    for (d, inside) in [(Direction.left, f.minX > inner.minX), (.right, f.maxX < inner.maxX),
+                                        (.up, f.minY > inner.minY), (.down, f.maxY < inner.maxY)] where inside {
+                        if Engine.neighbor(of: id, in: tiles, direction: d) == nil { noNeighbour += 1 }
+                    }
+                }
+            }
+            let what = "\(Int(area.width))x\(Int(area.height)) gap \(gap)/\(outer)"
+            check(notIntegral == 0, "\(what): every tile is on whole points (\(notIntegral) not)")
+            check(overlapping == 0, "\(what): tiles never overlap (\(overlapping) pairs)")
+            check(outside == 0, "\(what): tiles stay inside the area (\(outside) outside)")
+            check(unfilled == 0, "\(what): with no gap the tiles fill the area (\(unfilled) steps not)")
+            check(noNeighbour == 0, "\(what): with no gap every inner edge has a neighbour (\(noNeighbour) missing)")
+        }
+    }
+    check(Monitor.aligned(CGRect(x: 64.5, y: 24.25, width: 1375.5, height: 875.5)) == CGRect(x: 65, y: 25, width: 1375, height: 874),
+          "a fractional area shrinks to whole points")
+}
+
 if failures == 0 {
     print("OK - \(checks) checks passed")
 } else {

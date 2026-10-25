@@ -76,6 +76,24 @@ public final class DwindleTree {
 
     public func minimum(gap: CGFloat) -> CGSize { return root.map { minimum(of: $0, gap: gap) } ?? .zero }
 
+    /// Split `r` into the two children's rectangles, the first one `extent` wide (or high). Edges are rounded to
+    /// whole points, so every tile is integral, the halves never overlap and with no gap they meet exactly, even
+    /// when `r` or `gap` is fractional (a Dock of 64.5 pt, a gap of 7.5).
+    static func halves(of r: CGRect, axis: Axis, first extent: CGFloat, gap: CGFloat) -> (CGRect, CGRect) {
+        switch axis {
+        case .horizontal:
+            let minX = r.minX.rounded(), maxX = r.maxX.rounded()
+            let split = (r.minX + extent).rounded(), next = (r.minX + extent + gap).rounded()
+            return (CGRect(x: minX, y: r.minY, width: max(0, split - minX), height: r.height),
+                    CGRect(x: next, y: r.minY, width: max(0, maxX - next), height: r.height))
+        case .vertical:
+            let minY = r.minY.rounded(), maxY = r.maxY.rounded()
+            let split = (r.minY + extent).rounded(), next = (r.minY + extent + gap).rounded()
+            return (CGRect(x: r.minX, y: minY, width: r.width, height: max(0, split - minY)),
+                    CGRect(x: r.minX, y: next, width: r.width, height: max(0, maxY - next)))
+        }
+    }
+
     public func frames(in rect: CGRect, gap: CGFloat) -> [WindowID: CGRect] {
         var out = [WindowID: CGRect]()
         func place(_ n: Node, _ r: CGRect) {
@@ -88,16 +106,18 @@ public final class DwindleTree {
                 if ma + mb + gap <= r.width {   // a minimum is only honoured when both sides can have theirs
                     w1 = min(max(w1, ma), r.width - gap - mb)
                 }
-                place(a, CGRect(x: r.minX, y: r.minY, width: w1, height: r.height))
-                place(b, CGRect(x: r.minX + w1 + gap, y: r.minY, width: r.width - gap - w1, height: r.height))
+                let (ra, rb) = DwindleTree.halves(of: r, axis: .horizontal, first: w1, gap: gap)
+                place(a, ra)
+                place(b, rb)
             case .vertical:
                 var h1 = ((r.height - gap) * n.ratio).rounded()
                 let ma = minimum(of: a, gap: gap).height, mb = minimum(of: b, gap: gap).height
                 if ma + mb + gap <= r.height {
                     h1 = min(max(h1, ma), r.height - gap - mb)
                 }
-                place(a, CGRect(x: r.minX, y: r.minY, width: r.width, height: h1))
-                place(b, CGRect(x: r.minX, y: r.minY + h1 + gap, width: r.width, height: r.height - gap - h1))
+                let (ra, rb) = DwindleTree.halves(of: r, axis: .vertical, first: h1, gap: gap)
+                place(a, ra)
+                place(b, rb)
             }
         }
         if let root = root { place(root, rect) }
@@ -192,13 +212,13 @@ public final class DwindleTree {
             guard let a = n.first, let b = n.second else { return }
             switch n.axis {
             case .horizontal:
-                let w1 = ((r.width - gap) * n.ratio).rounded()
-                walk(a, CGRect(x: r.minX, y: r.minY, width: w1, height: r.height))
-                walk(b, CGRect(x: r.minX + w1 + gap, y: r.minY, width: r.width - gap - w1, height: r.height))
+                let (ra, rb) = DwindleTree.halves(of: r, axis: .horizontal, first: ((r.width - gap) * n.ratio).rounded(), gap: gap)
+                walk(a, ra)
+                walk(b, rb)
             case .vertical:
-                let h1 = ((r.height - gap) * n.ratio).rounded()
-                walk(a, CGRect(x: r.minX, y: r.minY, width: r.width, height: h1))
-                walk(b, CGRect(x: r.minX, y: r.minY + h1 + gap, width: r.width, height: r.height - gap - h1))
+                let (ra, rb) = DwindleTree.halves(of: r, axis: .vertical, first: ((r.height - gap) * n.ratio).rounded(), gap: gap)
+                walk(a, ra)
+                walk(b, rb)
             }
         }
         if let root = root { walk(root, rect) }

@@ -13,6 +13,15 @@ public struct Monitor: Equatable {
         self.id = id
         self.frame = frame
     }
+
+    /// `r` shrunk to whole points on every edge. The usable area of a screen (beside a Dock of any size) and an
+    /// outer gap from the config need not be integral; apps round a fractional frame each in their own way, which
+    /// left tiles a pixel apart or overlapping and frames that never quite matched the plan.
+    public static func aligned(_ r: CGRect) -> CGRect {
+        let minX = r.minX.rounded(.up), minY = r.minY.rounded(.up)
+        let maxX = r.maxX.rounded(.down), maxY = r.maxY.rounded(.down)
+        return CGRect(x: minX, y: minY, width: max(0, maxX - minX), height: max(0, maxY - minY))
+    }
 }
 
 /// Workspaces, focus and layout decisions. Knows nothing about macOS: windows are opaque ids,
@@ -527,7 +536,7 @@ public final class Engine {
     }
 
     private func rect(of ws: Workspace) -> CGRect {
-        return monitors[ws.monitor].frame.insetBy(dx: outerGap, dy: outerGap)
+        return Monitor.aligned(monitors[ws.monitor].frame.insetBy(dx: outerGap, dy: outerGap))
     }
 
     private func insertTiled(_ id: WindowID, into ws: Workspace) {
