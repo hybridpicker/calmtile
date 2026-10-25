@@ -67,7 +67,14 @@ not trusted and gets nothing.
 `scripts/screenshots.sh` stages three neutral windows on the current workspace (TextEdit with sample text,
 Terminal with a calendar, Preview with a system wallpaper), captures `docs/screenshots/tiling.png`, opens the
 `⌘Space` launcher with a query and captures `docs/screenshots/launcher.png`, then closes what it opened.
-Run it from Terminal on an empty workspace; macOS asks for Screen Recording for Terminal the first time.
+macOS asks for Screen Recording for the app that runs it the first time (Terminal, or the app that hosts
+your shell) and once for permission to control Terminal.
+
+The capture is the whole screen, so the script keeps everything else out of it. It hides every other app
+(`NSRunningApplication.hide`, no extra permission), minimises the open Terminal windows, restores both on
+exit, and stops without staging anything if TextEdit or Preview already have windows open. The staged
+Terminal window is titled `calmtile` and closed by its id. Look at both pictures before committing them:
+no chat, mail, browser, user name or file name belongs in them.
 
 ## What has been verified live
 
