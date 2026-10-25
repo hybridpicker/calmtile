@@ -174,11 +174,22 @@ final class Controller {
         for pid in Array(observers.keys) where !live.contains(pid) {
             if let o = observers[pid] { CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(o), .commonModes) }
             observers[pid] = nil
+            unregistered[pid] = nil
         }
     }
 
+    /// Notifications an app has not accepted yet because it did not answer in time (it was still starting up):
+    /// tried again on the next ticks instead of waiting up to a second for each one.
+    private var unregistered = [pid_t: [String]]()
+    private static let notifications = [kAXWindowCreatedNotification, kAXUIElementDestroyedNotification,
+                                        kAXFocusedWindowChangedNotification] as [String]
+
     private func observe(pid: pid_t) {
-        guard observers[pid] == nil else { return }
+        if let obs = observers[pid] {
+            guard let left = unregistered[pid], !Windows.isStalled(pid) else { return }
+            register(left, on: obs, pid: pid)
+            return
+        }
         let callback: AXObserverCallback = { _, element, notification, refcon in
             guard let refcon = refcon else { return }
             let me = Unmanaged<Controller>.fromOpaque(refcon).takeUnretainedValue()
@@ -198,16 +209,18 @@ final class Controller {
         }
         var created: AXObserver?
         guard AXObserverCreate(pid, callback, &created) == .success, let obs = created else { return }
-        let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, 1.0)
-        let me = Unmanaged.passUnretained(self).toOpaque()
-        timed("observing \(NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? String(pid))") {
-            for note in [kAXWindowCreatedNotification, kAXUIElementDestroyedNotification, kAXFocusedWindowChangedNotification] {
-                AXObserverAddNotification(obs, app, note as CFString, me)
-            }
-        }
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .commonModes)
         observers[pid] = obs
+        register(Controller.notifications, on: obs, pid: pid)
+    }
+
+    private func register(_ notes: [String], on obs: AXObserver, pid: pid_t) {
+        let app = AXUIElementCreateApplication(pid)
+        let me = Unmanaged.passUnretained(self).toOpaque()
+        let left = timed("observing \(NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? String(pid))") {
+            notes.filter { Windows.addNotification(obs, app, $0, me) == .cannotComplete }
+        }
+        unregistered[pid] = left.isEmpty ? nil : left
     }
 
     /// A window was just created: tile it now, while it is still appearing, instead of on the next tick (a few

@@ -99,6 +99,11 @@ enum Windows {
         return err
     }
 
+    /// Register for `name` on `app` under the usual timeout and back-off (a starting app may not answer yet).
+    static func addNotification(_ obs: AXObserver, _ app: AXUIElement, _ name: String, _ refcon: UnsafeMutableRawPointer) -> AXError {
+        return call(app) { AXObserverAddNotification(obs, app, name as CFString, refcon) }
+    }
+
     private static func attr<T>(_ el: AXUIElement, _ name: String) -> T? {
         var ref: CFTypeRef?
         guard call(el, { AXUIElementCopyAttributeValue(el, name as CFString, &ref) }) == .success else { return nil }
