@@ -11,18 +11,18 @@ enum Log {
 
     static let debug = ProcessInfo.processInfo.environment["CALMTILE_DEBUG"] != nil
     private static let lock = NSLock()   // written from the main and the key tap thread
+    /// Kept open in append mode: opening and closing the file for every line cost more than the line itself, and
+    /// the one-shot helpers append to the same file. Reopened when the file was moved away or deleted.
+    private static var fd: Int32 = -1
 
     static func write(_ s: String) {
         lock.lock()
         defer { lock.unlock() }
         let line = "\(fmt.string(from: Date())) \(s)\n"
-        guard let data = line.data(using: .utf8) else { return }
-        if let h = try? FileHandle(forWritingTo: url) {
-            h.seekToEndOfFile()
-            h.write(data)
-            h.closeFile()
-        } else {
-            try? data.write(to: url)
-        }
+        if fd >= 0, access(url.path, F_OK) != 0 { close(fd); fd = -1 }
+        if fd < 0 { fd = open(url.path, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0o644) }
+        guard fd >= 0 else { return }
+        let bytes = Array(line.utf8)
+        _ = bytes.withUnsafeBytes { Darwin.write(fd, $0.baseAddress, $0.count) }
     }
 }

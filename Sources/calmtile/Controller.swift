@@ -56,6 +56,8 @@ final class Controller {
     private var spotlightOn = false
     private var monitorsDirty = true
     private var lastWindowCount = -1
+    private var windowCountLogged = Date.distantPast
+    private var lastTrusted: Bool?
     private let myPid = ProcessInfo.processInfo.processIdentifier
 
     init() {
@@ -349,8 +351,15 @@ final class Controller {
         // used on this workspace), not to whatever the OS happens to raise.
         if focusedClosed, !paused, let id = engine.focused, known[id] != nil { focusEngineChoice() }
 
-        if current.count != lastWindowCount {
-            Log.write("windows seen=\(current.count) trusted=\(Windows.isTrusted(prompt: false))")
+        // Half of all log lines used to be this one. Outside debug mode a changed count is written at most once a
+        // minute, and whenever the permission state changes (asked only when there is something to write).
+        if current.count != lastWindowCount, Log.debug || Date().timeIntervalSince(windowCountLogged) > 60 || current.count == 0 {
+            let trusted = Windows.isTrusted(prompt: false)
+            if Log.debug || trusted != lastTrusted || Date().timeIntervalSince(windowCountLogged) > 60 {
+                Log.write("windows seen=\(current.count) trusted=\(trusted)")
+                windowCountLogged = Date()
+                lastTrusted = trusted
+            }
             lastWindowCount = current.count
         }
 
