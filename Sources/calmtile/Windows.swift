@@ -130,7 +130,7 @@ enum Windows {
     /// cost about 16 ms with ~120 processes (the profile's observe phase, which does nothing else once every app is
     /// observed), and it ran twice per tick. The list only changes when an app
     /// launches, quits or turns into a regular app (which it does on activation), so it is kept until then, and
-    /// refreshed every few seconds regardless.
+    /// refreshed every 30 s regardless (every 5 s cost 4-5 ms per tick on average once the timer slows to 1 s).
     static func regularApps() -> [NSRunningApplication] {
         if !observingWorkspace {
             observingWorkspace = true
@@ -141,7 +141,7 @@ enum Windows {
             }
         }
         let now = CACurrentMediaTime()
-        if regularAt < 0 || now - regularAt > 5 {
+        if regularAt < 0 || now - regularAt > 30 {
             regular = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular && !$0.isTerminated }
             regularAt = now
         }
