@@ -105,11 +105,36 @@ enum Windows {
         AXUIElementSetAttributeValue(ax, "AXManualAccessibility" as CFString, kCFBooleanTrue)
     }
 
+    private static var regular = [NSRunningApplication]()
+    private static var regularAt: CFTimeInterval = -1
+    private static var observingWorkspace = false
+
+    /// Running apps with a Dock icon. Walking `runningApplications` and asking each one for its activation policy
+    /// cost about 16 ms with ~120 processes (the profile's observe phase, which does nothing else once every app is
+    /// observed), and it ran twice per tick. The list only changes when an app
+    /// launches, quits or turns into a regular app (which it does on activation), so it is kept until then, and
+    /// refreshed every few seconds regardless.
+    static func regularApps() -> [NSRunningApplication] {
+        if !observingWorkspace {
+            observingWorkspace = true
+            let nc = NSWorkspace.shared.notificationCenter
+            for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification,
+                         NSWorkspace.didActivateApplicationNotification] {
+                nc.addObserver(forName: name, object: nil, queue: .main) { _ in regularAt = -1 }
+            }
+        }
+        let now = CACurrentMediaTime()
+        if regularAt < 0 || now - regularAt > 5 {
+            regular = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular && !$0.isTerminated }
+            regularAt = now
+        }
+        return regular
+    }
+
     static func list(excluding selfPid: pid_t, ignoring ignored: [String] = []) -> [AXWin] {
         var out = [AXWin]()
-        let apps = NSWorkspace.shared.runningApplications
-            .filter { $0.activationPolicy == .regular && $0.processIdentifier != selfPid && !$0.isTerminated
-                && !ignored.contains($0.bundleIdentifier ?? "") }
+        let apps = regularApps()
+            .filter { $0.processIdentifier != selfPid && !ignored.contains($0.bundleIdentifier ?? "") }
         for app in apps {
             let t0 = CACurrentMediaTime()
             defer {

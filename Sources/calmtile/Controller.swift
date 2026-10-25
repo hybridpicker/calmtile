@@ -133,8 +133,7 @@ final class Controller {
     /// the next timer tick (a new window would otherwise sit at the app's own position for a moment).
     private func observeApps() {
         var live = Set<pid_t>()
-        for app in NSWorkspace.shared.runningApplications
-        where app.activationPolicy == .regular && app.processIdentifier != myPid && !app.isTerminated {
+        for app in Windows.regularApps() where app.processIdentifier != myPid {
             live.insert(app.processIdentifier)
             observe(pid: app.processIdentifier)
         }
