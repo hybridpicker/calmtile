@@ -142,6 +142,7 @@ final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
     /// `appsOnly`: a Spotlight replacement that lists installed and running applications and nothing else.
     func show(appsOnly: Bool = false) {
         let t0 = CACurrentMediaTime()
+        shownAt = t0
         items = (provider?(appsOnly) ?? []).filter { !appsOnly || $0.kind == .app }
         field.placeholderString = appsOnly ? "Applications\u{2026}" : "Search windows, apps, actions\u{2026}"
         field.stringValue = ""
@@ -244,6 +245,15 @@ final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
             return false
         }
         return true
+    }
+
+    /// When the panel was asked to show; its becoming key (the moment typing reaches it) is logged against it.
+    private var shownAt: CFTimeInterval = 0
+
+    func windowDidBecomeKey(_ notification: Notification) {
+        guard shownAt > 0 else { return }
+        Log.write("launcher key after \(Int((CACurrentMediaTime() - shownAt) * 1000)) ms")
+        shownAt = 0
     }
 
     func windowDidResignKey(_ notification: Notification) { hide(reason: "lost key window, app active=\(NSApp.isActive)") }
