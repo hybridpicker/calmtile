@@ -243,6 +243,8 @@ final class Controller {
 
     private func tick() {
         Profile.beginTick()
+        Spaces.beginTick()
+        defer { Spaces.endTick() }
         // The usable area also changes when the menu bar or Dock hide/show setting is switched, which
         // sends no notification, so compare on every tick (cheap) instead of waiting for an event.
         let monitors = Screens.monitors()

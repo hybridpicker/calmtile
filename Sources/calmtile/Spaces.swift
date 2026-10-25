@@ -31,32 +31,59 @@ enum Spaces {
         let spaces: [UInt64]   // normal desktops only, in the Dock's order (full-screen app Spaces are left out)
     }
 
-    private static func layouts() -> [Layout] {
-        Profile.ws()
-        guard let all = CGSCopyManagedDisplaySpaces(cid) as? [[String: Any]] else { return [] }
-        var out = [Layout]()
-        for d in all {
-            guard let id = d["Display Identifier"] as? String, let list = d["Spaces"] as? [[String: Any]] else { continue }
-            out.append(Layout(display: id, spaces: list.filter { ($0["type"] as? Int) == 0 }
-                .compactMap { ($0["ManagedSpaceID"] as? NSNumber)?.uint64Value }))
-        }
-        assign(out)
-        return out
+    /// One reading of the desktops: every display's normal desktops, the display holding the active Space (a
+    /// full-screen app Space counts for its display too), and the active Space.
+    private struct Snapshot {
+        let all: [Layout]
+        let current: Layout?
+        let active: UInt64
     }
 
-    /// The display holding the active Space (a full-screen app Space counts for its display too).
-    private static func layout() -> Layout? {
-        let all = layouts()
-        let active = CGSGetActiveSpace(cid)
+    private static func read() -> Snapshot {
         Profile.ws(2)
-        guard let raw = CGSCopyManagedDisplaySpaces(cid) as? [[String: Any]] else { return all.first }
+        let active = CGSGetActiveSpace(cid)
+        guard let raw = CGSCopyManagedDisplaySpaces(cid) as? [[String: Any]] else { return Snapshot(all: [], current: nil, active: active) }
+        var out = [Layout]()
+        var current: Layout?
         for d in raw {
-            guard let id = d["Display Identifier"] as? String, let list = d["Spaces"] as? [[String: Any]],
-                  list.contains(where: { ($0["ManagedSpaceID"] as? NSNumber)?.uint64Value == active }) else { continue }
-            return all.first { $0.display == id }
+            guard let id = d["Display Identifier"] as? String, let list = d["Spaces"] as? [[String: Any]] else { continue }
+            let l = Layout(display: id, spaces: list.filter { ($0["type"] as? Int) == 0 }
+                .compactMap { ($0["ManagedSpaceID"] as? NSNumber)?.uint64Value })
+            out.append(l)
+            if current == nil, list.contains(where: { ($0["ManagedSpaceID"] as? NSNumber)?.uint64Value == active }) { current = l }
         }
-        return all.first
+        assign(out)
+        return Snapshot(all: out, current: current ?? out.first, active: active)
     }
+
+    /// Within a tick the desktops are read once (`beginTick` ... `endTick`); every query asked several times per
+    /// window used to read them twice per call. Outside a tick (hotkeys, the steps of a switch) they are read live.
+    private static var cached: Snapshot?
+    private static var windowNumbers = [WindowID: Int?]()
+    private static var caching = false
+
+    static func beginTick() {
+        caching = true
+        cached = nil
+        windowNumbers.removeAll(keepingCapacity: true)
+    }
+
+    static func endTick() {
+        caching = false
+        cached = nil
+        windowNumbers.removeAll(keepingCapacity: true)
+    }
+
+    private static func snapshot() -> Snapshot {
+        if caching, let s = cached { return s }
+        let s = read()
+        if caching { cached = s }
+        return s
+    }
+
+    private static func layouts() -> [Layout] { return snapshot().all }
+
+    private static func layout() -> Layout? { return snapshot().current }
 
     // MARK: Numbering
 
@@ -134,9 +161,9 @@ enum Spaces {
 
     /// Workspace number of the active Space, nil when a full-screen app Space is active.
     static func activeNumber() -> Int? {
-        guard let l = layout() else { return nil }
-        Profile.ws()
-        return number(of: CGSGetActiveSpace(cid), in: l)
+        let s = snapshot()
+        guard let l = s.current else { return nil }
+        return number(of: s.active, in: l)
     }
 
     /// Desktops the window server currently shows ("current" set). After a switch it must hold exactly one per
@@ -205,14 +232,18 @@ enum Spaces {
     /// counts as the active one's. Unlike the Accessibility window list, which still shows the desktop just left
     /// for a moment after a switch, this is current at once.
     static func number(ofWindow id: WindowID) -> Int? {
-        guard let l = layout(),
-              let out = CGSCopySpacesForWindows(cid, 7, [NSNumber(value: id)] as CFArray) as? [NSNumber] else { return nil }
-        Profile.ws(2)
-        let ids = out.map { $0.uint64Value }
-        let active = CGSGetActiveSpace(cid)
-        if ids.contains(active) { return number(of: active, in: l) }
-        guard ids.count == 1, let space = ids.first else { return nil }
-        return number(of: space, in: l)
+        if caching, let n = windowNumbers[id] { return n }
+        let s = snapshot()
+        var n: Int?
+        // The call takes a list but answers with the union of their Spaces, so it is asked one window at a time.
+        Profile.ws()
+        if let l = s.current, let out = CGSCopySpacesForWindows(cid, 7, [NSNumber(value: id)] as CFArray) as? [NSNumber] {
+            let ids = out.map { $0.uint64Value }
+            if ids.contains(s.active) { n = number(of: s.active, in: l) }
+            else if ids.count == 1, let space = ids.first { n = number(of: space, in: l) }
+        }
+        if caching { windowNumbers[id] = n }
+        return n
     }
 
     /// Every normal window that exists, on any Space (the Accessibility list only shows the current one), with
