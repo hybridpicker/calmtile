@@ -246,6 +246,18 @@ enum Windows {
         return classify(el, pid: pid, bundleID: app.bundleIdentifier ?? "?")
     }
 
+    /// Why an element is or is not a managed window, for the debug log: role, subrole, flags, never the title.
+    static func describe(_ w: AXUIElement) -> String {
+        var pid: pid_t = 0
+        AXUIElementGetPid(w, &pid)
+        let role: String = attr(w, kAXRoleAttribute) ?? "?"
+        let sub: String = attr(w, kAXSubroleAttribute) ?? "-"
+        let min: Bool = attr(w, kAXMinimizedAttribute) ?? false
+        var wid = CGWindowID(0)
+        let widErr = call(w) { _AXUIElementGetWindow(w, &wid) }
+        return "\(NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "?") role=\(role) subrole=\(sub) min=\(min) wid=\(wid) err=\(widErr.rawValue) stalled=\(isStalled(pid))"
+    }
+
     /// One line per window of every regular app: role, subrole and capabilities, never the title.
     /// Run through `open -a calmtile --stdout <file> --args --dump-windows` (it needs the Accessibility grant).
     static func dump() -> String {

@@ -187,8 +187,12 @@ final class Controller {
     /// hundred milliseconds later, when it had already been drawn at the app's own size and visibly jumped).
     /// The tick afterwards finds it known and only confirms the placement.
     private func windowCreated(_ element: AXUIElement) {
-        guard !paused, !overview, !creatingDesktop, let w = Windows.standardWindow(element, ignoring: config.ignoreApps),
-              known[w.id] == nil else { return }
+        guard !paused, !overview, !creatingDesktop else { return }
+        guard let w = Windows.standardWindow(element, ignoring: config.ignoreApps) else {
+            if Log.debug { Log.write("created element not managed (yet): \(Windows.describe(element))") }
+            return
+        }
+        guard known[w.id] == nil else { return }
         let desktop: Int? = config.useSpaces ? (Spaces.number(ofWindow: w.id) ?? engine.currentWorkspace) : nil
         let float = !w.resizable || config.floatApps.contains(w.bundleID) || titleFloats(w)
         engine.windowAppeared(w.id, floating: float, frame: float ? Windows.frame(of: w.element) : nil, workspace: desktop)
