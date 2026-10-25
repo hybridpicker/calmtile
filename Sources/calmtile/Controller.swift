@@ -84,6 +84,7 @@ final class Controller {
         launcher.onClose = { [weak self] in self?.focusEngineChoice() }
         hotkeys.handler = { [weak self] action, late in self?.handle(action, late: late) ?? false }
         hotkeys.mouseHandler = { [weak self] type, p, flags in self?.handleMouse(type, p, flags) ?? false }
+        hotkeys.onClick = { [weak self] in self?.wake() }
         let tapOK = hotkeys.start()
         Log.write("key tap installed=\(tapOK) bindings=\(hotkeys.table.count)")
         if !tapOK {
@@ -103,10 +104,35 @@ final class Controller {
         let ot = Timer(timeInterval: 0.06, repeats: true) { [weak self] _ in self?.checkOverview() }
         RunLoop.main.add(ot, forMode: .common)
         overviewTimer = ot
-        let t = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in self?.tick() }
+        setTickInterval(Controller.activeInterval)
+        tick()
+    }
+
+    // MARK: - Tick rate
+
+    static let activeInterval: TimeInterval = 0.25
+    static let quietInterval: TimeInterval = 1.0
+    /// Full ticks in a row in which nothing changed; after `quietAfter` of them the timer slows to `quietInterval`.
+    private var quietTicks = 0
+    private static let quietAfter = 20
+    /// Something was placed, re-homed or refocused during the current tick.
+    private var tickChanged = false
+    private var lastTickAt: CFTimeInterval = 0
+
+    private func setTickInterval(_ interval: TimeInterval) {
+        guard timer?.timeInterval != interval else { return }
+        timer?.invalidate()
+        let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in self?.tick() }
+        t.tolerance = interval * 0.1
         RunLoop.main.add(t, forMode: .common)
         timer = t
-        tick()
+    }
+
+    /// Back to the fast rate: a notification, a hotkey or a click may be the start of something (a title-bar drag
+    /// is only noticed by the tick, so a click must bring the fast rate back before the drag gets far).
+    private func wake() {
+        quietTicks = 0
+        setTickInterval(Controller.activeInterval)
     }
 
     private func applyConfig() {
@@ -228,11 +254,15 @@ final class Controller {
         }
     }
 
+    /// A tick soon, but not sooner than 100 ms after the last one: a burst of notifications (closing a window
+    /// destroys its tabs, buttons and fields, one notification each) becomes one tick instead of one per element.
     private func requestTick() {
         Profile.tickRequested()
+        wake()
         guard !tickQueued else { return }
         tickQueued = true
-        DispatchQueue.main.async { [weak self] in
+        let wait = max(0, 0.1 - (CACurrentMediaTime() - lastTickAt))
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in
             self?.tickQueued = false
             self?.tick()
         }
@@ -252,6 +282,7 @@ final class Controller {
     }
 
     private func tick() {
+        lastTickAt = CACurrentMediaTime()
         Profile.beginTick()
         Spaces.beginTick()
         defer { Spaces.endTick() }
@@ -292,7 +323,9 @@ final class Controller {
                 Windows.list(excluding: myPid, ignoring: config.ignoreApps, changed: changedApps, all: Date() < listAllUntil)
             }
         }
+        let notified = !changedApps.isEmpty
         changedApps.removeAll()
+        let knownBefore = Set(known.keys)
         let reconcileStart = CACurrentMediaTime()
         // While the Dock draws a transition (two or more desktops shown) the per-window reports are not trusted.
         let settled = !config.useSpaces || Spaces.shownSpaces().count <= 1
@@ -394,6 +427,15 @@ final class Controller {
         timed("placing windows", limit: 1.0) { Profile.phase("place") { applyPlan() } }
         Profile.phase("border") { updateBorder() }
         updateStatus()
+        // Nothing happened: no notification, the same windows, nothing placed, no button held. After a few seconds
+        // of that, tick once a second until something does.
+        let changed = notified || tickChanged || Set(known.keys) != knownBefore || focusedBefore != engine.focused
+            || NSEvent.pressedMouseButtons != 0 || drag != nil || nativeDrag != nil
+        tickChanged = false
+        if changed { wake() } else {
+            quietTicks += 1
+            if quietTicks >= Controller.quietAfter { setTickInterval(Controller.quietInterval) }
+        }
         Profile.workspace = engine.currentWorkspace
         Profile.endTick()
     }
@@ -416,6 +458,7 @@ final class Controller {
     private func relocateKnown(_ id: WindowID, to n: Int, from home: Int) {
         engine.relocate(id, to: n)
         applied[id] = nil
+        tickChanged = true
         Log.write("window of \(known[id]?.bundleID ?? "?") is on desktop \(n) now (was \(home))")
     }
 
@@ -546,6 +589,7 @@ final class Controller {
             case .hidden(let m): Windows.hide(w.element, on: monitors[min(m, monitors.count - 1)])
             }
             applied[id] = placement
+            tickChanged = true
             if case .frame = placement { settled[id] = Windows.frame(of: w.element) } else { settled[id] = nil }
             // A minimum size larger than the tile would overlap the neighbours: tell the engine, which
             // makes room for it (or floats the window when the workspace cannot hold it).
@@ -748,6 +792,7 @@ final class Controller {
     /// was busy; a focus key is then dropped (the app got its arrow key), everything else still runs.
     private func handle(_ action: Action, late: Bool = false) -> Bool {
         Log.write("hotkey \(action)\(late ? " (late)" : "")")
+        wake()
         if late, case .focus = action { return false }
         if case .togglePause = action { togglePaused(); return true }
         if paused { return false }

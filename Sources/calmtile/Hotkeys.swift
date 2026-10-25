@@ -16,6 +16,8 @@ final class HotkeyTap {
     /// Mouse events, on the main thread; return true to swallow. Only consulted for down/drag/up of the left and
     /// right button while the mouse modifier is held or a drag is in progress.
     var mouseHandler: ((CGEventType, CGPoint, CGEventFlags) -> Bool)?
+    /// Told on the main thread, without waiting, of every left or right mouse-down.
+    var onClick: (() -> Void)?
 
     private let lock = NSLock()
     private var _table = [KeyCombo: Action]()
@@ -127,6 +129,7 @@ final class HotkeyTap {
         lock.lock()
         let mods = _mouseModifier, dragging = _dragActive, suspended = _suspendMouse
         lock.unlock()
+        if type == .leftMouseDown || type == .rightMouseDown, let c = onClick { DispatchQueue.main.async(execute: c) }
         guard !suspended, let h = mouseHandler else { return false }
         switch type {
         case .leftMouseDown, .rightMouseDown:
