@@ -65,6 +65,7 @@ final class Controller {
     // MARK: - Lifecycle
 
     func start() {
+        Windows.setDefaultTimeout()
         Log.write("start: trusted=\(Windows.isTrusted(prompt: false)) monitors=\(engine.monitors.count)")
         if !Windows.isTrusted(prompt: true) {
             notify("Allow calmtile under System Settings > Privacy & Security > Accessibility, then start it again.")

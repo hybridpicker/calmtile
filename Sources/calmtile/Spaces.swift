@@ -261,6 +261,8 @@ extension Spaces {
         if (attr(el, kAXIdentifierAttribute) as String?) == id { return el }
         guard depth < 6, let kids: [AXUIElement] = attr(el, kAXChildrenAttribute) else { return nil }
         for k in kids {
+            // Elements do not inherit the Dock element's timeout; Mission Control may answer slowly while it opens.
+            AXUIElementSetMessagingTimeout(k, 1.0)
             if let hit = find(id, within: k, depth: depth + 1) { return hit }
         }
         return nil
@@ -270,6 +272,7 @@ extension Spaces {
     /// several displays the one whose frame lies on that display is taken; the first one when that cannot be told.
     private static func displayGroup(in dock: AXUIElement) -> AXUIElement? {
         guard let mc = find("mc", within: dock), let kids: [AXUIElement] = attr(mc, kAXChildrenAttribute) else { return nil }
+        for k in kids { AXUIElementSetMessagingTimeout(k, 1.0) }
         let groups = kids.filter { (attr($0, kAXIdentifierAttribute) as String?) == "mc.display" }
         if groups.count <= 1 { return groups.first }
         guard let want = layout()?.display, let screen = NSScreen.screens.first(where: { uuid(of: $0) == want }),
@@ -293,6 +296,7 @@ extension Spaces {
     /// The desktop buttons of the Spaces bar, left to right (press = switch there and leave Mission Control).
     private static func desktopButtons(in group: AXUIElement) -> [AXUIElement] {
         guard let list = find("mc.spaces.list", within: group), let kids: [AXUIElement] = attr(list, kAXChildrenAttribute) else { return [] }
+        for k in kids { AXUIElementSetMessagingTimeout(k, 1.0) }
         return kids
     }
 

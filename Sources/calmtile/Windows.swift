@@ -35,12 +35,66 @@ enum Windows {
         return AXIsProcessTrustedWithOptions([key: prompt] as CFDictionary)
     }
 
-    private static func attr<T>(_ el: AXUIElement, _ name: String) -> T? {
+    /// Longest wait for one Accessibility answer. Set on the system-wide element it is the default for every
+    /// element (window elements do not inherit what is set on their application element; without this they wait
+    /// the system's 6 s on an app that does not answer, once per attribute).
+    static let messagingTimeout: Float = 0.25
+    /// How long an app that let a call time out is left alone: its windows keep their last known state.
+    static let stallPause: CFTimeInterval = 2.0
+
+    static func setDefaultTimeout() {
+        AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), messagingTimeout)
+    }
+
+    private static var stalledUntil = [pid_t: CFTimeInterval]()
+    private static var stallLogged = [pid_t: CFTimeInterval]()
+
+    /// True while `pid` is being left alone after a timeout. Every read and write to its elements returns at once.
+    static func isStalled(_ pid: pid_t) -> Bool {
+        guard let t = stalledUntil[pid] else { return false }
+        if CACurrentMediaTime() < t { return true }
+        stalledUntil[pid] = nil
+        return false
+    }
+
+    private static func pid(of el: AXUIElement) -> pid_t {
+        var p: pid_t = 0
+        AXUIElementGetPid(el, &p)   // local, no round trip
+        return p
+    }
+
+    /// Run one Accessibility call unless the element's app is stalled; a call that ran into the timeout stalls
+    /// the app for `stallPause`, so a hung app costs one timeout per pause instead of one per attribute and tick.
+    /// Only a real timeout counts (an app answering "cannot complete" at once is not hung).
+    private static func call(_ el: AXUIElement, _ work: () -> AXError) -> AXError {
+        let p = pid(of: el)
+        if p != 0, isStalled(p) { return .cannotComplete }
         Profile.ax()
+        let t0 = CACurrentMediaTime()
+        let err = work()
+        if err == .cannotComplete, p != 0, CACurrentMediaTime() - t0 >= Double(messagingTimeout) * 0.8 {
+            let now = CACurrentMediaTime()
+            stalledUntil[p] = now + stallPause
+            guard now - (stallLogged[p] ?? 0) > 30 else { return err }   // once per hang, not every pause
+            stallLogged[p] = now
+            Log.write("app \(NSRunningApplication(processIdentifier: p)?.bundleIdentifier ?? String(p)) did not answer within \(messagingTimeout) s: left alone for \(stallPause) s")
+        }
+        return err
+    }
+
+    private static func attr<T>(_ el: AXUIElement, _ name: String) -> T? {
         var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(el, name as CFString, &ref) == .success else { return nil }
+        guard call(el, { AXUIElementCopyAttributeValue(el, name as CFString, &ref) }) == .success else { return nil }
         return ref as? T
     }
+
+    @discardableResult
+    private static func set(_ el: AXUIElement, _ name: String, _ value: CFTypeRef) -> AXError {
+        return call(el) { AXUIElementSetAttributeValue(el, name as CFString, value) }
+    }
+
+    /// Windows of each app from the last listing that reached it, handed out again while the app is stalled.
+    private static var lastListed = [pid_t: [AXWin]]()
 
     private static var enabledPids = Set<pid_t>()
 
@@ -63,14 +117,23 @@ enum Windows {
                 Profile.listed(app.bundleIdentifier ?? "?", dt)
                 if dt > 0.5 { Log.write("slow: listing \(app.bundleIdentifier ?? "?") took \(String(format: "%.1f", dt)) s") }
             }
-            let ax = AXUIElementCreateApplication(app.processIdentifier)
-            AXUIElementSetMessagingTimeout(ax, 0.25)
-            enableAccessibility(ax, pid: app.processIdentifier)
-            guard let wins: [AXUIElement] = attr(ax, kAXWindowsAttribute) else { continue }
-            for w in wins {
-                if let win = classify(w, pid: app.processIdentifier, bundleID: app.bundleIdentifier ?? "?") { out.append(win) }
+            let pid = app.processIdentifier
+            if isStalled(pid) { out += lastListed[pid] ?? []; continue }
+            let ax = AXUIElementCreateApplication(pid)
+            enableAccessibility(ax, pid: pid)
+            var mine = [AXWin]()
+            if let wins: [AXUIElement] = attr(ax, kAXWindowsAttribute) {
+                for w in wins {
+                    if let win = classify(w, pid: pid, bundleID: app.bundleIdentifier ?? "?") { mine.append(win) }
+                }
             }
+            // A timeout part way through leaves an incomplete list: keep the last complete one instead.
+            if isStalled(pid) { out += lastListed[pid] ?? []; continue }
+            lastListed[pid] = mine
+            out += mine
         }
+        let living = Set(apps.map { $0.processIdentifier })
+        for pid in Array(lastListed.keys) where !living.contains(pid) { lastListed[pid] = nil }
         return out
     }
 
@@ -82,10 +145,9 @@ enum Windows {
         if let min: Bool = attr(w, kAXMinimizedAttribute), min { return nil }
         if let fs: Bool = attr(w, "AXFullScreen"), fs { return nil }   // native macOS fullscreen: leave alone
         var wid = CGWindowID(0)
-        Profile.ax(2)
-        guard _AXUIElementGetWindow(w, &wid) == .success, wid != 0 else { return nil }
+        guard call(w, { _AXUIElementGetWindow(w, &wid) }) == .success, wid != 0 else { return nil }
         var settable = DarwinBoolean(false)
-        _ = AXUIElementIsAttributeSettable(w, kAXSizeAttribute as CFString, &settable)
+        _ = call(w) { AXUIElementIsAttributeSettable(w, kAXSizeAttribute as CFString, &settable) }
         // Transient popups and system alerts claim to be standard windows but have no window
         // buttons and cannot be resized: leave them completely alone (never tile, park or move).
         if !settable.boolValue, (attr(w, kAXCloseButtonAttribute) as AXUIElement?) == nil,
@@ -159,10 +221,9 @@ enum Windows {
         var size = r.size
         // size, position, size: apps clamp the size to the screen they are currently on.
         var codes = [AXError]()
-        Profile.ax(3)
-        if let sv = AXValueCreate(.cgSize, &size) { codes.append(AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sv)) }
-        if let pv = AXValueCreate(.cgPoint, &pos) { codes.append(AXUIElementSetAttributeValue(el, kAXPositionAttribute as CFString, pv)) }
-        if let sv = AXValueCreate(.cgSize, &size) { codes.append(AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sv)) }
+        if let sv = AXValueCreate(.cgSize, &size) { codes.append(set(el, kAXSizeAttribute, sv)) }
+        if let pv = AXValueCreate(.cgPoint, &pos) { codes.append(set(el, kAXPositionAttribute, pv)) }
+        if let sv = AXValueCreate(.cgSize, &size) { codes.append(set(el, kAXSizeAttribute, sv)) }
         if Log.debug { Log.write("  set -> \(codes.map { $0.rawValue }) now=\(frame(of: el).map { "\($0)" } ?? "?")") }
     }
 
@@ -176,22 +237,21 @@ enum Windows {
         guard trimW || trimH else { return }
         var size = CGSize(width: trimW ? want.width - dw : want.width, height: trimH ? want.height - dh : want.height)
         guard let sv = AXValueCreate(.cgSize, &size) else { return }
-        Profile.ax()
-        AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sv)
+        set(el, kAXSizeAttribute, sv)
         if Log.debug { Log.write("  trimmed overshoot \(Int(dw))x\(Int(dh)) -> now=\(frame(of: el).map { "\($0)" } ?? "?")") }
     }
 
     static func setPosition(_ el: AXUIElement, _ p: CGPoint) {
         var pos = p
         if let pv = AXValueCreate(.cgPoint, &pos) {
-            let e = AXUIElementSetAttributeValue(el, kAXPositionAttribute as CFString, pv)
+            let e = set(el, kAXPositionAttribute, pv)
             if Log.debug { Log.write("  setPosition \(p) -> err=\(e.rawValue)") }
         }
     }
 
     static func setSize(_ el: AXUIElement, _ s: CGSize) {
         var size = s
-        if let sv = AXValueCreate(.cgSize, &size) { AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sv) }
+        if let sv = AXValueCreate(.cgSize, &size) { set(el, kAXSizeAttribute, sv) }
     }
 
     /// Mission Control (also App Exposé, Launchpad) puts full-screen Dock windows above everything. One such
@@ -225,30 +285,28 @@ enum Windows {
     /// Park a window at the bottom-right corner of its monitor so only one pixel stays on screen.
     static func hide(_ el: AXUIElement, on monitor: Monitor) {
         var pos = CGPoint(x: monitor.frame.maxX - 1, y: monitor.frame.maxY - 1)
-        if let pv = AXValueCreate(.cgPoint, &pos) { AXUIElementSetAttributeValue(el, kAXPositionAttribute as CFString, pv) }
+        if let pv = AXValueCreate(.cgPoint, &pos) { set(el, kAXPositionAttribute, pv) }
     }
 
     static func focus(_ w: AXWin) {
-        AXUIElementPerformAction(w.element, kAXRaiseAction as CFString)
-        AXUIElementSetAttributeValue(w.element, kAXMainAttribute as CFString, kCFBooleanTrue)
-        AXUIElementSetAttributeValue(w.element, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+        _ = call(w.element) { AXUIElementPerformAction(w.element, kAXRaiseAction as CFString) }
+        set(w.element, kAXMainAttribute, kCFBooleanTrue)
+        set(w.element, kAXFocusedAttribute, kCFBooleanTrue)
         NSRunningApplication(processIdentifier: w.pid)?.activate(options: [.activateIgnoringOtherApps])
     }
 
     static func close(_ w: AXWin) {
         guard let btn: AXUIElement = attr(w.element, kAXCloseButtonAttribute) else { return }
-        AXUIElementPerformAction(btn, kAXPressAction as CFString)
+        _ = call(btn) { AXUIElementPerformAction(btn, kAXPressAction as CFString) }
     }
 
     /// The window that currently has keyboard focus, if any.
     static func focusedWindowID() -> (id: WindowID, bundleID: String)? {
         guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
         let ax = AXUIElementCreateApplication(app.processIdentifier)
-        AXUIElementSetMessagingTimeout(ax, 0.25)
         guard let w: AXUIElement = attr(ax, kAXFocusedWindowAttribute) else { return nil }
-        Profile.ax()
         var wid = CGWindowID(0)
-        guard _AXUIElementGetWindow(w, &wid) == .success, wid != 0 else { return nil }
+        guard call(w, { _AXUIElementGetWindow(w, &wid) }) == .success, wid != 0 else { return nil }
         return (wid, app.bundleIdentifier ?? "?")
     }
 }
