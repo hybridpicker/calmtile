@@ -254,10 +254,22 @@ enum Spaces {
 
     /// Every normal window that exists, on any Space (the Accessibility list only shows the current one), with
     /// whether the window server draws it right now (false: minimized, its app hidden, or ordered out).
-    static func existingWindows() -> [WindowID: Bool] {
+    /// `among`: only these windows are looked up (describing a few windows is far cheaper than every window of
+    /// every process, which `.optionAll` returns).
+    static func existingWindows(among ids: [WindowID]? = nil) -> [WindowID: Bool] {
         Profile.ws()
-        guard let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID),
-              let list = (raw as NSArray) as? [[String: Any]] else { return [:] }
+        let found: CFArray?
+        if let ids = ids {
+            guard !ids.isEmpty else { return [:] }
+            let ptrs = UnsafeMutablePointer<UnsafeRawPointer?>.allocate(capacity: ids.count)
+            defer { ptrs.deallocate() }
+            for (i, id) in ids.enumerated() { ptrs[i] = UnsafeRawPointer(bitPattern: UInt(id)) }
+            guard let array = CFArrayCreate(nil, ptrs, ids.count, nil) else { return [:] }
+            found = CGWindowListCreateDescriptionFromArray(array)
+        } else {
+            found = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID)
+        }
+        guard let raw = found, let list = (raw as NSArray) as? [[String: Any]] else { return [:] }
         var out = [WindowID: Bool]()
         for w in list where (w["kCGWindowLayer"] as? Int) == 0 {
             if let n = w["kCGWindowNumber"] as? Int { out[WindowID(n)] = (w["kCGWindowIsOnscreen"] as? Bool) ?? false }

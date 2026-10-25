@@ -322,9 +322,10 @@ final class Controller {
         }
         let focusedBefore = engine.focused
         var focusedClosed = false
-        let living: [WindowID: Bool] = config.useSpaces ? Spaces.existingWindows() : [:]
+        let missing = known.keys.filter { !seen.contains($0) }
+        let living: [WindowID: Bool] = config.useSpaces ? Spaces.existingWindows(among: missing) : [:]
         let justSwitched = Date().timeIntervalSince(switchedAt) < 0.8
-        for id in Array(known.keys) where !seen.contains(id) {
+        for id in missing {
             if config.useSpaces, let onscreen = living[id] {
                 let n = Spaces.number(ofWindow: id)
                 if let n = n, n != engine.currentWorkspace {
