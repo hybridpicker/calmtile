@@ -599,6 +599,17 @@ final class Controller {
             if nativeDrag == id { continue }
             if applied[id] != placement {
                 retries[id] = 0
+                // A new plan the window already fulfils: every window gets one after a desktop switch (which forgets
+                // what was applied), and each was written its unchanged frame again, three writes and the trim per
+                // window right when the next key may come (measured: every window on every switch). Recorded instead;
+                // a window that snapped a few pixels inside the same tile counts as fulfilling it, as above.
+                if case .frame(let want) = placement, let actual = Windows.frame(of: w.element),
+                   Windows.framesMatch(actual, want, within: 0.5)
+                    || (settled[id].map { Windows.framesMatch(actual, $0) && Windows.framesMatch($0, want, within: 8) } ?? false) {
+                    applied[id] = placement
+                    if settled[id] == nil { settled[id] = actual }
+                    continue
+                }
             } else {
                 // Same plan as before: only act when the app moved or resized the window itself
                 // (a new window opening, an app restoring its own frame). Give up after a few tries
