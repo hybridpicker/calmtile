@@ -35,6 +35,10 @@ final class Controller {
     /// Desktop a window was last reported on by the window server; a window is re-homed only when two ticks agree
     /// and no desktop transition is being drawn, since the report wobbles while the Dock animates a switch.
     private var reportedDesktop = [WindowID: Int]()
+    /// Apps that sent an Accessibility notification since the last listing: asked for their windows again.
+    private var changedApps = Set<pid_t>()
+    /// Until then every app is asked on every tick (the Accessibility view catches up with a desktop switch).
+    private var listAllUntil = Date.distantPast
 
     private struct Drag {
         let id: WindowID
@@ -89,6 +93,7 @@ final class Controller {
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
                                                           object: nil, queue: .main) { [weak self] _ in
             self?.hideBorder()
+            self?.listAllUntil = Date().addingTimeInterval(1.5)
             self?.requestTick()
         }
         // Mission Control opens within a fraction of a second: poll for it faster than the main tick.
@@ -154,6 +159,8 @@ final class Controller {
                 Profile.note((notification as String).replacingOccurrences(of: "AX", with: ""),
                              NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "?")
             }
+            var pid: pid_t = 0
+            if AXUIElementGetPid(element, &pid) == .success { me.changedApps.insert(pid) }
             if notification as String == kAXWindowCreatedNotification { me.windowCreated(element) }
             me.requestTick()
         }
@@ -205,6 +212,7 @@ final class Controller {
                 engine.activate(f.id)
             }
             applied = [:]
+            listAllUntil = Date().addingTimeInterval(1.5)
             Log.write("overview closed")
             tick()
         }
@@ -267,7 +275,12 @@ final class Controller {
         // the Accessibility list. That list lags a desktop switch by a moment and still shows the desktop just
         // left; taking those windows as "here" tiled them into the wrong workspace, and focusing one of them
         // then pulled macOS straight back to its desktop.
-        let current = timed("listing windows", limit: 1.0) { Profile.phase("list") { Windows.list(excluding: myPid, ignoring: config.ignoreApps) } }
+        let current = timed("listing windows", limit: 1.0) {
+            Profile.phase("list") {
+                Windows.list(excluding: myPid, ignoring: config.ignoreApps, changed: changedApps, all: Date() < listAllUntil)
+            }
+        }
+        changedApps.removeAll()
         let reconcileStart = CACurrentMediaTime()
         // While the Dock draws a transition (two or more desktops shown) the per-window reports are not trusted.
         let settled = !config.useSpaces || Spaces.shownSpaces().count <= 1
@@ -793,6 +806,7 @@ final class Controller {
     private func desktopSwitched(to n: Int, after delay: TimeInterval) {
         engine.switchWorkspace(n)
         switchedAt = Date()
+        listAllUntil = switchedAt.addingTimeInterval(1.5)
         applied = [:]
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             self?.applyPlan()

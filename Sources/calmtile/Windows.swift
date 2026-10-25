@@ -131,18 +131,52 @@ enum Windows {
         return regular
     }
 
-    static func list(excluding selfPid: pid_t, ignoring ignored: [String] = []) -> [AXWin] {
+    /// Layer-0 windows the window server draws right now, by owning process: one call for all apps.
+    static func onscreenByPid() -> [pid_t: [WindowID]] {
+        Profile.ws()
+        guard let raw = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID),
+              let list = (raw as NSArray) as? [[String: Any]] else { return [:] }
+        var out = [pid_t: [WindowID]]()
+        for w in list where (w["kCGWindowLayer"] as? Int) == 0 {
+            guard let pid = w["kCGWindowOwnerPID"] as? Int, let n = w["kCGWindowNumber"] as? Int else { continue }
+            out[pid_t(pid), default: []].append(WindowID(n))
+        }
+        for k in out.keys { out[k]?.sort() }
+        return out
+    }
+
+    /// What the window server showed of an app when it was last listed, and when that was.
+    private static var listedOnscreen = [pid_t: [WindowID]]()
+    private static var listedAt = [pid_t: CFTimeInterval]()
+
+    /// The managed windows of every regular app (see `classify`).
+    ///
+    /// Asking an app for its windows is a round trip to that app's main thread; with apps paged out under memory
+    /// pressure each one took 50-250 ms (measured with InDesign, Acrobat, Calendar, Preview), and every tick asked
+    /// all of them. An app is asked again only when something can have changed: it sent a notification (`changed`),
+    /// the window server shows a different set of its windows (opened, closed, minimized, hidden, another desktop),
+    /// or a few seconds have passed (10 s for an app with no windows at all). Otherwise its last answer stands.
+    /// `all` asks every app, as right after a desktop switch, when the Accessibility view lags the window server.
+    static func list(excluding selfPid: pid_t, ignoring ignored: [String] = [], changed: Set<pid_t> = [], all: Bool = true) -> [AXWin] {
         var out = [AXWin]()
         let apps = regularApps()
             .filter { $0.processIdentifier != selfPid && !ignored.contains($0.bundleIdentifier ?? "") }
+        let onscreen = onscreenByPid()
+        let now = CACurrentMediaTime()
         for app in apps {
+            let pid = app.processIdentifier
+            let shown = onscreen[pid] ?? []
+            if !all, !changed.contains(pid), let last = lastListed[pid], listedOnscreen[pid] == shown,
+               now - (listedAt[pid] ?? 0) < (shown.isEmpty && last.isEmpty ? 10 : 3) {
+                out += last
+                continue
+            }
             let t0 = CACurrentMediaTime()
             defer {
                 let dt = CACurrentMediaTime() - t0
                 Profile.listed(app.bundleIdentifier ?? "?", dt)
                 if dt > 0.5 { Log.write("slow: listing \(app.bundleIdentifier ?? "?") took \(String(format: "%.1f", dt)) s") }
             }
-            let pid = app.processIdentifier
             if isStalled(pid) { out += lastListed[pid] ?? []; continue }
             let ax = AXUIElementCreateApplication(pid)
             enableAccessibility(ax, pid: pid)
@@ -155,10 +189,16 @@ enum Windows {
             // A timeout part way through leaves an incomplete list: keep the last complete one instead.
             if isStalled(pid) { out += lastListed[pid] ?? []; continue }
             lastListed[pid] = mine
+            listedOnscreen[pid] = shown
+            listedAt[pid] = now
             out += mine
         }
         let living = Set(apps.map { $0.processIdentifier })
-        for pid in Array(lastListed.keys) where !living.contains(pid) { lastListed[pid] = nil }
+        for pid in Array(lastListed.keys) where !living.contains(pid) {
+            lastListed[pid] = nil
+            listedOnscreen[pid] = nil
+            listedAt[pid] = nil
+        }
         return out
     }
 
