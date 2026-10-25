@@ -37,8 +37,9 @@ enum Windows {
 
     /// Longest wait for one Accessibility answer. Set on the system-wide element it is the default for every
     /// element (window elements do not inherit what is set on their application element; without this they wait
-    /// the system's 6 s on an app that does not answer, once per attribute).
-    static let messagingTimeout: Float = 0.25
+    /// the system's 6 s on an app that does not answer, once per attribute). Well below the key tap's 250 ms, so
+    /// that one late answer (Terminal while it opens a window: exactly 250 ms, measured) never makes a key late.
+    static let messagingTimeout: Float = 0.15
     /// How long an app that let a call time out is left alone (its windows keep their last known state): 0.25 s
     /// after one timeout, doubling with every further one up to 4 s. A busy app that answers late once (Terminal
     /// while it opens a window, measured) is back at once; a hung one costs a timeout every few seconds.
