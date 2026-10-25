@@ -162,7 +162,10 @@ final class Controller {
                              NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "?")
             }
             var pid: pid_t = 0
-            if AXUIElementGetPid(element, &pid) == .success { me.changedApps.insert(pid) }
+            if AXUIElementGetPid(element, &pid) == .success {
+                me.changedApps.insert(pid)
+                Windows.alive(pid)
+            }
             if notification as String == kAXWindowCreatedNotification { me.windowCreated(element) }
             me.requestTick()
         }

@@ -39,15 +39,26 @@ enum Windows {
     /// element (window elements do not inherit what is set on their application element; without this they wait
     /// the system's 6 s on an app that does not answer, once per attribute).
     static let messagingTimeout: Float = 0.25
-    /// How long an app that let a call time out is left alone: its windows keep their last known state.
-    static let stallPause: CFTimeInterval = 2.0
+    /// How long an app that let a call time out is left alone (its windows keep their last known state): 0.25 s
+    /// after one timeout, doubling with every further one up to 4 s. A busy app that answers late once (Terminal
+    /// while it opens a window, measured) is back at once; a hung one costs a timeout every few seconds.
+    private static func stallPause(after timeouts: Int) -> CFTimeInterval {
+        return min(4.0, 0.25 * pow(2.0, Double(max(0, timeouts - 1))))
+    }
 
     static func setDefaultTimeout() {
         AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), messagingTimeout)
     }
 
     private static var stalledUntil = [pid_t: CFTimeInterval]()
+    private static var timeouts = [pid_t: Int]()
     private static var stallLogged = [pid_t: CFTimeInterval]()
+
+    /// The app sent a notification, so it is answering: stop leaving it alone.
+    static func alive(_ pid: pid_t) {
+        stalledUntil[pid] = nil
+        timeouts[pid] = nil
+    }
 
     /// True while `pid` is being left alone after a timeout. Every read and write to its elements returns at once.
     static func isStalled(_ pid: pid_t) -> Bool {
@@ -64,20 +75,26 @@ enum Windows {
     }
 
     /// Run one Accessibility call unless the element's app is stalled; a call that ran into the timeout stalls
-    /// the app for `stallPause`, so a hung app costs one timeout per pause instead of one per attribute and tick.
-    /// Only a real timeout counts (an app answering "cannot complete" at once is not hung).
+    /// the app for a while (`stallPause`), so a hung app costs one timeout per pause instead of one per attribute
+    /// and tick. Only a real timeout counts (an app answering "cannot complete" at once is not hung); any answer
+    /// in time ends the back-off.
     private static func call(_ el: AXUIElement, _ work: () -> AXError) -> AXError {
         let p = pid(of: el)
         if p != 0, isStalled(p) { return .cannotComplete }
         Profile.ax()
         let t0 = CACurrentMediaTime()
         let err = work()
-        if err == .cannotComplete, p != 0, CACurrentMediaTime() - t0 >= Double(messagingTimeout) * 0.8 {
+        guard p != 0 else { return err }
+        if err == .cannotComplete, CACurrentMediaTime() - t0 >= Double(messagingTimeout) * 0.8 {
             let now = CACurrentMediaTime()
-            stalledUntil[p] = now + stallPause
-            guard now - (stallLogged[p] ?? 0) > 30 else { return err }   // once per hang, not every pause
+            let n = (timeouts[p] ?? 0) + 1
+            timeouts[p] = n
+            stalledUntil[p] = now + stallPause(after: n)
+            guard n >= 3, now - (stallLogged[p] ?? 0) > 30 else { return err }   // a hang, once per hang
             stallLogged[p] = now
-            Log.write("app \(NSRunningApplication(processIdentifier: p)?.bundleIdentifier ?? String(p)) did not answer within \(messagingTimeout) s: left alone for \(stallPause) s")
+            Log.write("app \(NSRunningApplication(processIdentifier: p)?.bundleIdentifier ?? String(p)) did not answer \(n) times in a row: left alone for up to 4 s at a time")
+        } else if timeouts[p] != nil {
+            timeouts[p] = nil
         }
         return err
     }
