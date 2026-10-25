@@ -101,10 +101,24 @@ On macOS 26.5, one 1440 × 900 display, menu bar and Dock hidden:
 - The `⌘Space` launcher appears with Spotlight staying closed; the app activates itself from the event tap,
   which macOS 14+ may grant late, so it asks twice.
 
+On macOS 26.5.2 (same display, desktops mode, a heavily loaded machine: load average 30-110, swap nearly
+full), from the debug log and the profile line, with actions sent through the command file:
+
+- A Terminal opened beside another window and closed again, 13 times in a row: each Terminal window is
+  placed once (716 px in its 720 px tile, then left alone), and the neighbour grows back to the full width
+  after the close.
+- Desktop switches 2→1→2 with that in between: window counts as expected, no window re-homed.
+- An app stopped with `kill -STOP` for 10 s (TextEdit, two windows): ticks stay under 160 ms, the windows
+  keep their tiles, nothing is logged as slow; it resumes normally after `kill -CONT`.
+- The tick in numbers (see the profile line): idle p95 under 20 ms at one tick per second, under 50 ms
+  while windows open, close and desktops switch; no `slow:` or `main thread busy` line.
+- `⌘Space` panel (from the command file): built and ordered front in under 20 ms after the first time.
+
 Not verified yet: title-bar drag swap; Chrome with several windows and Picture-in-Picture; `⌘⌥N` with real
-desktops; whether a new window is visibly placed before its first frame; a window growing back after its
-neighbour closes (the retry rule was changed for it); Zoom meetings; Xcode; a second display (self-tests
-only); whether Spotlight visibly honours the category list.
+desktops; whether a new window is visibly placed before its first frame (by eye; the log shows it placed
+0.3-0.45 s after the command, usually by the tick rather than the creation notification); Zoom meetings;
+Xcode; a second display (self-tests only); whether Spotlight visibly honours the category list; parked mode
+since the changes of October 2026 (self-tests only).
 
 ## Privacy notes
 
