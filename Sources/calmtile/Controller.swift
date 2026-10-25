@@ -148,6 +148,12 @@ final class Controller {
         let callback: AXObserverCallback = { _, element, notification, refcon in
             guard let refcon = refcon else { return }
             let me = Unmanaged<Controller>.fromOpaque(refcon).takeUnretainedValue()
+            if Profile.on {
+                var pid: pid_t = 0
+                AXUIElementGetPid(element, &pid)
+                Profile.note((notification as String).replacingOccurrences(of: "AX", with: ""),
+                             NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? "?")
+            }
             if notification as String == kAXWindowCreatedNotification { me.windowCreated(element) }
             me.requestTick()
         }
@@ -205,6 +211,7 @@ final class Controller {
     }
 
     private func requestTick() {
+        Profile.tickRequested()
         guard !tickQueued else { return }
         tickQueued = true
         DispatchQueue.main.async { [weak self] in
@@ -227,6 +234,7 @@ final class Controller {
     }
 
     private func tick() {
+        Profile.beginTick()
         // The usable area also changes when the menu bar or Dock hide/show setting is switched, which
         // sends no notification, so compare on every tick (cheap) instead of waiting for an event.
         let monitors = Screens.monitors()
@@ -246,7 +254,7 @@ final class Controller {
         watchSecureInput()
         runCommandFile()
 
-        timed("observing apps", limit: 1.0) { observeApps() }
+        timed("observing apps", limit: 1.0) { Profile.phase("observe") { observeApps() } }
         // The Dock animates a switch calmtile asked for; the window server reports the new desktop only when it is
         // done, so a switch of our own is not second-guessed for a moment.
         if config.useSpaces, Date().timeIntervalSince(switchedAt) > 0.8, let n = Spaces.activeNumber(), n != engine.currentWorkspace {
@@ -259,7 +267,8 @@ final class Controller {
         // the Accessibility list. That list lags a desktop switch by a moment and still shows the desktop just
         // left; taking those windows as "here" tiled them into the wrong workspace, and focusing one of them
         // then pulled macOS straight back to its desktop.
-        let current = timed("listing windows", limit: 1.0) { Windows.list(excluding: myPid, ignoring: config.ignoreApps) }
+        let current = timed("listing windows", limit: 1.0) { Profile.phase("list") { Windows.list(excluding: myPid, ignoring: config.ignoreApps) } }
+        let reconcileStart = CACurrentMediaTime()
         // While the Dock draws a transition (two or more desktops shown) the per-window reports are not trusted.
         let settled = !config.useSpaces || Spaces.shownSpaces().count <= 1
         var seen = Set<WindowID>()
@@ -330,23 +339,30 @@ final class Controller {
             lastWindowCount = current.count
         }
 
+        Profile.add("reconcile", CACurrentMediaTime() - reconcileStart)
+
         // 2. follow the focus the user set by clicking / app switching
-        if let f = Windows.focusedWindowID(), known[f.id] != nil, f.id != engine.focused {
-            engine.setFocused(f.id)
+        Profile.phase("focus") {
+            if let f = Windows.focusedWindowID(), known[f.id] != nil, f.id != engine.focused {
+                engine.setFocused(f.id)
+            }
         }
 
         // 3. floating windows keep wherever the user put them
-        for (id, w) in known where engine.isFloating(id) {
-            if case .frame? = applied[id], let f = Windows.frame(of: w.element) { engine.noteFloatFrame(id, f) }
+        Profile.phase("float") {
+            for (id, w) in known where engine.isFloating(id) {
+                if case .frame? = applied[id], let f = Windows.frame(of: w.element) { engine.noteFloatFrame(id, f) }
+            }
+            trackNativeDrag()
+            floatByTitle()
         }
 
-        trackNativeDrag()
-        floatByTitle()
-
         // 4. apply what changed
-        timed("placing windows", limit: 1.0) { applyPlan() }
-        updateBorder()
+        timed("placing windows", limit: 1.0) { Profile.phase("place") { applyPlan() } }
+        Profile.phase("border") { updateBorder() }
         updateStatus()
+        Profile.workspace = engine.currentWorkspace
+        Profile.endTick()
     }
 
     /// Development aid (CALMTILE_DEBUG only): an action written to ~/.config/calmtile/command, e.g. `workspace 2`, runs

@@ -36,6 +36,7 @@ enum Windows {
     }
 
     private static func attr<T>(_ el: AXUIElement, _ name: String) -> T? {
+        Profile.ax()
         var ref: CFTypeRef?
         guard AXUIElementCopyAttributeValue(el, name as CFString, &ref) == .success else { return nil }
         return ref as? T
@@ -59,6 +60,7 @@ enum Windows {
             let t0 = CACurrentMediaTime()
             defer {
                 let dt = CACurrentMediaTime() - t0
+                Profile.listed(app.bundleIdentifier ?? "?", dt)
                 if dt > 0.5 { Log.write("slow: listing \(app.bundleIdentifier ?? "?") took \(String(format: "%.1f", dt)) s") }
             }
             let ax = AXUIElementCreateApplication(app.processIdentifier)
@@ -80,6 +82,7 @@ enum Windows {
         if let min: Bool = attr(w, kAXMinimizedAttribute), min { return nil }
         if let fs: Bool = attr(w, "AXFullScreen"), fs { return nil }   // native macOS fullscreen: leave alone
         var wid = CGWindowID(0)
+        Profile.ax(2)
         guard _AXUIElementGetWindow(w, &wid) == .success, wid != 0 else { return nil }
         var settable = DarwinBoolean(false)
         _ = AXUIElementIsAttributeSettable(w, kAXSizeAttribute as CFString, &settable)
@@ -156,6 +159,7 @@ enum Windows {
         var size = r.size
         // size, position, size: apps clamp the size to the screen they are currently on.
         var codes = [AXError]()
+        Profile.ax(3)
         if let sv = AXValueCreate(.cgSize, &size) { codes.append(AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sv)) }
         if let pv = AXValueCreate(.cgPoint, &pos) { codes.append(AXUIElementSetAttributeValue(el, kAXPositionAttribute as CFString, pv)) }
         if let sv = AXValueCreate(.cgSize, &size) { codes.append(AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sv)) }
@@ -172,6 +176,7 @@ enum Windows {
         guard trimW || trimH else { return }
         var size = CGSize(width: trimW ? want.width - dw : want.width, height: trimH ? want.height - dh : want.height)
         guard let sv = AXValueCreate(.cgSize, &size) else { return }
+        Profile.ax()
         AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sv)
         if Log.debug { Log.write("  trimmed overshoot \(Int(dw))x\(Int(dh)) -> now=\(frame(of: el).map { "\($0)" } ?? "?")") }
     }
@@ -192,6 +197,7 @@ enum Windows {
     /// Mission Control (also App Exposé, Launchpad) puts full-screen Dock windows above everything. One such
     /// window is always there; two or more mean an overview is open (measured on macOS 26: 1 idle, 3 open).
     static func overviewOpen() -> Bool {
+        Profile.ws()
         guard let raw = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID),
               let list = (raw as NSArray) as? [[String: Any]] else { return false }
         var n = 0
@@ -240,6 +246,7 @@ enum Windows {
         let ax = AXUIElementCreateApplication(app.processIdentifier)
         AXUIElementSetMessagingTimeout(ax, 0.25)
         guard let w: AXUIElement = attr(ax, kAXFocusedWindowAttribute) else { return nil }
+        Profile.ax()
         var wid = CGWindowID(0)
         guard _AXUIElementGetWindow(w, &wid) == .success, wid != 0 else { return nil }
         return (wid, app.bundleIdentifier ?? "?")

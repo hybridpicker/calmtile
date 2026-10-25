@@ -69,7 +69,11 @@ final class HotkeyTap {
             if event.getIntegerValueField(.eventSourceUserData) == Spaces.ownEventTag { return Unmanaged.passUnretained(event) }   // our own key for the Dock
             let combo = KeyCombo(keyCode: event.getIntegerValueField(.keyboardEventKeycode), mods: Mods(flags: event.flags))
             guard let action = me.table[combo], let h = me.handler else { return Unmanaged.passUnretained(event) }
-            let swallow = me.onMain(timeout: HotkeyTap.keyTimeout, fallback: action.swallowedWhenLate, what: "\(action)") { late in h(action, late) }
+            let asked = CACurrentMediaTime()
+            let swallow = me.onMain(timeout: HotkeyTap.keyTimeout, fallback: action.swallowedWhenLate, what: "\(action)") { late in
+                Profile.key(wait: CACurrentMediaTime() - asked, late: late)
+                return h(action, late)
+            }
             return swallow ? nil : Unmanaged.passUnretained(event)
         }
         guard let t = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap,

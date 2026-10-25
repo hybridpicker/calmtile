@@ -32,6 +32,7 @@ enum Spaces {
     }
 
     private static func layouts() -> [Layout] {
+        Profile.ws()
         guard let all = CGSCopyManagedDisplaySpaces(cid) as? [[String: Any]] else { return [] }
         var out = [Layout]()
         for d in all {
@@ -47,6 +48,7 @@ enum Spaces {
     private static func layout() -> Layout? {
         let all = layouts()
         let active = CGSGetActiveSpace(cid)
+        Profile.ws(2)
         guard let raw = CGSCopyManagedDisplaySpaces(cid) as? [[String: Any]] else { return all.first }
         for d in raw {
             guard let id = d["Display Identifier"] as? String, let list = d["Spaces"] as? [[String: Any]],
@@ -133,12 +135,14 @@ enum Spaces {
     /// Workspace number of the active Space, nil when a full-screen app Space is active.
     static func activeNumber() -> Int? {
         guard let l = layout() else { return nil }
+        Profile.ws()
         return number(of: CGSGetActiveSpace(cid), in: l)
     }
 
     /// Desktops the window server currently shows ("current" set). After a switch it must hold exactly one per
     /// display; two mean the desktop just left is still being drawn.
     static func shownSpaces() -> [UInt64] {
+        Profile.ws()
         return (CGSCopySpaces(cid, 5) as? [NSNumber])?.map { $0.uint64Value } ?? []
     }
 
@@ -203,6 +207,7 @@ enum Spaces {
     static func number(ofWindow id: WindowID) -> Int? {
         guard let l = layout(),
               let out = CGSCopySpacesForWindows(cid, 7, [NSNumber(value: id)] as CFArray) as? [NSNumber] else { return nil }
+        Profile.ws(2)
         let ids = out.map { $0.uint64Value }
         let active = CGSGetActiveSpace(cid)
         if ids.contains(active) { return number(of: active, in: l) }
@@ -213,6 +218,7 @@ enum Spaces {
     /// Every normal window that exists, on any Space (the Accessibility list only shows the current one), with
     /// whether the window server draws it right now (false: minimized, its app hidden, or ordered out).
     static func existingWindows() -> [WindowID: Bool] {
+        Profile.ws()
         guard let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID),
               let list = (raw as NSArray) as? [[String: Any]] else { return [:] }
         var out = [WindowID: Bool]()
