@@ -35,6 +35,8 @@ final class Controller {
     /// Desktop a window was last reported on by the window server; a window is re-homed only when two ticks agree
     /// and no desktop transition is being drawn, since the report wobbles while the Dock animates a switch.
     private var reportedDesktop = [WindowID: Int]()
+    /// Parked mode: when a still-drawn window first went missing from the Accessibility list.
+    private var missingSince = [WindowID: Date]()
     /// Apps that sent an Accessibility notification since the last listing: asked for their windows again.
     private var changedApps = Set<pid_t>()
     /// Until then every app is asked on every tick (the Accessibility view catches up with a desktop switch).
@@ -374,9 +376,20 @@ final class Controller {
         let focusedBefore = engine.focused
         var focusedClosed = false
         let missing = known.keys.filter { !seen.contains($0) }
-        let living: [WindowID: Bool] = config.useSpaces ? Spaces.existingWindows(among: missing) : [:]
+        let living = Spaces.existingWindows(among: missing)
         let justSwitched = Date().timeIntervalSince(switchedAt) < 0.8
+        for id in seen { missingSince[id] = nil }
         for id in missing {
+            // Parked mode: the window server, not one Accessibility answer, says whether a window still exists. An
+            // app that answered the window list wrongly once (busy, a call that failed) used to lose its windows:
+            // they came back the next tick as new ones, appended to the layout with their place and split ratios
+            // gone. A window that is still drawn keeps its tile for a few seconds; one that stays missing from
+            // Accessibility that long (it became a sheet or a panel) goes as before.
+            if !config.useSpaces, living[id] == true {
+                let since = missingSince[id] ?? Date()
+                missingSince[id] = since
+                if Date().timeIntervalSince(since) < 3 { continue }
+            }
             if config.useSpaces, let onscreen = living[id] {
                 let n = Spaces.number(ofWindow: id)
                 if let n = n, n != engine.currentWorkspace {
@@ -399,6 +412,7 @@ final class Controller {
             retries[id] = nil
             self.settled[id] = nil
             reportedDesktop[id] = nil
+            missingSince[id] = nil
             titleChecked.remove(id)
         }
 
