@@ -9,13 +9,42 @@ struct LauncherItem {
     let run: () -> Void
 }
 
-/// Installed applications, scanned from the usual folders and cached for a minute.
+/// Installed applications, scanned from the usual folders. The scan runs off the main thread: once at start, and
+/// again in the background when the list is more than a minute old, so opening the launcher never waits for it
+/// (only the very first call before the start-up scan has finished does).
 enum Apps {
+    private static let lock = NSLock()
     private static var cache: [(name: String, url: URL)] = []
     private static var scanned = Date.distantPast
+    private static var scanning = false
 
     static func installed() -> [(name: String, url: URL)] {
-        if Date().timeIntervalSince(scanned) < 60 { return cache }
+        lock.lock()
+        let have = cache, never = scanned == .distantPast, age = Date().timeIntervalSince(scanned)
+        lock.unlock()
+        if never { let fresh = scan(); store(fresh); return fresh }
+        if age >= 60 { refresh() }
+        return have
+    }
+
+    /// Start a background scan unless one is running.
+    static func refresh() {
+        lock.lock()
+        if scanning { lock.unlock(); return }
+        scanning = true
+        lock.unlock()
+        DispatchQueue.global(qos: .utility).async { store(scan()) }
+    }
+
+    private static func store(_ list: [(name: String, url: URL)]) {
+        lock.lock()
+        cache = list
+        scanned = Date()
+        scanning = false
+        lock.unlock()
+    }
+
+    private static func scan() -> [(name: String, url: URL)] {
         let dirs = ["/Applications", "/Applications/Utilities", "/System/Applications", "/System/Applications/Utilities",
                     "/System/Library/CoreServices", "/System/Library/CoreServices/Applications",
                     NSString(string: "~/Applications").expandingTildeInPath]
@@ -29,9 +58,7 @@ enum Apps {
                 if seen.insert(name).inserted { out.append((name, e)) }
             }
         }
-        cache = out.sorted { $0.name.lowercased() < $1.name.lowercased() }
-        scanned = Date()
-        return cache
+        return out.sorted { $0.name.lowercased() < $1.name.lowercased() }
     }
 }
 
@@ -41,7 +68,8 @@ private final class LauncherPanel: NSPanel {
 
 /// Type to search windows, apps and calmtile actions; arrows + Return to pick, Esc to close.
 final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
-    var provider: (() -> [LauncherItem])?
+    /// The items to search; `appsOnly` asks for applications alone (no window titles are read then).
+    var provider: ((_ appsOnly: Bool) -> [LauncherItem])?
     /// Called right before an item runs or the panel is dismissed, to hand focus back.
     var onClose: (() -> Void)?
     var theme = Theme.all[0] { didSet { applyTheme() } }
@@ -113,7 +141,8 @@ final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
 
     /// `appsOnly`: a Spotlight replacement that lists installed and running applications and nothing else.
     func show(appsOnly: Bool = false) {
-        items = (provider?() ?? []).filter { !appsOnly || $0.kind == .app }
+        let t0 = CACurrentMediaTime()
+        items = (provider?(appsOnly) ?? []).filter { !appsOnly || $0.kind == .app }
         field.placeholderString = appsOnly ? "Applications\u{2026}" : "Search windows, apps, actions\u{2026}"
         field.stringValue = ""
         selected = 0
@@ -134,7 +163,7 @@ final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
             self.panel.makeKeyAndOrderFront(nil)
             Log.write("launcher: activation retried (app active=\(NSApp.isActive))")
         }
-        Log.write("launcher shown: items=\(items.count) key=\(panel.isKeyWindow) appActive=\(NSApp.isActive)")
+        Log.write("launcher shown: items=\(items.count) key=\(panel.isKeyWindow) appActive=\(NSApp.isActive) in \(Int((CACurrentMediaTime() - t0) * 1000)) ms")
     }
 
     func hide(reason: String = "action") {

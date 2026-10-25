@@ -79,7 +79,8 @@ final class Controller {
         setUpMenu()
         updateSpotlight()
         installTerminationHandlers()
-        launcher.provider = { [weak self] in self?.launcherItems() ?? [] }
+        launcher.provider = { [weak self] appsOnly in self?.launcherItems(appsOnly: appsOnly) ?? [] }
+        Apps.refresh()   // warm the application list before the first ⌘Space
         launcher.onClose = { [weak self] in self?.focusEngineChoice() }
         hotkeys.handler = { [weak self] action, late in self?.handle(action, late: late) ?? false }
         hotkeys.mouseHandler = { [weak self] type, p, flags in self?.handleMouse(type, p, flags) ?? false }
@@ -617,8 +618,9 @@ final class Controller {
 
     // MARK: - Launcher
 
-    private func launcherItems() -> [LauncherItem] {
+    private func launcherItems(appsOnly: Bool = false) -> [LauncherItem] {
         var out = [LauncherItem]()
+        if appsOnly { return appItems() }
         for n in engine.workspaceNumbers {
             for id in engine.windows(in: n) {
                 guard let w = known[id] else { continue }
@@ -635,11 +637,7 @@ final class Controller {
             out.append(LauncherItem(kind: .window, title: title.isEmpty ? app : "\(app) \u{2013} \(title)",
                                     detail: "window \u{00B7} scratchpad") { [weak self] in self?.menuSelect(id) })
         }
-        for app in Apps.installed() {
-            out.append(LauncherItem(kind: .app, title: app.name, detail: "application") {
-                NSWorkspace.shared.openApplication(at: app.url, configuration: NSWorkspace.OpenConfiguration())
-            })
-        }
+        out += appItems()
         func act(_ title: String, _ action: Action) {
             out.append(LauncherItem(kind: .action, title: title, detail: "action") { [weak self] in _ = self?.perform(action) })
         }
@@ -658,6 +656,14 @@ final class Controller {
         }
         for t in Theme.all { act("Theme: \(t.title)", .theme(t.name)) }
         return out
+    }
+
+    private func appItems() -> [LauncherItem] {
+        return Apps.installed().map { app in
+            LauncherItem(kind: .app, title: app.name, detail: "application") {
+                NSWorkspace.shared.openApplication(at: app.url, configuration: NSWorkspace.OpenConfiguration())
+            }
+        }
     }
 
     // MARK: - Mouse
