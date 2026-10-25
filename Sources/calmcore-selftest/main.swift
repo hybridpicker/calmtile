@@ -212,6 +212,27 @@ do {
     check(fuzzyScore("xyz", "Safari") == nil, "missing letters do not match")
     check(fuzzyScore("saf", "Safari")! > fuzzyScore("saf", "Microsoft Access Forms")!, "prefix beats scattered match")
     check(fuzzyScore("ff", "Final Fantasy")! > fuzzyScore("ff", "Offline")!, "word starts score higher")
+    // Ranking over real application names: the best placement counts, and so do CamelCase word starts.
+    let apps = ["TextEdit", "Microsoft Edge", "Google Chrome", "LibreMetronome", "Calculator", "Calendar",
+                "Activity Monitor", "App Store", "Terminal", "Mail", "Maps", "Messages", "Music", "Safari",
+                "System Settings", "Xcode", "Visual Studio Code", "Preview", "Photos", "Firefox Developer Edition",
+                "Image Capture", "Logic Pro"]
+    func top(_ q: String) -> String? {
+        return apps.compactMap { a in fuzzyScore(q, a).map { (a, $0) } }.max { $0.1 < $1.1 }?.0
+    }
+    check(fuzzyScore("ed", "TextEdit")! > fuzzyScore("ed", "Microsoft Edge")!, "'ed' finds the Ed of TextEdit")
+    check(top("ed") == "TextEdit", "'ed' ranks TextEdit first")
+    check(top("lm") == "LibreMetronome", "'lm' takes the CamelCase start of Metronome")
+    check(top("gc") == "Google Chrome", "acronym 'gc' keeps Google Chrome first")
+    check(top("ss") == "System Settings", "acronym 'ss' beats the double s of Messages")
+    check(top("vsc") == "Visual Studio Code", "three-word acronym")
+    check(top("am") == "Activity Monitor", "'am' is Activity Monitor")
+    check(top("term") == "Terminal", "prefix")
+    check(top("xc") == "Xcode", "short prefix")
+    check(top("safari") == "Safari", "whole name")
+    check(fuzzyScore("cal", "Calendar")! > fuzzyScore("cal", "Image Capture") ?? Int.min, "prefix beats a scattered match")
+    check(fuzzyScore("mail", "Mail")! > fuzzyScore("mail", "Mailchimp")!, "shorter text wins an equal match")
+    check(fuzzyScore("tdx", "TextEdit") == nil, "order matters")
     check(Set(Theme.all.map { $0.name }).count == Theme.all.count, "theme names are unique")
     check(Theme.all.allSatisfy { [$0.background, $0.foreground, $0.accent].allSatisfy { $0.count == 7 && $0.hasPrefix("#") } }, "theme colours are #rrggbb")
     check(Theme.after(Theme.all.last!.name) == Theme.all[0], "theme-next wraps")
