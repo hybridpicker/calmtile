@@ -293,9 +293,9 @@ enum Windows {
     }
 
     /// True when two frames agree within a few pixels (apps round and clamp).
-    static func framesMatch(_ a: CGRect, _ b: CGRect) -> Bool {
-        return abs(a.minX - b.minX) <= 3 && abs(a.minY - b.minY) <= 3
-            && abs(a.width - b.width) <= 3 && abs(a.height - b.height) <= 3
+    static func framesMatch(_ a: CGRect, _ b: CGRect, within d: CGFloat = 3) -> Bool {
+        return abs(a.minX - b.minX) <= d && abs(a.minY - b.minY) <= d
+            && abs(a.width - b.width) <= d && abs(a.height - b.height) <= d
     }
 
     static func setFrame(_ el: AXUIElement, _ r: CGRect) {

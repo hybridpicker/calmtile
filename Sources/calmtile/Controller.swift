@@ -515,6 +515,11 @@ final class Controller {
                 // for apps whose minimum size cannot fit the tile.
                 guard case .frame(let want) = placement, !engine.isFloating(id),
                       let actual = Windows.frame(of: w.element), !Windows.framesMatch(actual, want) else { continue }
+                // Still where our last placement left it, a few pixels off because the app snaps to its own grid
+                // (Terminal: 716 px in a 720 px tile after the trim): that is the app's answer, not a change. Placing
+                // it again gives the same result, and it did so every tick (measured: four AX writes and two reads
+                // per tick for each such window). Larger differences, such as a set call that timed out, still retry.
+                if let s = settled[id], Windows.framesMatch(actual, s), Windows.framesMatch(s, want, within: 8) { continue }
                 // Larger than its tile: the app insists on a minimum size. After a few tries it stays where our
                 // last attempt left it, and that is not an intervention by the app, so do not fight it. A window
                 // that is smaller than its tile or sits elsewhere never has that excuse (a set call may have timed
