@@ -49,6 +49,20 @@ final class HotkeyTap {
 
     /// Longest wait for the main thread before a key is handled by its default.
     static let keyTimeout: TimeInterval = 0.25
+    /// A key that reaches the main thread later than this is not acted on any more.
+    static let staleAfter: TimeInterval = 1.0
+
+    private var _switches = 0
+    /// Numbers the workspace keys as they arrive (tap thread); `lastSwitch` is the newest.
+    private func nextSwitch() -> Int {
+        lock.lock(); defer { lock.unlock() }
+        _switches += 1
+        return _switches
+    }
+    private var lastSwitch: Int {
+        lock.lock(); defer { lock.unlock() }
+        return _switches
+    }
     static let mouseTimeout: TimeInterval = 0.15
 
     func start() -> Bool {
@@ -70,8 +84,21 @@ final class HotkeyTap {
             let combo = KeyCombo(keyCode: event.getIntegerValueField(.keyboardEventKeycode), mods: Mods(flags: event.flags))
             guard let action = me.table[combo], let h = me.handler else { return Unmanaged.passUnretained(event) }
             let asked = CACurrentMediaTime()
+            let switchNumber = action.switchesWorkspace ? me.nextSwitch() : 0
             let swallow = me.onMain(timeout: HotkeyTap.keyTimeout, fallback: action.swallowedWhenLate, what: "\(action)") { late in
-                Profile.key(wait: CACurrentMediaTime() - asked, late: late)
+                let age = CACurrentMediaTime() - asked
+                Profile.key(wait: age, late: late)
+                // Keys queued behind a long block of the main thread would otherwise all run at once afterwards
+                // (three ⌘N in a row, a switch the user has long given up on). Too old: dropped. Of several
+                // workspace keys only the last one counts.
+                if late, age > HotkeyTap.staleAfter {
+                    Log.write("hotkey \(action) dropped: \(String(format: "%.1f", age)) s late")
+                    return action.swallowedWhenLate
+                }
+                if late, switchNumber != 0, switchNumber != me.lastSwitch {
+                    Log.write("hotkey \(action) dropped: a later workspace key is waiting")
+                    return true
+                }
                 return h(action, late)
             }
             return swallow ? nil : Unmanaged.passUnretained(event)
@@ -140,6 +167,13 @@ final class HotkeyTap {
 }
 
 private extension Action {
+    var switchesWorkspace: Bool {
+        switch self {
+        case .workspace, .backAndForth: return true
+        default: return false
+        }
+    }
+
     /// What happens to the key when the main thread does not answer in time: a focus key may still be the app's
     /// (⌘← moves the text cursor when there is no neighbour), everything else is always ours.
     var swallowedWhenLate: Bool {
