@@ -250,8 +250,9 @@ does the job without touching the system.
 - In desktops mode a desktop is being created: the switch follows within a second.
 
 **A window stays smaller or larger than its tile.** Larger: the app's minimum size, see section 7; the
-neighbours should have made room, and in parked mode the window moves to a workspace with room. Smaller or
-elsewhere: calmtile places it again on every tick until it matches; if it never does, the app refuses
+neighbours should have made room, and in parked mode the window moves to a workspace with room. A few
+pixels smaller: the app snaps to its own grid (Terminal to character cells) and calmtile leaves it there.
+More than that, or elsewhere: calmtile places it again until it matches; if it never does, the app refuses
 Accessibility moves (look for `set ->` codes other than 0 in the debug log).
 
 **A window floats that should tile.** It is not a standard window, cannot be resized, matches a
@@ -265,9 +266,16 @@ short; apps that restore their last frame open in place.
 **The focus border is drawn around nothing.** It follows the focused window; if that window is on another
 desktop (desktops mode) it hides. Report it if it stays.
 
-**Log.** `~/Library/Logs/calmtile.log`: window counts, actions, permission state, desktop re-homings, and
-every step of the loop that took long, with the app it waited on. Window titles are never written.
-`CALMTILE_DEBUG=1` in the environment adds placements with frames.
+**A hotkey came late or not at all.** calmtile waits at most 0.25 s for any app's Accessibility answer; an
+app that keeps running into that is left alone for a few seconds (`app … did not answer … left alone` in
+the log) and its windows keep their last known state. A key that could not be handled for more than a
+second is dropped instead of running late (`hotkey … dropped`), and of several waiting workspace keys
+only the last one runs.
+
+**Log.** `~/Library/Logs/calmtile.log`: actions, permission state, desktop re-homings, the window count
+(at most once a minute), and every step of the loop that took long, with the app it waited on. Window
+titles are never written. `CALMTILE_DEBUG=1` in the environment adds placements with frames and a profile
+line every 20 ticks (see docs/development.md).
 
 ## 11. Undo everything
 

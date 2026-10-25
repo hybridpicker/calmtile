@@ -33,6 +33,15 @@ titles are never written. `CALMTILE_DEBUG=1` in the environment (for example
 placement with frames, what the Accessibility list shows after a desktop switch, and the "created" path of
 new windows.
 
+With `CALMTILE_DEBUG=1` (or `CALMTILE_PROFILE=1` for the profile alone) every 20 full ticks write one
+`profile:` line: the workspace shown, how long the 20 ticks took (5 s at the active rate of 250 ms, 20 s
+once the loop has slowed to 1 s for lack of anything happening), main-thread time per tick (p50, p95, max),
+time per phase (`observe` registers notifications, `list` asks the apps for their windows, `reconcile`
+matches them against the window server, `focus`, `float`, `place`, `border`), Accessibility and window
+server calls per tick, the apps that took longest to list, notifications by kind and app, and how long
+hotkeys waited for the main thread (`late` when the key tap had to decide without it). Numbers and bundle
+ids only.
+
 `calmtile --print-config` prints the effective config; `--restore-spotlight`, `--install-login` and
 `--uninstall-login` are the one-shot commands described in the README.
 
