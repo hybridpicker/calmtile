@@ -182,17 +182,23 @@ enum Spaces {
     /// Right after a desktop switch that app may be the one just left, and a key event delivered to an app whose
     /// windows are on another desktop makes macOS switch back there about a second later (seen on macOS 26.5). A
     /// human release comes 100 ms or more after the press, by which time the Dock has activated an app of the new
-    /// desktop; the synthetic one keeps that distance.
+    /// desktop; the synthetic one keeps that distance. The release is sent from the main queue later instead of
+    /// sleeping for it, which held up the main thread (and with it every hotkey) for 130 ms on each switch.
     static func postKey(_ key: CGKeyCode, flags: CGEventFlags) {
         let src = CGEventSource(stateID: .hidSystemState)
-        for down in [true, false] {
+        func post(_ down: Bool) {
             let e = CGEvent(keyboardEventSource: src, virtualKey: key, keyDown: down)
             e?.flags = flags
             e?.setIntegerValueField(.eventSourceUserData, value: ownEventTag)
             e?.post(tap: .cghidEventTap)
-            usleep(down ? 120_000 : 10_000)
         }
+        post(true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { post(false) }
     }
+
+    /// From the key-down of `postKey` until the press is over (the release plus the pause after it that the
+    /// blocking version used to sleep), so the steps that follow keep their old timing.
+    static let keyPressDuration: TimeInterval = 0.13
 
     /// Press the system shortcut "Switch to Desktop <position>" (Control+digit) for the Dock, enabling it in the
     /// window server for just that moment when the user has it off in System Settings (the usual state; nothing is
@@ -204,7 +210,7 @@ enum Spaces {
         let was = CGSIsSymbolicHotKeyEnabled(hotKey)
         if !was { CGSSetSymbolicHotKeyEnabled(hotKey, true) }
         postKey(key, flags: .maskControl)
-        DispatchQueue.main.asyncAfter(deadline: .now() + restoreAfter) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + keyPressDuration + restoreAfter) {
             if !was { CGSSetSymbolicHotKeyEnabled(hotKey, false) }
             completion?()
         }

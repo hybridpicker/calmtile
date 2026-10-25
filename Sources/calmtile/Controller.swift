@@ -762,7 +762,7 @@ final class Controller {
         mouseEvent(.leftMouseDragged, moved)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
             _ = Spaces.pressDesktopShortcut(position: position)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Spaces.keyPressDuration + 0.5) {
                 self?.mouseEvent(.leftMouseUp, moved)
                 CGWarpMouseCursorPosition(saved)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
