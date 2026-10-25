@@ -66,6 +66,7 @@ final class HotkeyTap {
             if type != .keyDown {
                 return me.mouse(type, at: event.location, flags: event.flags) ? nil : Unmanaged.passUnretained(event)
             }
+            if event.getIntegerValueField(.eventSourceUserData) == Spaces.ownEventTag { return Unmanaged.passUnretained(event) }   // our own key for the Dock
             let combo = KeyCombo(keyCode: event.getIntegerValueField(.keyboardEventKeycode), mods: Mods(flags: event.flags))
             guard let action = me.table[combo], let h = me.handler else { return Unmanaged.passUnretained(event) }
             let swallow = me.onMain(timeout: HotkeyTap.keyTimeout, fallback: action.swallowedWhenLate, what: "\(action)") { late in h(action, late) }

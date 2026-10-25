@@ -43,6 +43,34 @@ if let i = CommandLine.arguments.firstIndex(of: "--probe-switch"), i + 1 < Comma
     exit(0)
 }
 
+if let i = CommandLine.arguments.firstIndex(of: "--probe-hotkey-switch"), i + 1 < CommandLine.arguments.count,
+   let n = Int(CommandLine.arguments[i + 1]) {   // test aid: switch to workspace n through the Dock's shortcut and report the window server's state
+    Spaces.readOnlyNumbers = true
+    func state(_ label: String) { print("\(label): active=\(Spaces.activeNumber().map(String.init) ?? "?") shown=\(Spaces.shownSpaces())") }
+    // --delay <seconds>: wait before switching, so the launch of this helper itself (LaunchServices activates and
+    // deactivates apps around it) is kept apart from the switch. --restore-after <seconds>: when the shortcut is
+    // switched back off (default 0.4 s as in normal use).
+    func arg(_ name: String) -> Double? {
+        guard let j = CommandLine.arguments.firstIndex(of: name), j + 1 < CommandLine.arguments.count else { return nil }
+        return Double(CommandLine.arguments[j + 1])
+    }
+    func front() -> String { NSWorkspace.shared.frontmostApplication?.bundleIdentifier?.split(separator: ".").last.map(String.init) ?? "?" }
+    if let d = arg("--delay") { RunLoop.main.run(until: Date().addingTimeInterval(d)) }
+    state("before (front=\(front()))")
+    let t0 = Date()
+    let restore: TimeInterval = arg("--restore-after") ?? 0.4
+    if let pos = Spaces.position(of: n) {
+        print("asked for workspace \(n) (position \(pos)), shortcut restored after \(restore) s: \(Spaces.pressDesktopShortcut(position: pos, restoreAfter: restore) { print("  shortcut restored") })")
+    } else { print("no desktop \(n)") }
+    var last = ""
+    for _ in 0..<45 {   // the shortcut is switched back on the main queue, so run the loop while sampling
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        let now = "active=\(Spaces.activeNumber().map(String.init) ?? "?") shown=\(Spaces.shownSpaces()) front=\(front())"
+        if now != last { print("\(Int(Date().timeIntervalSince(t0) * 1000)) ms: \(now)"); last = now }
+    }
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--restore-spotlight") {
     SpotlightMode.restore()
     exit(0)

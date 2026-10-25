@@ -61,24 +61,37 @@ enum Windows {
             enableAccessibility(ax, pid: app.processIdentifier)
             guard let wins: [AXUIElement] = attr(ax, kAXWindowsAttribute) else { continue }
             for w in wins {
-                let role: String? = attr(w, kAXRoleAttribute)
-                let subrole: String? = attr(w, kAXSubroleAttribute)
-                guard role == kAXWindowRole as String, subrole == "AXStandardWindow" else { continue }
-                if let min: Bool = attr(w, kAXMinimizedAttribute), min { continue }
-                if let fs: Bool = attr(w, "AXFullScreen"), fs { continue }   // native macOS fullscreen: leave alone
-                var wid = CGWindowID(0)
-                guard _AXUIElementGetWindow(w, &wid) == .success, wid != 0 else { continue }
-                var settable = DarwinBoolean(false)
-                _ = AXUIElementIsAttributeSettable(w, kAXSizeAttribute as CFString, &settable)
-                // Transient popups and system alerts claim to be standard windows but have no window
-                // buttons and cannot be resized: leave them completely alone (never tile, park or move).
-                if !settable.boolValue, (attr(w, kAXCloseButtonAttribute) as AXUIElement?) == nil,
-                   (attr(w, kAXMinimizeButtonAttribute) as AXUIElement?) == nil { continue }
-                out.append(AXWin(id: wid, element: w, pid: app.processIdentifier,
-                                 bundleID: app.bundleIdentifier ?? "?", resizable: settable.boolValue))
+                if let win = classify(w, pid: app.processIdentifier, bundleID: app.bundleIdentifier ?? "?") { out.append(win) }
             }
         }
         return out
+    }
+
+    /// The managed-window test for one element: a standard, non-minimized, non-fullscreen window with a window id.
+    private static func classify(_ w: AXUIElement, pid: pid_t, bundleID: String) -> AXWin? {
+        let role: String? = attr(w, kAXRoleAttribute)
+        let subrole: String? = attr(w, kAXSubroleAttribute)
+        guard role == kAXWindowRole as String, subrole == "AXStandardWindow" else { return nil }
+        if let min: Bool = attr(w, kAXMinimizedAttribute), min { return nil }
+        if let fs: Bool = attr(w, "AXFullScreen"), fs { return nil }   // native macOS fullscreen: leave alone
+        var wid = CGWindowID(0)
+        guard _AXUIElementGetWindow(w, &wid) == .success, wid != 0 else { return nil }
+        var settable = DarwinBoolean(false)
+        _ = AXUIElementIsAttributeSettable(w, kAXSizeAttribute as CFString, &settable)
+        // Transient popups and system alerts claim to be standard windows but have no window
+        // buttons and cannot be resized: leave them completely alone (never tile, park or move).
+        if !settable.boolValue, (attr(w, kAXCloseButtonAttribute) as AXUIElement?) == nil,
+           (attr(w, kAXMinimizeButtonAttribute) as AXUIElement?) == nil { return nil }
+        return AXWin(id: wid, element: w, pid: pid, bundleID: bundleID, resizable: settable.boolValue)
+    }
+
+    /// A window element straight from an Accessibility notification, if it is one hyprmac manages (regular app,
+    /// not ignored, standard window).
+    static func standardWindow(_ el: AXUIElement, ignoring ignored: [String]) -> AXWin? {
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(el, &pid) == .success, let app = NSRunningApplication(processIdentifier: pid),
+              app.activationPolicy == .regular, !ignored.contains(app.bundleIdentifier ?? "") else { return nil }
+        return classify(el, pid: pid, bundleID: app.bundleIdentifier ?? "?")
     }
 
     /// One line per window of every regular app: role, subrole and capabilities, never the title.

@@ -29,6 +29,9 @@ final class Controller {
     private var secureInput = false
     /// When the current desktop last changed (desktops mode): the Accessibility window list lags behind for a moment.
     private var switchedAt = Date.distantPast
+    /// Desktop a window was last reported on by the window server; a window is re-homed only when two ticks agree
+    /// and no desktop transition is being drawn, since the report wobbles while the Dock animates a switch.
+    private var reportedDesktop = [WindowID: Int]()
 
     private struct Drag {
         let id: WindowID
@@ -132,9 +135,11 @@ final class Controller {
 
     private func observe(pid: pid_t) {
         guard observers[pid] == nil else { return }
-        let callback: AXObserverCallback = { _, _, _, refcon in
+        let callback: AXObserverCallback = { _, element, notification, refcon in
             guard let refcon = refcon else { return }
-            Unmanaged<Controller>.fromOpaque(refcon).takeUnretainedValue().requestTick()
+            let me = Unmanaged<Controller>.fromOpaque(refcon).takeUnretainedValue()
+            if notification as String == kAXWindowCreatedNotification { me.windowCreated(element) }
+            me.requestTick()
         }
         var created: AXObserver?
         guard AXObserverCreate(pid, callback, &created) == .success, let obs = created else { return }
@@ -145,6 +150,20 @@ final class Controller {
         }
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), .commonModes)
         observers[pid] = obs
+    }
+
+    /// A window was just created: tile it now, while it is still appearing, instead of on the next tick (a few
+    /// hundred milliseconds later, when it had already been drawn at the app's own size and visibly jumped).
+    /// The tick afterwards finds it known and only confirms the placement.
+    private func windowCreated(_ element: AXUIElement) {
+        guard !paused, !overview, !creatingDesktop, let w = Windows.standardWindow(element, ignoring: config.ignoreApps),
+              known[w.id] == nil else { return }
+        let desktop: Int? = config.useSpaces ? (Spaces.number(ofWindow: w.id) ?? engine.currentWorkspace) : nil
+        let float = !w.resizable || config.floatApps.contains(w.bundleID) || titleFloats(w)
+        engine.windowAppeared(w.id, floating: float, frame: float ? Windows.frame(of: w.element) : nil, workspace: desktop)
+        known[w.id] = w
+        if Log.debug { Log.write("created win \(w.id) \(w.bundleID) float=\(float): placed at once") }
+        applyPlan()
     }
 
     /// While Mission Control is open every window sits at its layout position (not parked in a corner), so
@@ -201,9 +220,12 @@ final class Controller {
             return
         }
         watchSecureInput()
+        runCommandFile()
 
         observeApps()
-        if config.useSpaces, let n = Spaces.activeNumber(), n != engine.currentWorkspace {
+        // The Dock animates a switch hyprmac asked for; the window server reports the new desktop only when it is
+        // done, so a switch of our own is not second-guessed for a moment.
+        if config.useSpaces, Date().timeIntervalSince(switchedAt) > 0.8, let n = Spaces.activeNumber(), n != engine.currentWorkspace {
             engine.switchWorkspace(n)   // the user switched desktops by gesture or Mission Control
             switchedAt = Date()
         }
@@ -214,6 +236,8 @@ final class Controller {
         // left; taking those windows as "here" tiled them into the wrong workspace, and focusing one of them
         // then pulled macOS straight back to its desktop.
         let current = Windows.list(excluding: myPid, ignoring: config.ignoreApps)
+        // While the Dock draws a transition (two or more desktops shown) the per-window reports are not trusted.
+        let settled = !config.useSpaces || Spaces.shownSpaces().count <= 1
         var seen = Set<WindowID>()
         for w in current {
             seen.insert(w.id)
@@ -223,10 +247,9 @@ final class Controller {
             }
             // Dragged to another desktop by macOS itself: it now belongs to that workspace.
             if let d = desktop, let home = engine.workspaceOf(w.id), home != 0, home != d {
-                engine.relocate(w.id, to: d)
-                applied[w.id] = nil
-                Log.write("window of \(w.bundleID) is on desktop \(d) now (was \(home))")
+                if settled, reportedDesktop[w.id] == d { relocateKnown(w.id, to: d, from: home) }
             }
+            reportedDesktop[w.id] = desktop
             if known[w.id] == nil {
                 let float = !w.resizable || config.floatApps.contains(w.bundleID) || titleFloats(w)
                 engine.windowAppeared(w.id, floating: float, frame: float ? Windows.frame(of: w.element) : nil, workspace: desktop)
@@ -253,10 +276,10 @@ final class Controller {
                 let n = Spaces.number(ofWindow: id)
                 if let n = n, n != engine.currentWorkspace {
                     // On another desktop (not visible to Accessibility right now): keep it, follow it if it moved.
-                    if let home = engine.workspaceOf(id), home != 0, home != n {
-                        engine.relocate(id, to: n)
-                        Log.write("window of \(known[id]?.bundleID ?? "?") is on desktop \(n) now (was \(home))")
+                    if let home = engine.workspaceOf(id), home != 0, home != n, settled, reportedDesktop[id] == n {
+                        relocateKnown(id, to: n, from: home)
                     }
+                    reportedDesktop[id] = n
                     continue
                 }
                 // On this desktop but missing from Accessibility: right after a switch the list has simply not
@@ -269,7 +292,8 @@ final class Controller {
             known[id] = nil
             applied[id] = nil
             retries[id] = nil
-            settled[id] = nil
+            self.settled[id] = nil
+            reportedDesktop[id] = nil
             titleChecked.remove(id)
         }
 
@@ -299,6 +323,27 @@ final class Controller {
         applyPlan()
         updateBorder()
         updateStatus()
+    }
+
+    /// Development aid (HYPRMAC_DEBUG only): an action written to ~/.config/hyprmac/command, e.g. `workspace 2`, runs
+    /// on the next tick as if its key had been pressed, without any helper process being launched. Launching a
+    /// helper app from a shell makes macOS re-activate the shell's owning app a moment later, and with real desktops
+    /// that switches back to that app's desktop, which made every switch look as if it had been undone.
+    private static let commandFile = NSString(string: "~/.config/hyprmac/command").expandingTildeInPath
+    private func runCommandFile() {
+        guard Log.debug, let data = FileManager.default.contents(atPath: Controller.commandFile) else { return }
+        try? FileManager.default.removeItem(atPath: Controller.commandFile)
+        guard let line = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let action = Action.parse(line) else { Log.write("command file: not an action"); return }
+        Log.write("command file: \(line)")
+        _ = perform(action)
+    }
+
+    /// macOS moved a window to another desktop (drag in Mission Control, or hyprmac's own move): re-home it.
+    private func relocateKnown(_ id: WindowID, to n: Int, from home: Int) {
+        engine.relocate(id, to: n)
+        applied[id] = nil
+        Log.write("window of \(known[id]?.bundleID ?? "?") is on desktop \(n) now (was \(home))")
     }
 
     private func titleFloats(_ w: AXWin) -> Bool {
@@ -375,12 +420,17 @@ final class Controller {
                 // (a new window opening, an app restoring its own frame). Give up after a few tries
                 // for apps whose minimum size cannot fit the tile.
                 guard case .frame(let want) = placement, !engine.isFloating(id),
-                      (retries[id] ?? 0) < 6,
                       let actual = Windows.frame(of: w.element), !Windows.framesMatch(actual, want) else { continue }
-                // The app could not reach the tile and stayed where our last attempt left it: not an
-                // intervention by the app, so do not fight it.
-                if let s = settled[id], Windows.framesMatch(actual, s) { continue }
-                retries[id] = (retries[id] ?? 0) + 1
+                // Larger than its tile: the app insists on a minimum size. After a few tries it stays where our
+                // last attempt left it, and that is not an intervention by the app, so do not fight it. A window
+                // that is smaller than its tile or sits elsewhere never has that excuse (a set call may have timed
+                // out while the app was busy): it is placed again, so a neighbour's close always gives it the room.
+                let tooBig = actual.width > want.width + 8 || actual.height > want.height + 8
+                if tooBig {
+                    guard (retries[id] ?? 0) < 6 else { continue }
+                    if let s = settled[id], Windows.framesMatch(actual, s) { continue }
+                    retries[id] = (retries[id] ?? 0) + 1
+                }
             }
             if Log.debug {
                 Log.write("place \(id) \(w.bundleID) want=\(placement) actual=\(Windows.frame(of: w.element).map { "\($0)" } ?? "?") retry=\(retries[id] ?? 0)")
@@ -611,25 +661,18 @@ final class Controller {
     }
 
     /// macOS offers no way to move a window to another desktop, except dragging it there while the system
-    /// shortcut "Switch to Desktop N" (⌃N) fires. So: grab the title bar, press ⌃N, let go, come back.
-    /// Needs those shortcuts enabled (System Settings > Keyboard > Keyboard Shortcuts > Mission Control);
-    /// moving a window through a private call was tried and has no effect on macOS 26.
+    /// shortcut "Switch to Desktop N" (⌃N) fires. So: grab the title bar, press ⌃N (enabled for that moment, see
+    /// `Spaces.pressDesktopShortcut`), let go, come back. Moving a window through a private call was tried and
+    /// has no effect on macOS 26.
     private func moveFocusedToDesktop(_ n: Int) {
         let from = engine.currentWorkspace
         guard n != from, let id = engine.focused, let w = known[id], let f = Windows.frame(of: w.element) else { return }
-        guard let position = Spaces.position(of: n) else {
+        // The system shortcut counts desktops by their position in the Dock's order, not by workspace number.
+        guard let position = Spaces.position(of: n), position <= 9 else {
             Log.write("move to desktop \(n): it does not exist yet (go there with the workspace key first)")
             NSSound.beep()
             return
         }
-        // The system shortcut counts desktops by their position in the Dock's order, not by workspace number.
-        guard Spaces.desktopShortcutEnabled(position: position) else {
-            Log.write("move to desktop \(n): enable the system shortcut \"Switch to Desktop \(position)\" (Control+\(position)) first")
-            NSSound.beep()
-            return
-        }
-        let digitKeys: [Int: Int64] = [1: 18, 2: 19, 3: 20, 4: 21, 5: 23, 6: 22, 7: 26, 8: 28, 9: 25]
-        guard let key = digitKeys[position] else { return }
         let grab = CGPoint(x: f.minX + min(80, f.width / 2), y: f.minY + 12)
         let moved = CGPoint(x: grab.x + 6, y: grab.y + 2)
         let saved = CGEvent(source: nil)?.location ?? grab
@@ -637,12 +680,7 @@ final class Controller {
         mouseEvent(.leftMouseDown, grab)
         mouseEvent(.leftMouseDragged, moved)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
-            let src = CGEventSource(stateID: .hidSystemState)
-            for down in [true, false] {
-                let e = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(key), keyDown: down)
-                e?.flags = .maskControl
-                e?.post(tap: .cghidEventTap)
-            }
+            _ = Spaces.pressDesktopShortcut(position: position)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 self?.mouseEvent(.leftMouseUp, moved)
                 CGWarpMouseCursorPosition(saved)

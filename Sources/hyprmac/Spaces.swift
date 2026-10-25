@@ -10,6 +10,11 @@ import HyprCore
 @_silgen_name("CGSCopyManagedDisplaySpaces") private func CGSCopyManagedDisplaySpaces(_ cid: Int32) -> CFArray?
 @_silgen_name("CGSManagedDisplaySetCurrentSpace") private func CGSManagedDisplaySetCurrentSpace(_ cid: Int32, _ display: CFString, _ space: UInt64)
 @_silgen_name("CGSCopySpacesForWindows") private func CGSCopySpacesForWindows(_ cid: Int32, _ mask: Int32, _ wids: CFArray) -> CFArray?
+@_silgen_name("CGSCopySpaces") private func CGSCopySpaces(_ cid: Int32, _ mask: Int32) -> CFArray?
+// Live state of the system keyboard shortcuts in the window server (what System Settings > Keyboard writes to
+// com.apple.symbolichotkeys); not persisted. AltTab uses the same pair to take Cmd+Tab from the system.
+@_silgen_name("CGSSetSymbolicHotKeyEnabled") private func CGSSetSymbolicHotKeyEnabled(_ hotKey: Int32, _ enabled: Bool) -> Int32
+@_silgen_name("CGSIsSymbolicHotKeyEnabled") private func CGSIsSymbolicHotKeyEnabled(_ hotKey: Int32) -> Bool
 
 /// macOS desktops of the display that holds the active Space.
 ///
@@ -131,9 +136,62 @@ enum Spaces {
         return number(of: CGSGetActiveSpace(cid), in: l)
     }
 
+    /// Desktops the window server currently shows ("current" set). After a switch it must hold exactly one per
+    /// display; two mean the desktop just left is still being drawn.
+    static func shownSpaces() -> [UInt64] {
+        return (CGSCopySpaces(cid, 5) as? [NSNumber])?.map { $0.uint64Value } ?? []
+    }
+
+    /// Key codes of the digit keys (ANSI), as the system shortcuts "Switch to Desktop N" use them.
+    static let digitKeyCodes: [Int: CGKeyCode] = [1: 18, 2: 19, 3: 20, 4: 21, 5: 23, 6: 22, 7: 26, 8: 28, 9: 25]
+    /// Tag on key events hyprmac synthesizes, so its own key tap lets them pass whatever the bindings say.
+    static let ownEventTag: Int64 = 0x4879_704D   // "HypM"
+
+    /// Down and up like a real press: the hotkey consumes the key-down, the key-up still reaches the frontmost app.
+    /// Right after a desktop switch that app may be the one just left, and a key event delivered to an app whose
+    /// windows are on another desktop makes macOS switch back there about a second later (seen on macOS 26.5). A
+    /// human release comes 100 ms or more after the press, by which time the Dock has activated an app of the new
+    /// desktop; the synthetic one keeps that distance.
+    static func postKey(_ key: CGKeyCode, flags: CGEventFlags) {
+        let src = CGEventSource(stateID: .hidSystemState)
+        for down in [true, false] {
+            let e = CGEvent(keyboardEventSource: src, virtualKey: key, keyDown: down)
+            e?.flags = flags
+            e?.setIntegerValueField(.eventSourceUserData, value: ownEventTag)
+            e?.post(tap: .cghidEventTap)
+            usleep(down ? 120_000 : 10_000)
+        }
+    }
+
+    /// Press the system shortcut "Switch to Desktop <position>" (Control+digit) for the Dock, enabling it in the
+    /// window server for just that moment when the user has it off in System Settings (the usual state; nothing is
+    /// written to the preferences and the user's own Control+digit keeps its meaning). `completion` runs once the
+    /// shortcut is back in its previous state.
+    static func pressDesktopShortcut(position: Int, restoreAfter: TimeInterval = 0.4, completion: (() -> Void)? = nil) -> Bool {
+        guard position >= 1, position <= 9, let key = digitKeyCodes[position] else { return false }
+        let hotKey = Int32(117 + position)
+        let was = CGSIsSymbolicHotKeyEnabled(hotKey)
+        if !was { CGSSetSymbolicHotKeyEnabled(hotKey, true) }
+        postKey(key, flags: .maskControl)
+        DispatchQueue.main.asyncAfter(deadline: .now() + restoreAfter) {
+            if !was { CGSSetSymbolicHotKeyEnabled(hotKey, false) }
+            completion?()
+        }
+        return true
+    }
+
+    /// Switch to workspace `n` the way the Dock does: through its own "Switch to Desktop" shortcut.
+    ///
+    /// Setting the display's current Space directly (CGSManagedDisplaySetCurrentSpace) is accepted from any process
+    /// but only half of the job: the new desktop becomes current while the one just left stays shown, so the window
+    /// server draws both (its "current" set then lists two Spaces) and the windows of the old desktop remain on
+    /// screen, overlapping the new ones. Hiding the old one (CGSHideSpaces) is honoured for the Dock alone, verified
+    /// on macOS 26.5. The Dock's shortcut does the whole transition. Beyond position 9 the direct call remains.
     @discardableResult
     static func switchTo(_ n: Int) -> Bool {
-        guard let l = layout(), let id = space(number: n, in: l) else { return false }
+        guard let l = layout(), let id = space(number: n, in: l), let i = l.spaces.firstIndex(of: id) else { return false }
+        if CGSGetActiveSpace(cid) == id { return true }
+        if pressDesktopShortcut(position: i + 1) { return true }
         CGSManagedDisplaySetCurrentSpace(cid, l.display as CFString, id)
         return true
     }
@@ -162,15 +220,6 @@ enum Spaces {
             if let n = w["kCGWindowNumber"] as? Int { out[WindowID(n)] = (w["kCGWindowIsOnscreen"] as? Bool) ?? false }
         }
         return out
-    }
-}
-
-extension Spaces {
-    /// Is the system shortcut "Switch to Desktop <position>" (Keyboard > Keyboard Shortcuts > Mission Control) enabled?
-    static func desktopShortcutEnabled(position: Int) -> Bool {
-        let raw = CFPreferencesCopyAppValue("AppleSymbolicHotKeys" as CFString, "com.apple.symbolichotkeys" as CFString)
-        guard let all = raw as? [String: Any], let entry = all[String(117 + position)] as? [String: Any] else { return false }
-        return (entry["enabled"] as? Bool) ?? ((entry["enabled"] as? Int).map { $0 != 0 } ?? false)
     }
 }
 
