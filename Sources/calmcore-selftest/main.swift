@@ -431,6 +431,28 @@ do {
           "a fractional area shrinks to whole points")
 }
 
+// micro-benchmark: 200 windows in and out with a plan every ten, so regressions in the core show up
+do {
+    var best = Double.infinity
+    for _ in 0..<3 {
+        let e = Engine(monitors: [Monitor(id: 0, frame: CGRect(x: 0, y: 0, width: 2560, height: 1600))])
+        e.allowOverflow = false
+        e.minTile = .zero
+        let t0 = Date()
+        for id in WindowID(1)...200 {
+            e.windowAppeared(id, floating: false)
+            if id % 10 == 0 { _ = e.plan() }
+        }
+        for id in WindowID(1)...200 {
+            e.windowGone(id)
+            if id % 10 == 0 { _ = e.plan() }
+        }
+        best = min(best, Date().timeIntervalSince(t0))
+    }
+    print(String(format: "benchmark: 200 windows in and out with plans: %.1f ms", best * 1000))
+    check(best < 0.05, "200 windows in and out with plans take under 50 ms")
+}
+
 if failures == 0 {
     print("OK - \(checks) checks passed")
 } else {

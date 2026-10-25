@@ -96,6 +96,23 @@ public final class DwindleTree {
 
     public func frames(in rect: CGRect, gap: CGFloat) -> [WindowID: CGRect] {
         var out = [WindowID: CGRect]()
+        // Each split asks for the minimum of both of its subtrees; computed once per node instead of once per
+        // ancestor (quadratic in a dwindle spiral, which is as deep as it has windows).
+        var mins = [ObjectIdentifier: CGSize]()
+        func minimum(of n: Node, gap: CGFloat) -> CGSize {
+            if let m = mins[ObjectIdentifier(n)] { return m }
+            let m: CGSize
+            if let w = n.window { m = minSize(w) }
+            else if let a = n.first, let b = n.second {
+                let ma = minimum(of: a, gap: gap), mb = minimum(of: b, gap: gap)
+                switch n.axis {
+                case .horizontal: m = CGSize(width: ma.width + mb.width + gap, height: max(ma.height, mb.height))
+                case .vertical: m = CGSize(width: max(ma.width, mb.width), height: ma.height + mb.height + gap)
+                }
+            } else { m = .zero }
+            mins[ObjectIdentifier(n)] = m
+            return m
+        }
         func place(_ n: Node, _ r: CGRect) {
             if let w = n.window { out[w] = r; return }
             guard let a = n.first, let b = n.second else { return }
