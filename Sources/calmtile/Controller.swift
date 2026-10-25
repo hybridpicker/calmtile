@@ -207,6 +207,7 @@ final class Controller {
                 Windows.alive(pid)
             }
             if notification as String == kAXWindowCreatedNotification { me.windowCreated(element) }
+            if notification as String == kAXUIElementDestroyedNotification { me.elementDestroyed(element) }
             me.requestTick()
         }
         var created: AXObserver?
@@ -241,6 +242,18 @@ final class Controller {
         known[w.id] = w
         if Log.debug { Log.write("created win \(w.id) \(w.bundleID) float=\(float): placed at once") }
         applyPlan()
+    }
+
+    /// Known windows whose element reported its own destruction since the last tick.
+    private var destroyed = Set<WindowID>()
+
+    /// A closed window is still reported by the window server for about half a second (its closing animation),
+    /// which kept its tile, and the neighbour waiting to grow back, that long (measured: 0.5 s). Its element's
+    /// destroyed notification comes first. Only elements equal to a known window count; the many other elements
+    /// an app destroys (tabs, buttons, fields) match none.
+    private func elementDestroyed(_ element: AXUIElement) {
+        guard let id = known.first(where: { CFEqual($0.value.element, element) })?.key else { return }
+        destroyed.insert(id)
     }
 
     /// While Mission Control is open every window sits at its layout position (not parked in a corner), so
@@ -380,17 +393,18 @@ final class Controller {
         let justSwitched = Date().timeIntervalSince(switchedAt) < 0.8
         for id in seen { missingSince[id] = nil }
         for id in missing {
+            let gone = destroyed.contains(id)   // its element said so: no reason to wait for the window server
             // Parked mode: the window server, not one Accessibility answer, says whether a window still exists. An
             // app that answered the window list wrongly once (busy, a call that failed) used to lose its windows:
             // they came back the next tick as new ones, appended to the layout with their place and split ratios
             // gone. A window that is still drawn keeps its tile for a few seconds; one that stays missing from
             // Accessibility that long (it became a sheet or a panel) goes as before.
-            if !config.useSpaces, living[id] == true {
+            if !gone, !config.useSpaces, living[id] == true {
                 let since = missingSince[id] ?? Date()
                 missingSince[id] = since
                 if Date().timeIntervalSince(since) < 3 { continue }
             }
-            if config.useSpaces, let onscreen = living[id] {
+            if !gone, config.useSpaces, let onscreen = living[id] {
                 let n = Spaces.number(ofWindow: id)
                 if let n = n, n != engine.currentWorkspace {
                     // On another desktop (not visible to Accessibility right now): keep it, follow it if it moved.
@@ -415,6 +429,7 @@ final class Controller {
             missingSince[id] = nil
             titleChecked.remove(id)
         }
+        destroyed.removeAll()
 
         // The focused window was closed: focus returns to the window the engine picked (the last one
         // used on this workspace), not to whatever the OS happens to raise.
