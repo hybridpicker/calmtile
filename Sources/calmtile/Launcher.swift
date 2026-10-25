@@ -1,5 +1,5 @@
 import AppKit
-import HyprCore
+import CalmCore
 
 struct LauncherItem {
     enum Kind: Int { case window = 0, action = 1, app = 2 }
@@ -39,7 +39,7 @@ private final class LauncherPanel: NSPanel {
     override var canBecomeKey: Bool { return true }
 }
 
-/// Type to search windows, apps and hyprmac actions; arrows + Return to pick, Esc to close.
+/// Type to search windows, apps and calmtile actions; arrows + Return to pick, Esc to close.
 final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
     var provider: (() -> [LauncherItem])?
     /// Called right before an item runs or the panel is dismissed, to hand focus back.

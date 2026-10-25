@@ -1,6 +1,6 @@
 import AppKit
 import Carbon
-import HyprCore
+import CalmCore
 
 final class Controller {
     private var config: Config
@@ -67,7 +67,7 @@ final class Controller {
     func start() {
         Log.write("start: trusted=\(Windows.isTrusted(prompt: false)) monitors=\(engine.monitors.count)")
         if !Windows.isTrusted(prompt: true) {
-            notify("Allow hyprmac under System Settings > Privacy & Security > Accessibility, then start it again.")
+            notify("Allow calmtile under System Settings > Privacy & Security > Accessibility, then start it again.")
         }
         setUpMenu()
         updateSpotlight()
@@ -247,7 +247,7 @@ final class Controller {
         runCommandFile()
 
         timed("observing apps", limit: 1.0) { observeApps() }
-        // The Dock animates a switch hyprmac asked for; the window server reports the new desktop only when it is
+        // The Dock animates a switch calmtile asked for; the window server reports the new desktop only when it is
         // done, so a switch of our own is not second-guessed for a moment.
         if config.useSpaces, Date().timeIntervalSince(switchedAt) > 0.8, let n = Spaces.activeNumber(), n != engine.currentWorkspace {
             engine.switchWorkspace(n)   // the user switched desktops by gesture or Mission Control
@@ -349,11 +349,11 @@ final class Controller {
         updateStatus()
     }
 
-    /// Development aid (HYPRMAC_DEBUG only): an action written to ~/.config/hyprmac/command, e.g. `workspace 2`, runs
+    /// Development aid (CALMTILE_DEBUG only): an action written to ~/.config/calmtile/command, e.g. `workspace 2`, runs
     /// on the next tick as if its key had been pressed, without any helper process being launched. Launching a
     /// helper app from a shell makes macOS re-activate the shell's owning app a moment later, and with real desktops
     /// that switches back to that app's desktop, which made every switch look as if it had been undone.
-    private static let commandFile = NSString(string: "~/.config/hyprmac/command").expandingTildeInPath
+    private static let commandFile = NSString(string: "~/.config/calmtile/command").expandingTildeInPath
     private func runCommandFile() {
         guard Log.debug, let data = FileManager.default.contents(atPath: Controller.commandFile) else { return }
         try? FileManager.default.removeItem(atPath: Controller.commandFile)
@@ -363,7 +363,7 @@ final class Controller {
         _ = perform(action)
     }
 
-    /// macOS moved a window to another desktop (drag in Mission Control, or hyprmac's own move): re-home it.
+    /// macOS moved a window to another desktop (drag in Mission Control, or calmtile's own move): re-home it.
     private func relocateKnown(_ id: WindowID, to n: Int, from home: Int) {
         engine.relocate(id, to: n)
         applied[id] = nil
@@ -516,10 +516,10 @@ final class Controller {
     // MARK: - Themes
 
     private static var themeFile: String {
-        return NSString(string: "~/.config/hyprmac/theme").expandingTildeInPath
+        return NSString(string: "~/.config/calmtile/theme").expandingTildeInPath
     }
 
-    /// The theme picked at runtime (kept in ~/.config/hyprmac/theme) wins over the config file.
+    /// The theme picked at runtime (kept in ~/.config/calmtile/theme) wins over the config file.
     private func applyTheme() {
         let saved = (try? String(contentsOfFile: Controller.themeFile, encoding: .utf8))?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -944,7 +944,7 @@ final class Controller {
         login.state = LoginItem.isInstalled ? .on : .off
         menu.addItem(withTitle: "Pause / resume tiling", action: #selector(MenuTarget.pause), keyEquivalent: "").target = target
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(withTitle: "Quit hyprmac", action: #selector(MenuTarget.quit), keyEquivalent: "q").target = target
+        menu.addItem(withTitle: "Quit calmtile", action: #selector(MenuTarget.quit), keyEquivalent: "q").target = target
     }
 
     fileprivate func menuSelect(_ id: WindowID) {
@@ -1015,7 +1015,7 @@ final class Controller {
     private func notify(_ text: String) {
         FileHandle.standardError.write((text + "\n").data(using: .utf8)!)
         let alert = NSAlert()
-        alert.messageText = "hyprmac"
+        alert.messageText = "calmtile"
         alert.informativeText = text
         alert.runModal()
     }

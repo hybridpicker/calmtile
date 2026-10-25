@@ -1,7 +1,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
-import HyprCore
+import CalmCore
 
 struct Mods: OptionSet, Hashable {
     let rawValue: Int
@@ -168,7 +168,7 @@ struct Config {
     /// A tile is never split below this size; the new window goes to a workspace with room instead.
     var minTileWidth: CGFloat = 420
     var minTileHeight: CGFloat = 280
-    /// Spotlight lists applications only while hyprmac runs (original categories restored on quit/pause).
+    /// Spotlight lists applications only while calmtile runs (original categories restored on quit/pause).
     var spotlightAppsOnly = false
     var bindings: [String: String] = Config.defaultBindings
 
@@ -221,10 +221,10 @@ struct Config {
     }()
 
     static var path: String {
-        return NSString(string: "~/.config/hyprmac/config.json").expandingTildeInPath
+        return NSString(string: "~/.config/calmtile/config.json").expandingTildeInPath
     }
 
-    /// Defaults, overridden by ~/.config/hyprmac/config.json. A binding set to "" removes the default.
+    /// Defaults, overridden by ~/.config/calmtile/config.json. A binding set to "" removes the default.
     static func load() -> (Config, [String]) {
         var cfg = Config()
         var problems = [String]()

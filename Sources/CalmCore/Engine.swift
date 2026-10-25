@@ -40,7 +40,7 @@ public final class Engine {
     public var preferredMonitor: (Int) -> Int = { $0 <= 5 ? 0 : 1 }
 
     /// A window that does not fit its workspace may move to another one. Off when workspaces are real macOS
-    /// Spaces, where hyprmac cannot move windows between them; windows then always tile where they are.
+    /// Spaces, where calmtile cannot move windows between them; windows then always tile where they are.
     public var allowOverflow = true
     /// A tile is never split below this size: the new window goes to another workspace instead (0 turns the
     /// rule off). Only consulted while `allowOverflow` is on.

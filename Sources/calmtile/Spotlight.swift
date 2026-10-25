@@ -1,16 +1,16 @@
 import Foundation
-import HyprCore
+import CalmCore
 
-/// Makes Spotlight (⌘Space) list applications only while hyprmac runs, and puts the user's own
+/// Makes Spotlight (⌘Space) list applications only while calmtile runs, and puts the user's own
 /// category list back afterwards. This is a system setting, so the original is saved first in
-/// ~/.config/hyprmac/spotlight-backup.plist and a backup that already exists is never overwritten
+/// ~/.config/calmtile/spotlight-backup.plist and a backup that already exists is never overwritten
 /// (it still holds the true original after a crash).
 enum SpotlightMode {
     private static let domain = "com.apple.Spotlight" as CFString
     private static let key = "orderedItems" as CFString
 
     static var backupPath: String {
-        return NSString(string: "~/.config/hyprmac/spotlight-backup.plist").expandingTildeInPath
+        return NSString(string: "~/.config/calmtile/spotlight-backup.plist").expandingTildeInPath
     }
 
     static var hasBackup: Bool { return FileManager.default.fileExists(atPath: backupPath) }

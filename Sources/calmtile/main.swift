@@ -1,5 +1,7 @@
 import AppKit
 
+Migration.run()   // first start after the rename from hyprmac: config directory and login item
+
 if CommandLine.arguments.contains("--print-config") {
     print(Config.load().0.json())
     exit(0)

@@ -7,8 +7,8 @@ macOS puts them, nothing is parked in a corner and Mission Control shows a clean
 
 macOS moves the most recently used desktops to the front whenever Mission Control opens ("Automatically
 rearrange Spaces based on most recent use", on by default), so "the Nth desktop" is a moving target and `⌘2`
-would land somewhere else after every swipe up. hyprmac gives a desktop the lowest free number when it first
-sees it (Dock order at the first start) and remembers it in `~/.config/hyprmac/desktops.json`; the menu bar
+would land somewhere else after every swipe up. calmtile gives a desktop the lowest free number when it first
+sees it (Dock order at the first start) and remembers it in `~/.config/calmtile/desktops.json`; the menu bar
 shows that number. Mission Control's own order and its "Desktop N" labels may differ. With the setting off,
 the Dock's order is used as it is (a desktop dragged elsewhere in Mission Control then takes its new
 position's number), like the system's `⌃N` shortcuts.
@@ -30,7 +30,7 @@ stays shown (the window server then lists two "current" Spaces) and its windows 
 new desktop. Hiding a Space (`CGSHideSpaces`) is honoured for the Dock alone.
 
 So `⌘N` presses the system shortcut "Switch to Desktop <position>" (`⌃<digit>`) for the Dock. That shortcut
-is usually off in System Settings; hyprmac switches it on in the window server
+is usually off in System Settings; calmtile switches it on in the window server
 (`CGSSetSymbolicHotKeyEnabled`, the live state System Settings itself changes) for the 0.4 s of the
 synthesized press and off again. Nothing is written to the preferences and your own `⌃<digit>` keeps its
 meaning. The position is looked up in the Dock's current order at every press, so the automatic
@@ -58,7 +58,7 @@ and, when one of them was focused, pull macOS straight back to it.
   carries, instead of on the next tick: the frame is set while the window is still appearing. That cannot
   remove the flicker entirely, since the app draws its first frame itself; apps that restore their last
   frame open at their tile anyway.
-- Windows always tile on their desktop, however small the tiles get (Hyprland): hyprmac cannot move windows
+- Windows always tile on their desktop, however small the tiles get (Hyprland): calmtile cannot move windows
   between Spaces (the private call has no effect on macOS 26.5, verified), so `minTileWidth`/`minTileHeight`
   only apply without `useSpaces`. Only a window whose own minimum size cannot sit beside its neighbours
   floats.
@@ -79,7 +79,7 @@ moment the same way as for switching. The pointer is put back afterwards. This p
 # Parked workspaces and Mission Control (default mode)
 
 All workspaces live on one macOS Space; inactive ones are parked in a corner. While Mission Control is open
-(four-finger swipe up, `⌃↑`) hyprmac moves every window to its layout position, so macOS shows a proper
+(four-finger swipe up, `⌃↑`) calmtile moves every window to its layout position, so macOS shows a proper
 overview instead of a pile in the corner. When it closes, windows are parked again and the workspace of the
 window you picked becomes current. Measured: windows spread within about 0.1 s of opening, parked again
 after closing.

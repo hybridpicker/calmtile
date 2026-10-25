@@ -1,10 +1,10 @@
 import AppKit
 import IOKit
-import HyprCore
+import CalmCore
 
 // Private but long-stable read APIs of the window server (also used by yabai, AeroSpace-like tools).
 // Switching the current Space works without special privileges on macOS 26; moving windows between
-// Spaces does not (verified: CGSMoveWindowsToManagedSpace has no effect), so hyprmac never tries.
+// Spaces does not (verified: CGSMoveWindowsToManagedSpace has no effect), so calmtile never tries.
 @_silgen_name("CGSMainConnectionID") private func CGSMainConnectionID() -> Int32
 @_silgen_name("CGSGetActiveSpace") private func CGSGetActiveSpace(_ cid: Int32) -> UInt64
 @_silgen_name("CGSCopyManagedDisplaySpaces") private func CGSCopyManagedDisplaySpaces(_ cid: Int32) -> CFArray?
@@ -21,7 +21,7 @@ import HyprCore
 /// Workspace numbers stay with their desktops. macOS moves the most recently used desktops to the front whenever
 /// Mission Control opens ("Automatically rearrange Spaces based on most recent use", on by default), so "the Nth
 /// desktop" is a moving target: `⌘2` would land somewhere else after every swipe up. A desktop gets the lowest
-/// free number when first seen (Dock order at the first start), kept in ~/.config/hyprmac/desktops.json. With
+/// free number when first seen (Dock order at the first start), kept in ~/.config/calmtile/desktops.json. With
 /// that setting off the Dock's order is used as it is, like the system's own `⌃N` shortcuts.
 enum Spaces {
     private static let cid = CGSMainConnectionID()
@@ -64,7 +64,7 @@ enum Spaces {
         return (v as? NSNumber)?.boolValue ?? true
     }()
 
-    private static let numbersFile = NSString(string: "~/.config/hyprmac/desktops.json").expandingTildeInPath
+    private static let numbersFile = NSString(string: "~/.config/calmtile/desktops.json").expandingTildeInPath
     private static var numbers: [UInt64: Int] = {
         guard let data = FileManager.default.contents(atPath: numbersFile),
               let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Int] else { return [:] }
@@ -144,8 +144,8 @@ enum Spaces {
 
     /// Key codes of the digit keys (ANSI), as the system shortcuts "Switch to Desktop N" use them.
     static let digitKeyCodes: [Int: CGKeyCode] = [1: 18, 2: 19, 3: 20, 4: 21, 5: 23, 6: 22, 7: 26, 8: 28, 9: 25]
-    /// Tag on key events hyprmac synthesizes, so its own key tap lets them pass whatever the bindings say.
-    static let ownEventTag: Int64 = 0x4879_704D   // "HypM"
+    /// Tag on key events calmtile synthesizes, so its own key tap lets them pass whatever the bindings say.
+    static let ownEventTag: Int64 = 0x4361_6C54   // "CalT"
 
     /// Down and up like a real press: the hotkey consumes the key-down, the key-up still reaches the frontmost app.
     /// Right after a desktop switch that app may be the one just left, and a key event delivered to an app whose

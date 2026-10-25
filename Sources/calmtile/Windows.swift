@@ -1,6 +1,6 @@
 import AppKit
 import ApplicationServices
-import HyprCore
+import CalmCore
 
 // Private but long-stable API (also used by AeroSpace, yabai, Rectangle): AXUIElement -> CGWindowID.
 @_silgen_name("_AXUIElementGetWindow")
@@ -90,7 +90,7 @@ enum Windows {
         return AXWin(id: wid, element: w, pid: pid, bundleID: bundleID, resizable: settable.boolValue)
     }
 
-    /// A window element straight from an Accessibility notification, if it is one hyprmac manages (regular app,
+    /// A window element straight from an Accessibility notification, if it is one calmtile manages (regular app,
     /// not ignored, standard window).
     static func standardWindow(_ el: AXUIElement, ignoring ignored: [String]) -> AXWin? {
         var pid: pid_t = 0
@@ -100,7 +100,7 @@ enum Windows {
     }
 
     /// One line per window of every regular app: role, subrole and capabilities, never the title.
-    /// Run through `open -a hyprmac --stdout <file> --args --dump-windows` (it needs the Accessibility grant).
+    /// Run through `open -a calmtile --stdout <file> --args --dump-windows` (it needs the Accessibility grant).
     static func dump() -> String {
         var lines = [String]()
         for app in NSWorkspace.shared.runningApplications where app.activationPolicy != .prohibited && !app.isTerminated {

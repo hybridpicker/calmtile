@@ -3,23 +3,23 @@
 ## Build
 
 ```bash
-scripts/build.sh           # self-test, then build/hyprmac.app
+scripts/build.sh           # self-test, then build/calmtile.app
 scripts/build.sh install   # additionally copy to ~/Applications
 ```
 
 Plain `swiftc` from the Xcode Command Line Tools; no Xcode project, no dependencies. The two SwiftPM
 targets in `Package.swift` are compiled as one module. The app is signed with the first "Apple Development"
-identity found (`HYPRMAC_SIGN_ID` overrides), because macOS keeps the Accessibility grant across rebuilds
+identity found (`CALMTILE_SIGN_ID` overrides), because macOS keeps the Accessibility grant across rebuilds
 only for a stable signature; without one it falls back to an ad-hoc signature and the grant has to be given
 again after each build.
 
 ## Structure
 
-- `Sources/HyprCore` – dwindle tree (`DwindleTree.swift`), workspaces, focus and layout decisions
+- `Sources/CalmCore` – dwindle tree (`DwindleTree.swift`), workspaces, focus and layout decisions
   (`Engine.swift`), fuzzy matching for the launcher, themes, the Spotlight category list. No AppKit.
-- `Sources/hyprcore-selftest` – the checks `scripts/build.sh` runs before every build (layout, workspaces,
+- `Sources/calmcore-selftest` – the checks `scripts/build.sh` runs before every build (layout, workspaces,
   focus, scratchpad, minimum sizes, monitors, launcher matching).
-- `Sources/hyprmac` – the app: `Windows.swift` (Accessibility), `Hotkeys.swift` (event tap on its own
+- `Sources/calmtile` – the app: `Windows.swift` (Accessibility), `Hotkeys.swift` (event tap on its own
   thread), `Controller.swift` (the loop that reconciles windows, applies the plan, handles actions, menu bar,
   mouse), `Spaces.swift` (real desktops: window server calls, Mission Control through the Dock's
   accessibility tree, system shortcut state), `Launcher.swift`, `Config.swift`, `Border.swift`,
@@ -27,13 +27,13 @@ again after each build.
 
 ## Log and debugging
 
-`~/Library/Logs/hyprmac.log` holds window counts, actions, permission state and desktop re-homings; window
-titles are never written. `HYPRMAC_DEBUG=1` in the environment (for example
-`launchctl setenv HYPRMAC_DEBUG 1` before `open -a hyprmac`, and `launchctl unsetenv` afterwards) adds every
+`~/Library/Logs/calmtile.log` holds window counts, actions, permission state and desktop re-homings; window
+titles are never written. `CALMTILE_DEBUG=1` in the environment (for example
+`launchctl setenv CALMTILE_DEBUG 1` before `open -a calmtile`, and `launchctl unsetenv` afterwards) adds every
 placement with frames, what the Accessibility list shows after a desktop switch, and the "created" path of
 new windows.
 
-`hyprmac --print-config` prints the effective config; `--restore-spotlight`, `--install-login` and
+`calmtile --print-config` prints the effective config; `--restore-spotlight`, `--install-login` and
 `--uninstall-login` are the one-shot commands described in the README.
 
 ## Test aids
@@ -41,10 +41,10 @@ new windows.
 All of these must run through `open`, so macOS applies the app's Accessibility grant; the bare binary is
 not trusted and gets nothing.
 
-- `open -g -n -a ~/Applications/hyprmac.app --args --post-key cmd-space` synthesizes a key press for the
+- `open -g -n -a ~/Applications/calmtile.app --args --post-key cmd-space` synthesizes a key press for the
   running instance. `-g` keeps the helper from taking the foreground, which would close the launcher it
   just opened. Bare keys are allowed (`--post-key escape`).
-- `open -g -n -a ~/Applications/hyprmac.app --stdout out.txt --args --dump-windows` prints one line per
+- `open -g -n -a ~/Applications/calmtile.app --stdout out.txt --args --dump-windows` prints one line per
   window of every regular app: role, subrole, resizable, buttons, size and position, never the title.
   One-shot helpers see a placeholder instead of windows for Electron apps, whose accessibility tree is
   only built after `AXManualAccessibility` is switched on; the running instance has done that long before.
@@ -57,8 +57,8 @@ not trusted and gets nothing.
 - **Do not judge desktop switching through helper launches.** Launching any helper app from a shell
   (`open -n -a …`, a scratch app) makes macOS re-activate the app that owns that shell about a second
   later, and with real desktops that switches back to its desktop: every switch then looks undone. With
-  `HYPRMAC_DEBUG=1` the running instance executes an action written to `~/.config/hyprmac/command`
-  (`echo "workspace 2" > ~/.config/hyprmac/command`) on its next tick, with no helper involved; watch the
+  `CALMTILE_DEBUG=1` the running instance executes an action written to `~/.config/calmtile/command`
+  (`echo "workspace 2" > ~/.config/calmtile/command`) on its next tick, with no helper involved; watch the
   window server from a plain command-line tool.
 - Mission Control cannot be driven and apps expose no Accessibility windows while the screen is locked.
 

@@ -41,7 +41,7 @@ final class HotkeyTap {
         get { lock.lock(); defer { lock.unlock() }; return _dragActive }
         set { lock.lock(); _dragActive = newValue; lock.unlock() }
     }
-    /// Set while hyprmac itself drives the mouse (moving a window to another desktop).
+    /// Set while calmtile itself drives the mouse (moving a window to another desktop).
     var suspendMouse: Bool {
         get { lock.lock(); defer { lock.unlock() }; return _suspendMouse }
         set { lock.lock(); _suspendMouse = newValue; lock.unlock() }
@@ -83,7 +83,7 @@ final class HotkeyTap {
             CGEvent.tapEnable(tap: t, enable: true)
             CFRunLoopRun()
         }
-        th.name = "hyprmac.keytap"
+        th.name = "calmtile.keytap"
         th.qualityOfService = .userInteractive
         th.start()
         thread = th

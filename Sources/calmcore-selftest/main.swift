@@ -1,6 +1,6 @@
 import CoreGraphics
 import Foundation
-import HyprCore
+import CalmCore
 
 var failures = 0
 var checks = 0

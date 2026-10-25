@@ -3,21 +3,21 @@
 #
 #   scripts/screenshots.sh            writes docs/screenshots/tiling.png and launcher.png
 #
-# Run it from Terminal on an empty workspace with hyprmac running. macOS asks for Screen Recording for
+# Run it from Terminal on an empty workspace with calmtile running. macOS asks for Screen Recording for
 # Terminal the first time; allow it and run the script again. Nothing personal ends up in the pictures:
 # TextEdit shows sample text, Terminal a calendar behind a plain prompt, Preview a system wallpaper.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 OUT=docs/screenshots
-APP=~/Applications/hyprmac.app
+APP=~/Applications/calmtile.app
 mkdir -p "$OUT"
-[ -d "$APP" ] || { echo "install hyprmac first (scripts/build.sh install)"; exit 1; }
-pgrep -x hyprmac >/dev/null || { echo "start hyprmac first"; exit 1; }
+[ -d "$APP" ] || { echo "install calmtile first (scripts/build.sh install)"; exit 1; }
+pgrep -x calmtile >/dev/null || { echo "start calmtile first"; exit 1; }
 
 WALL=$(ls /System/Library/Desktop\ Pictures/*.heic 2>/dev/null | head -1)
-SAMPLE=$(mktemp -d)/hyprmac.txt
+SAMPLE=$(mktemp -d)/calmtile.txt
 cat > "$SAMPLE" <<'TXT'
-hyprmac
+calmtile
 
 A new window splits the focused one along its longer side.
 Closing a window gives its space to the sibling.
@@ -46,7 +46,7 @@ open -g -n -a "$APP" --args --post-key escape
 sleep 0.5
 
 # Clean up what was opened.
-osascript -e 'tell application "TextEdit" to close (every document whose name is "hyprmac.txt") saving no' >/dev/null 2>&1 || true
+osascript -e 'tell application "TextEdit" to close (every document whose name is "calmtile.txt") saving no' >/dev/null 2>&1 || true
 [ -n "$WALL" ] && osascript -e 'tell application "Preview" to close (every document whose path is "'"$WALL"'")' >/dev/null 2>&1 || true
 osascript -e 'tell application "Terminal" to close (every window whose name contains "cal")' >/dev/null 2>&1 || true
 
