@@ -8,10 +8,6 @@ extension, just the Accessibility API and a key tap.
 New here? [First steps](docs/first-steps.md) takes you from install to a self-arranging workspace in ten
 minutes; the [manual](docs/manual.md) has everything else.
 
-![Three windows tiled by the dwindle layout, the focused one outlined](docs/screenshots/tiling.png)
-
-![The application launcher on ⌘Space](docs/screenshots/launcher.png)
-
 ## What it does
 
 - **Dwindle tiling.** A new window splits the focused one along its longer side; closing a window
