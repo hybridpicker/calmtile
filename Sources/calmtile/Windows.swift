@@ -178,7 +178,8 @@ enum Windows {
     /// all of them. An app is asked again only when something can have changed: it sent a notification (`changed`),
     /// the window server shows a different set of its windows (opened, closed, minimized, hidden, another desktop),
     /// or a few seconds have passed (10 s for an app with no windows at all). Otherwise its last answer stands.
-    /// `all` asks every app, as right after a desktop switch, when the Accessibility view lags the window server.
+    /// `all` asks again every app that has windows in either view, as right after a desktop switch, when the
+    /// Accessibility view lags the window server; an app with no window in either has nothing to catch up on.
     static func list(excluding selfPid: pid_t, ignoring ignored: [String] = [], changed: Set<pid_t> = [], all: Bool = true) -> [AXWin] {
         var out = [AXWin]()
         let apps = regularApps()
@@ -188,7 +189,8 @@ enum Windows {
         for app in apps {
             let pid = app.processIdentifier
             let shown = onscreen[pid] ?? []
-            if !all, !changed.contains(pid), let last = lastListed[pid], listedOnscreen[pid] == shown,
+            if !changed.contains(pid), let last = lastListed[pid], listedOnscreen[pid] == shown,
+               !(all && !(shown.isEmpty && last.isEmpty)),
                now - (listedAt[pid] ?? 0) < (shown.isEmpty && last.isEmpty ? 10 : 3) {
                 out += last
                 continue
