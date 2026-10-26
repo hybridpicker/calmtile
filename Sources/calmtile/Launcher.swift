@@ -62,6 +62,29 @@ enum Apps {
     }
 }
 
+/// How often each application was started from the launcher, by name only (no titles, no paths), in
+/// ~/.config/calmtile/launcher-usage.json. Breaks ties between equally good matches.
+enum LauncherUsage {
+    private static let file = NSString(string: "~/.config/calmtile/launcher-usage.json").expandingTildeInPath
+    private static var counts: [String: Int] = {
+        guard let data = FileManager.default.contents(atPath: file),
+              let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Int] else { return [:] }
+        return obj
+    }()
+
+    static func uses(_ name: String) -> Int { return counts[name] ?? 0 }
+
+    static func record(_ name: String) {
+        counts[name, default: 0] += 1
+        let snapshot = counts
+        DispatchQueue.global(qos: .utility).async {
+            guard let data = try? JSONSerialization.data(withJSONObject: snapshot, options: [.sortedKeys]) else { return }
+            try? FileManager.default.createDirectory(atPath: (file as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+            try? data.write(to: URL(fileURLWithPath: file), options: .atomic)
+        }
+    }
+}
+
 private final class LauncherPanel: NSPanel {
     override var canBecomeKey: Bool { return true }
 }
@@ -177,7 +200,12 @@ final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
 
     private func run(_ item: LauncherItem) {
         hide()
+        if item.kind == .app { LauncherUsage.record(item.title) }
         item.run()
+    }
+
+    private func rank(_ i: LauncherItem, _ score: Int) -> LauncherRank {
+        return LauncherRank(score: score, uses: i.kind == .app ? LauncherUsage.uses(i.title) : 0, kind: i.kind.rawValue, title: i.title)
     }
 
     // MARK: - Search
@@ -185,12 +213,10 @@ final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
     private func refilter() {
         let q = field.stringValue.trimmingCharacters(in: .whitespaces)
         if q.isEmpty {
-            shown = Array(items.sorted { ($0.kind.rawValue, $0.title.lowercased()) < ($1.kind.rawValue, $1.title.lowercased()) }.prefix(maxRows))
+            shown = Array(items.sorted { ranksBefore(rank($0, 0), rank($1, 0)) }.prefix(maxRows))
         } else {
             let scored: [(LauncherItem, Int)] = items.compactMap { i in fuzzyScore(q, i.title).map { (i, $0) } }
-            shown = Array(scored.sorted {
-                $0.1 != $1.1 ? $0.1 > $1.1 : $0.0.kind.rawValue < $1.0.kind.rawValue
-            }.prefix(maxRows).map { $0.0 })
+            shown = Array(scored.sorted { ranksBefore(rank($0.0, $0.1), rank($1.0, $1.1)) }.prefix(maxRows).map { $0.0 })
         }
         selected = 0
         layout()

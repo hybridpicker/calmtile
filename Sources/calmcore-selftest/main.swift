@@ -233,6 +233,16 @@ do {
     check(fuzzyScore("cal", "Calendar")! > fuzzyScore("cal", "Image Capture") ?? Int.min, "prefix beats a scattered match")
     check(fuzzyScore("mail", "Mail")! > fuzzyScore("mail", "Mailchimp")!, "shorter text wins an equal match")
     check(fuzzyScore("tdx", "TextEdit") == nil, "order matters")
+    // Usage only breaks ties: it never lifts a worse match.
+    let often = LauncherRank(score: 40, uses: 9, kind: 2, title: "Microsoft Edge")
+    let rare = LauncherRank(score: 47, uses: 0, kind: 2, title: "TextEdit")
+    check(ranksBefore(rare, often), "a better match beats a more used app")
+    check(ranksBefore(LauncherRank(score: 40, uses: 3, kind: 2, title: "Maps"), LauncherRank(score: 40, uses: 1, kind: 2, title: "Mail")),
+          "between equal matches the more used app comes first")
+    check(ranksBefore(LauncherRank(score: 0, uses: 0, kind: 2, title: "calendar"), LauncherRank(score: 0, uses: 0, kind: 2, title: "Maps")),
+          "without usage the title decides, ignoring case")
+    check(ranksBefore(LauncherRank(score: 0, uses: 0, kind: 0, title: "z"), LauncherRank(score: 0, uses: 0, kind: 2, title: "a")),
+          "windows before applications at equal score")
     check(Set(Theme.all.map { $0.name }).count == Theme.all.count, "theme names are unique")
     check(Theme.all.allSatisfy { [$0.background, $0.foreground, $0.accent].allSatisfy { $0.count == 7 && $0.hasPrefix("#") } }, "theme colours are #rrggbb")
     check(Theme.after(Theme.all.last!.name) == Theme.all[0], "theme-next wraps")

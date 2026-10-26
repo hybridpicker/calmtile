@@ -128,8 +128,10 @@ closes, focus returns to the last used window of the workspace, not to whatever 
 
 ## 5. Launcher and themes
 
-`⌃⌥Space` opens a search field. Typing filters by fuzzy match (letters in order; word starts and prefixes
-score higher). Candidates: every open window (listed as "App – title", jumping there switches workspace),
+`⌃⌥Space` opens a search field. Typing filters by fuzzy match (letters in order; word starts, including
+the capitals inside a name such as the E of TextEdit, and prefixes score higher). Between equally good
+matches, applications you start more often from the launcher come first (counted by name only in
+`~/.config/calmtile/launcher-usage.json`). Candidates: every open window (listed as "App – title", jumping there switches workspace),
 every installed application (`/Applications`, `/System/Applications`, their `Utilities`,
 `/System/Library/CoreServices`, `~/Applications`; a running app is activated, its windows stay where they
 are, so pick the window entry to jump there), and calmtile actions: workspaces, move to workspace, float, fullscreen, flip split, close, scratchpad,
@@ -284,7 +286,8 @@ line every 20 ticks (see docs/development.md).
   changed. Parked windows stay parked at the corner until you move them; the easiest way is to start
   calmtile again and press `⌘1…9`, or to drag them back.
 - **Login item:** the menu item **Start at login** (`calmtile --uninstall-login`).
-- **Settings and state:** `~/.config/calmtile/` (config, theme, desktop numbers, Spotlight backup) and
+- **Settings and state:** `~/.config/calmtile/` (config, theme, desktop numbers, launcher usage, Spotlight
+  backup) and
   `~/Library/Logs/calmtile.log`. Delete them and calmtile starts from the defaults.
 - **Permissions:** remove calmtile under System Settings → Privacy & Security → Accessibility and Input
   Monitoring.

@@ -45,3 +45,26 @@ public func fuzzyScore(_ query: String, _ text: String) -> Int? {
     let best = prev.max() ?? none
     return best == none ? nil : best - n
 }
+
+/// One launcher entry as the ordering sees it.
+public struct LauncherRank {
+    public var score: Int
+    public var uses: Int
+    public var kind: Int
+    public var title: String
+    public init(score: Int, uses: Int, kind: Int, title: String) {
+        self.score = score
+        self.uses = uses
+        self.kind = kind
+        self.title = title
+    }
+}
+
+/// Launcher order: the better match first; between equal matches windows before actions before applications (as
+/// before), then the entry launched more often from the launcher, then by title.
+public func ranksBefore(_ a: LauncherRank, _ b: LauncherRank) -> Bool {
+    if a.score != b.score { return a.score > b.score }
+    if a.kind != b.kind { return a.kind < b.kind }
+    if a.uses != b.uses { return a.uses > b.uses }
+    return a.title.lowercased() < b.title.lowercased()
+}
