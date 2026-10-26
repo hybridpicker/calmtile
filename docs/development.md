@@ -16,10 +16,12 @@ again after each build.
 ## Structure
 
 - `Sources/CalmCore` – dwindle tree (`DwindleTree.swift`), workspaces, focus and layout decisions
-  (`Engine.swift`), fuzzy matching for the launcher, themes, the Spotlight category list. No AppKit.
+  (`Engine.swift`), fuzzy matching and the result order for the launcher (`Fuzzy.swift`), themes, the
+  Spotlight category list. No AppKit.
 - `Sources/calmcore-selftest` – the checks `scripts/build.sh` runs before every build (layout, workspaces,
   focus, scratchpad, minimum sizes, monitors, launcher matching).
-- `Sources/calmtile` – the app: `Windows.swift` (Accessibility), `Hotkeys.swift` (event tap on its own
+- `Sources/calmtile` – the app: `Windows.swift` (Accessibility: the listing with its per-app memory of
+  the last answers, timeouts and back-off, window frames from the window server), `Hotkeys.swift` (event tap on its own
   thread), `Controller.swift` (the loop that reconciles windows, applies the plan, handles actions, menu bar,
   mouse; the window listing of each tick runs on a serial queue of its own and the rest on the main thread), `Spaces.swift` (real desktops: window server calls, Mission Control through the Dock's
   accessibility tree, system shortcut state), `Launcher.swift`, `Config.swift`, `Border.swift`,
@@ -119,7 +121,8 @@ Not verified yet: title-bar drag swap; Chrome with several windows and Picture-i
 desktops; whether a new window is visibly placed before its first frame (by eye; the log shows it placed
 0.3-0.45 s after the command, usually by the tick rather than the creation notification); Zoom meetings;
 Xcode; a second display (self-tests only); whether Spotlight visibly honours the category list; parked mode
-since the changes of October 2026 (self-tests only).
+since the changes of October 2026 (self-tests only). Built and self-tested, live test still to come (26 Oct
+2026): the listing thread, frames from the window server, `removeEmptyDesktops`, the launcher usage order.
 
 ## Privacy notes
 

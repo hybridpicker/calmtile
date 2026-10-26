@@ -112,7 +112,9 @@ and restores it afterwards.
 - Resizing a tiled window by its edge snaps back; use the mouse modifier + right drag to move dividers.
 - macOS native fullscreen windows are left alone (they live on their own Space).
 - Real desktops: macOS offers no way to move a window to another desktop, so `⌘⌥N` works by dragging
-  it with the system shortcut; windows never overflow to another desktop.
+  it with the system shortcut; windows never overflow to another desktop. Creating a desktop (`⌘N` on a
+  missing one) and removing an empty one (`removeEmptyDesktops`) go through Mission Control, which shows
+  for about a second.
 - A second display is covered by self-tests only so far.
 
 ## How it works
@@ -123,6 +125,10 @@ and restores it afterwards.
 - `Sources/calmtile` is the app: windows through the Accessibility API, a `CGEventTap` on its own thread
   for the keys, the menu bar, the launcher, config, themes, the login item and, for real desktops, the
   window server's Space calls that other tiling tools use as well.
+- The loop never waits on an app from the main thread the keys depend on: the windows are listed on a
+  thread of their own, an app is asked again only when the window server shows a change or the app sends a
+  notification, a call into an app gives up after 150 ms, and an app that keeps not answering is left
+  alone for a few seconds. When nothing happens the loop ticks once a second.
 
 ## Documentation
 
