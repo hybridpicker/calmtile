@@ -252,6 +252,23 @@ enum Spaces {
         return n
     }
 
+    /// How many windows of any app (normal layer, calmtile's own left out) live on workspace `n`, as the window
+    /// server sees them, minimized and hidden ones included; nil when `n` does not exist. A window shown on every
+    /// desktop counts for each, so such a desktop is never taken for empty.
+    static func windowCount(onWorkspace n: Int) -> Int? {
+        guard let l = read().current, let target = space(number: n, in: l) else { return nil }
+        guard let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID),
+              let list = (raw as NSArray) as? [[String: Any]] else { return nil }
+        let me = Int(ProcessInfo.processInfo.processIdentifier)
+        var count = 0
+        for w in list where (w["kCGWindowLayer"] as? Int) == 0 && (w["kCGWindowOwnerPID"] as? Int) != me {
+            guard let num = w["kCGWindowNumber"] as? Int,
+                  let spaces = CGSCopySpacesForWindows(cid, 7, [NSNumber(value: num)] as CFArray) as? [NSNumber] else { continue }
+            if spaces.contains(where: { $0.uint64Value == target }) { count += 1 }
+        }
+        return count
+    }
+
     /// Every normal window that exists, on any Space (the Accessibility list only shows the current one), with
     /// whether the window server draws it right now (false: minimized, its app hidden, or ordered out).
     /// `among`: only these windows are looked up (describing a few windows is far cheaper than every window of

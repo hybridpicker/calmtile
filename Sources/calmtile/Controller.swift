@@ -25,6 +25,10 @@ final class Controller {
     private var pendingScratch: Date?
     /// Mission Control is being driven to create a desktop: ticks and further workspace keys wait.
     private var creatingDesktop = false
+    /// Mission Control is being driven to remove an empty desktop: ticks wait, and a workspace key pressed
+    /// meanwhile runs once it is done.
+    private var removingDesktop = false
+    private var pendingWorkspace: Int?
     /// Secure Keyboard Entry is on somewhere: no hotkey can arrive (shown in the menu bar, logged once).
     private var secureInput = false
     /// Window the outline was last flashed for; with `borderFlash` it hides itself after that time.
@@ -361,7 +365,7 @@ final class Controller {
             applied = [:]
         }
         if paused { hideBorder(); updateStatus(); return }
-        if overview || creatingDesktop { return }
+        if overview || creatingDesktop || removingDesktop { return }
         // Locked screen / screen saver: apps expose no windows, which would empty the layout.
         if screenLockedOrSaver {
             hideBorder()
@@ -374,8 +378,10 @@ final class Controller {
         // The Dock animates a switch calmtile asked for; the window server reports the new desktop only when it is
         // done, so a switch of our own is not second-guessed for a moment.
         if config.useSpaces, Date().timeIntervalSince(switchedAt) > 0.8, let n = Spaces.activeNumber(), n != engine.currentWorkspace {
+            let left = engine.currentWorkspace
             engine.switchWorkspace(n)   // the user switched desktops by gesture or Mission Control
             switchedAt = Date()
+            removeIfEmpty(left)
         }
 
         // Hand the listing (and the focused window, also a question to an app) to the listing thread.
@@ -407,7 +413,7 @@ final class Controller {
             if tickAgain { tickAgain = false; requestTick() }
         }
         // Things may have changed while the apps were asked: the result is not used then.
-        if paused || overview || creatingDesktop || screenLockedOrSaver { return }
+        if paused || overview || creatingDesktop || removingDesktop || screenLockedOrSaver { return }
         Profile.resumeTick()
         Profile.add("list(thread)", listTime)
         if listTime > 1.0 { Log.write("listing windows took \(String(format: "%.1f", listTime)) s on the listing thread") }
@@ -977,6 +983,7 @@ final class Controller {
     /// Switch workspace; with `useSpaces` that is the Nth macOS desktop, created on the spot when it does not
     /// exist yet (Hyprland semantics: a workspace exists as soon as you go there).
     private func goTo(_ n: Int) {
+        if removingDesktop { pendingWorkspace = n; return }   // runs when the removal is done
         hideBorder()   // the outline marks a window of the workspace being left
         if config.useSpaces {
             if Spaces.switchTo(n) { desktopSwitched(to: n, after: 0.05); return }
@@ -1003,13 +1010,40 @@ final class Controller {
     }
 
     private func desktopSwitched(to n: Int, after delay: TimeInterval) {
+        let left = engine.currentWorkspace
         engine.switchWorkspace(n)
+        if left != n { removeIfEmpty(left) }
         switchedAt = Date()
         listAllUntil = switchedAt.addingTimeInterval(1.5)
         applied = [:]
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             self?.applyPlan()
             self?.focusEngineChoice()
+        }
+    }
+
+    /// `removeEmptyDesktops`: once the switch away from workspace `n` has settled, remove its desktop if nothing
+    /// lives there any more, neither a window calmtile manages nor any other (asked of the window server). Not
+    /// while Mission Control is open or busy, nor when the user is back on it by then.
+    private func removeIfEmpty(_ n: Int) {
+        guard config.useSpaces, config.removeEmptyDesktops else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            guard let self = self, !self.paused, !self.creatingDesktop, !self.removingDesktop,
+                  self.engine.currentWorkspace != n, Spaces.activeNumber() != n, self.engine.windows(in: n).isEmpty,
+                  !Windows.overviewOpen(), Spaces.windowCount(onWorkspace: n) == 0 else { return }
+            self.removingDesktop = true
+            Log.write("desktop \(n) left empty: removing it through Mission Control")
+            Spaces.removeDesktop(n) { [weak self] ok in
+                guard let self = self else { return }
+                self.removingDesktop = false
+                Log.write(ok ? "removed empty desktop \(n)" : "could not remove empty desktop \(n)")
+                self.listAllUntil = Date().addingTimeInterval(1.5)
+                self.requestTick()
+                if let next = self.pendingWorkspace {
+                    self.pendingWorkspace = nil
+                    self.goTo(next)
+                }
+            }
         }
     }
 

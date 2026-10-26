@@ -165,6 +165,9 @@ struct Config {
     var mouseModifier = "cmd-alt"
     /// Workspace N is the Nth macOS desktop (Space): `⌘N` switches desktops, nothing is parked in a corner.
     var useSpaces = false
+    /// Desktops mode: a desktop left without any window is removed (Hyprland: an empty workspace disappears),
+    /// through Mission Control, which shows for about a second. `⌘N` creates it again when needed.
+    var removeEmptyDesktops = false
     /// A tile is never split below this size; the new window goes to a workspace with room instead.
     var minTileWidth: CGFloat = 420
     var minTileHeight: CGFloat = 280
@@ -235,6 +238,7 @@ struct Config {
             if let v = obj["minTileWidth"] as? Double { cfg.minTileWidth = CGFloat(v) }
             if let v = obj["minTileHeight"] as? Double { cfg.minTileHeight = CGFloat(v) }
             if let v = obj["useSpaces"] as? Bool { cfg.useSpaces = v }
+            if let v = obj["removeEmptyDesktops"] as? Bool { cfg.removeEmptyDesktops = v }
             if let v = obj["gap"] as? Double { cfg.gap = CGFloat(v) }
             if let v = obj["outerGap"] as? Double { cfg.outerGap = CGFloat(v) }
             if let v = obj["borderWidth"] as? Double { cfg.borderWidth = CGFloat(v) }
@@ -279,7 +283,7 @@ struct Config {
 
     func json() -> String {
         var obj: [String: Any] = [
-            "mouseModifier": mouseModifier, "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces, "useSpaces": useSpaces,
+            "mouseModifier": mouseModifier, "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces, "useSpaces": useSpaces, "removeEmptyDesktops": removeEmptyDesktops,
             "minTileWidth": Double(minTileWidth), "minTileHeight": Double(minTileHeight),
             "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "borderFlash": borderFlash, "theme": theme, "scratchpadApp": scratchpadApp,
             "spotlightAppsOnly": spotlightAppsOnly, "floatApps": floatApps, "floatTitles": floatTitles, "ignoreApps": ignoreApps, "passthroughApps": passthroughApps, "bindings": bindings,
