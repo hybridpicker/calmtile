@@ -21,7 +21,7 @@ again after each build.
   focus, scratchpad, minimum sizes, monitors, launcher matching).
 - `Sources/calmtile` – the app: `Windows.swift` (Accessibility), `Hotkeys.swift` (event tap on its own
   thread), `Controller.swift` (the loop that reconciles windows, applies the plan, handles actions, menu bar,
-  mouse), `Spaces.swift` (real desktops: window server calls, Mission Control through the Dock's
+  mouse; the window listing of each tick runs on a serial queue of its own and the rest on the main thread), `Spaces.swift` (real desktops: window server calls, Mission Control through the Dock's
   accessibility tree, system shortcut state), `Launcher.swift`, `Config.swift`, `Border.swift`,
   `Spotlight.swift`, `LoginItem.swift`, `main.swift` (one-shot commands and test aids).
 
@@ -36,8 +36,9 @@ new windows.
 With `CALMTILE_DEBUG=1` (or `CALMTILE_PROFILE=1` for the profile alone) every 20 full ticks write one
 `profile:` line: the workspace shown, how long the 20 ticks took (5 s at the active rate of 250 ms, 20 s
 once the loop has slowed to 1 s for lack of anything happening), main-thread time per tick (p50, p95, max),
-time per phase (`observe` registers notifications, `list` asks the apps for their windows, `reconcile`
-matches them against the window server, `focus`, `float`, `place`, `border`), Accessibility and window
+time per phase (`observe` registers notifications, `list(thread)` is how long the listing thread took to
+ask the apps for their windows, which no longer counts as main-thread time, `reconcile` matches them against
+the window server, `focus`, `float`, `place`, `border`), Accessibility and window
 server calls per tick, the apps that took longest to list, notifications by kind and app, and how long
 hotkeys waited for the main thread (`late` when the key tap had to decide without it). Numbers and bundle
 ids only.
