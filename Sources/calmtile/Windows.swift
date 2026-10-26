@@ -154,18 +154,29 @@ enum Windows {
         return regular
     }
 
-    /// Layer-0 windows the window server draws right now, by owning process: one call for all apps.
-    static func onscreenByPid() -> [pid_t: [WindowID]] {
+    /// Layer-0 windows the window server draws right now, by owning process, and their frames (Accessibility
+    /// coordinates: both count from the top left of the main display): one call for all apps.
+    static func onscreen() -> (byPid: [pid_t: [WindowID]], frames: [WindowID: CGRect]) {
         Profile.ws()
         guard let raw = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID),
-              let list = (raw as NSArray) as? [[String: Any]] else { return [:] }
+              let list = (raw as NSArray) as? [[String: Any]] else { return ([:], [:]) }
         var out = [pid_t: [WindowID]]()
+        var frames = [WindowID: CGRect]()
         for w in list where (w["kCGWindowLayer"] as? Int) == 0 {
             guard let pid = w["kCGWindowOwnerPID"] as? Int, let n = w["kCGWindowNumber"] as? Int else { continue }
             out[pid_t(pid), default: []].append(WindowID(n))
+            if let b = w["kCGWindowBounds"] as? [String: Any], let r = CGRect(dictionaryRepresentation: b as CFDictionary) {
+                frames[WindowID(n)] = r
+            }
         }
         for k in out.keys { out[k]?.sort() }
-        return out
+        return (out, frames)
+    }
+
+    /// One listing: the managed windows, and the window server's frame of every window it draws right now.
+    struct Listing {
+        var windows: [AXWin]
+        var frames: [WindowID: CGRect]
     }
 
     /// What the window server showed of an app when it was last listed, and when that was.
@@ -181,11 +192,11 @@ enum Windows {
     /// or a few seconds have passed (10 s for an app with no windows at all). Otherwise its last answer stands.
     /// `all` asks again every app that has windows in either view, as right after a desktop switch, when the
     /// Accessibility view lags the window server; an app with no window in either has nothing to catch up on.
-    static func list(excluding selfPid: pid_t, ignoring ignored: [String] = [], changed: Set<pid_t> = [], all: Bool = true) -> [AXWin] {
+    static func list(excluding selfPid: pid_t, ignoring ignored: [String] = [], changed: Set<pid_t> = [], all: Bool = true) -> Listing {
         var out = [AXWin]()
         let apps = regularApps()
             .filter { $0.processIdentifier != selfPid && !ignored.contains($0.bundleIdentifier ?? "") }
-        let onscreen = onscreenByPid()
+        let (onscreen, frames) = Windows.onscreen()
         let now = CACurrentMediaTime()
         for app in apps {
             let pid = app.processIdentifier
@@ -224,7 +235,7 @@ enum Windows {
             listedOnscreen[pid] = nil
             listedAt[pid] = nil
         }
-        return out
+        return Listing(windows: out, frames: frames)
     }
 
     /// The managed-window test for one element: a standard, non-minimized, non-fullscreen window with a window id.

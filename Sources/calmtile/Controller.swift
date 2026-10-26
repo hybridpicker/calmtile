@@ -35,6 +35,23 @@ final class Controller {
     /// Desktop a window was last reported on by the window server; a window is re-homed only when two ticks agree
     /// and no desktop transition is being drawn, since the report wobbles while the Dock animates a switch.
     private var reportedDesktop = [WindowID: Int]()
+    /// The window server's frames of the windows on screen, read once at the start of this tick; empty outside a
+    /// tick. A window calmtile moves during the tick is dropped from it, so later reads ask the app again.
+    private var serverFrames = [WindowID: CGRect]()
+    private var checkedServerFrame = Set<WindowID>()
+
+    /// Where a window is now. Within a tick from the window server's snapshot (no round trip to the app: two
+    /// Accessibility reads per window and tick before, for every tiled window, the outline and floating ones),
+    /// otherwise, or for a window not on screen, from the app.
+    private func currentFrame(_ id: WindowID, _ w: AXWin) -> CGRect? {
+        guard let f = serverFrames[id] else { return Windows.frame(of: w.element) }
+        // Debug: the two views are expected to agree; say so once per window when they do not.
+        if Log.debug, checkedServerFrame.insert(id).inserted, let ax = Windows.frame(of: w.element), !Windows.framesMatch(ax, f, within: 1) {
+            Log.write("frame of \(w.bundleID) window \(id): window server \(f) but Accessibility \(ax)")
+        }
+        return f
+    }
+
     /// Parked mode: when a still-drawn window first went missing from the Accessibility list.
     private var missingSince = [WindowID: Date]()
     /// Apps that sent an Accessibility notification since the last listing: asked for their windows again.
@@ -346,11 +363,14 @@ final class Controller {
         // the Accessibility list. That list lags a desktop switch by a moment and still shows the desktop just
         // left; taking those windows as "here" tiled them into the wrong workspace, and focusing one of them
         // then pulled macOS straight back to its desktop.
-        let current = timed("listing windows", limit: 1.0) {
+        let listing = timed("listing windows", limit: 1.0) {
             Profile.phase("list") {
                 Windows.list(excluding: myPid, ignoring: config.ignoreApps, changed: changedApps, all: Date() < listAllUntil)
             }
         }
+        let current = listing.windows
+        serverFrames = listing.frames
+        defer { serverFrames = [:] }
         let notified = !changedApps.isEmpty
         changedApps.removeAll()
         let knownBefore = Set(known.keys)
@@ -459,7 +479,7 @@ final class Controller {
         // 3. floating windows keep wherever the user put them
         Profile.phase("float") {
             for (id, w) in known where engine.isFloating(id) {
-                if case .frame? = applied[id], let f = Windows.frame(of: w.element) { engine.noteFloatFrame(id, f) }
+                if case .frame? = applied[id], let f = currentFrame(id, w) { engine.noteFloatFrame(id, f) }
             }
             trackNativeDrag()
             floatByTitle()
@@ -531,7 +551,7 @@ final class Controller {
         let down = NSEvent.pressedMouseButtons & 1 != 0
         if down {
             guard nativeDrag == nil, drag == nil, let id = engine.focused, !engine.isFloating(id), let w = known[id],
-                  case .frame(let want)? = applied[id], let actual = Windows.frame(of: w.element) else { return }
+                  case .frame(let want)? = applied[id], let actual = currentFrame(id, w) else { return }
             let rest = settled[id] ?? want
             let moved = hypot(actual.minX - rest.minX, actual.minY - rest.minY) > 8
             let sameSize = abs(actual.width - rest.width) <= 3 && abs(actual.height - rest.height) <= 3
@@ -562,7 +582,7 @@ final class Controller {
             if let n = Spaces.number(ofWindow: id), n != engine.currentWorkspace { hideBorder(); return }
             if Spaces.activeNumber() != engine.currentWorkspace { hideBorder(); return }
         }
-        guard let f = Windows.frame(of: w.element) else { hideBorder(); return }
+        guard let f = (drag == nil ? currentFrame(id, w) : Windows.frame(of: w.element)) else { hideBorder(); return }
         if config.borderFlash > 0 {
             if id == borderShownFor && drag == nil {
                 if border.isVisible { border.show(around: f) }   // follow the window while the flash lasts
@@ -603,7 +623,7 @@ final class Controller {
                 // what was applied), and each was written its unchanged frame again, three writes and the trim per
                 // window right when the next key may come (measured: every window on every switch). Recorded instead;
                 // a window that snapped a few pixels inside the same tile counts as fulfilling it, as above.
-                if case .frame(let want) = placement, let actual = Windows.frame(of: w.element),
+                if case .frame(let want) = placement, let actual = currentFrame(id, w),
                    Windows.framesMatch(actual, want, within: 0.5)
                     || (settled[id].map { Windows.framesMatch(actual, $0) && Windows.framesMatch($0, want, within: 8) } ?? false) {
                     applied[id] = placement
@@ -615,7 +635,7 @@ final class Controller {
                 // (a new window opening, an app restoring its own frame). Give up after a few tries
                 // for apps whose minimum size cannot fit the tile.
                 guard case .frame(let want) = placement, !engine.isFloating(id),
-                      let actual = Windows.frame(of: w.element), !Windows.framesMatch(actual, want) else { continue }
+                      let actual = currentFrame(id, w), !Windows.framesMatch(actual, want) else { continue }
                 // Still where our last placement left it, a few pixels off because the app snaps to its own grid
                 // (Terminal: 716 px in a 720 px tile after the trim): that is the app's answer, not a change. Placing
                 // it again gives the same result, and it did so every tick (measured: four AX writes and two reads
@@ -642,6 +662,7 @@ final class Controller {
             case .hidden(let m): Windows.hide(w.element, on: monitors[min(m, monitors.count - 1)])
             }
             applied[id] = placement
+            serverFrames[id] = nil   // moved just now: the snapshot no longer says where it is
             tickChanged = true
             if case .frame = placement { settled[id] = Windows.frame(of: w.element) } else { settled[id] = nil }
             // A minimum size larger than the tile would overlap the neighbours: tell the engine, which

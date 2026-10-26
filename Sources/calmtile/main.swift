@@ -32,7 +32,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--probe-switch"), i + 1 < Comma
     let t0 = Date()
     func sample() -> String {
         let ms = Int(Date().timeIntervalSince(t0) * 1000)
-        let ax = Windows.list(excluding: getpid()).map { "\($0.bundleID.split(separator: ".").last.map(String.init) ?? "?")@\(Spaces.number(ofWindow: $0.id).map(String.init) ?? "-")" }
+        let ax = Windows.list(excluding: getpid()).windows.map { "\($0.bundleID.split(separator: ".").last.map(String.init) ?? "?")@\(Spaces.number(ofWindow: $0.id).map(String.init) ?? "-")" }
         let drawn = Spaces.existingWindows().filter { $0.value }.keys.compactMap { Spaces.number(ofWindow: $0) }
         return "\(ms) ms: active=\(Spaces.activeNumber().map(String.init) ?? "?") ax=\(ax.sorted()) onscreen=\(Set(drawn).sorted())"
     }
