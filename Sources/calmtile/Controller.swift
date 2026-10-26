@@ -103,7 +103,10 @@ final class Controller {
         launcher.onClose = { [weak self] in self?.focusEngineChoice() }
         hotkeys.handler = { [weak self] action, late in self?.handle(action, late: late) ?? false }
         hotkeys.mouseHandler = { [weak self] type, p, flags in self?.handleMouse(type, p, flags) ?? false }
-        hotkeys.onClick = { [weak self] in self?.wake() }
+        hotkeys.onClick = { [weak self] in
+            self?.lastAction = CACurrentMediaTime()
+            self?.wake()
+        }
         let tapOK = hotkeys.start()
         Log.write("key tap installed=\(tapOK) bindings=\(hotkeys.table.count)")
         if !tapOK {
@@ -326,7 +329,25 @@ final class Controller {
         return r
     }
 
+    /// The listing runs on its own thread (`listQueue`): asking the apps for their windows is the one step that
+    /// waits on other processes, and on the main thread it held up every hotkey for as long as the slowest app took.
+    /// The tick starts here, hands the listing over, and `finishTick` continues on the main thread with the result.
+    private let listQueue = DispatchQueue(label: "calmtile.listing", qos: .userInteractive)
+    private var listingInFlight = false
+    /// A tick was asked for while a listing was running: run one as soon as it is done.
+    private var tickAgain = false
+    /// When the running listing started, and when a hotkey or click last acted: a focus read before that action
+    /// is out of date by the time it arrives and must not undo the focus the action set.
+    private var listingStarted: CFTimeInterval = 0
+    private var lastAction: CFTimeInterval = 0
+
+    private var screenLockedOrSaver: Bool {
+        guard let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else { return false }
+        return ["com.apple.loginwindow", "com.apple.ScreenSaver.Engine"].contains(front)
+    }
+
     private func tick() {
+        if listingInFlight { tickAgain = true; return }
         lastTickAt = CACurrentMediaTime()
         Profile.beginTick()
         Spaces.beginTick()
@@ -342,8 +363,7 @@ final class Controller {
         if paused { hideBorder(); updateStatus(); return }
         if overview || creatingDesktop { return }
         // Locked screen / screen saver: apps expose no windows, which would empty the layout.
-        if let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
-           ["com.apple.loginwindow", "com.apple.ScreenSaver.Engine"].contains(front) {
+        if screenLockedOrSaver {
             hideBorder()
             return
         }
@@ -358,21 +378,50 @@ final class Controller {
             switchedAt = Date()
         }
 
+        // Hand the listing (and the focused window, also a question to an app) to the listing thread.
+        let apps = Windows.apps(excluding: myPid, ignoring: config.ignoreApps)
+        let changed = changedApps
+        changedApps.removeAll()
+        let all = Date() < listAllUntil
+        let front = NSWorkspace.shared.frontmostApplication.map {
+            Windows.AppRef(pid: $0.processIdentifier, bundleID: $0.bundleIdentifier ?? "?")
+        }
+        listingInFlight = true
+        listingStarted = CACurrentMediaTime()
+        Profile.suspendTick()
+        listQueue.async { [weak self] in
+            let t0 = CACurrentMediaTime()
+            let listing = Windows.list(apps: apps, changed: changed, all: all)
+            let focused = front.flatMap { Windows.focusedWindowID(of: $0) }
+            let dt = CACurrentMediaTime() - t0
+            DispatchQueue.main.async {
+                self?.finishTick(listing, focused: focused, notified: !changed.isEmpty, listTime: dt)
+            }
+        }
+    }
+
+    /// The rest of the tick, on the main thread, with the windows the listing thread found.
+    private func finishTick(_ listing: Windows.Listing, focused: (id: WindowID, bundleID: String)?, notified: Bool, listTime: Double) {
+        listingInFlight = false
+        defer {
+            if tickAgain { tickAgain = false; requestTick() }
+        }
+        // Things may have changed while the apps were asked: the result is not used then.
+        if paused || overview || creatingDesktop || screenLockedOrSaver { return }
+        Profile.resumeTick()
+        Profile.add("list(thread)", listTime)
+        if listTime > 1.0 { Log.write("listing windows took \(String(format: "%.1f", listTime)) s on the listing thread") }
+        Spaces.beginTick()
+        defer { Spaces.endTick() }
+
         // 1. reconcile the set of windows
         // Desktops mode: which desktop a window is on comes from the window server, never from its presence in
         // the Accessibility list. That list lags a desktop switch by a moment and still shows the desktop just
         // left; taking those windows as "here" tiled them into the wrong workspace, and focusing one of them
         // then pulled macOS straight back to its desktop.
-        let listing = timed("listing windows", limit: 1.0) {
-            Profile.phase("list") {
-                Windows.list(excluding: myPid, ignoring: config.ignoreApps, changed: changedApps, all: Date() < listAllUntil)
-            }
-        }
         let current = listing.windows
         serverFrames = listing.frames
         defer { serverFrames = [:] }
-        let notified = !changedApps.isEmpty
-        changedApps.removeAll()
         let knownBefore = Set(known.keys)
         let reconcileStart = CACurrentMediaTime()
         // While the Dock draws a transition (two or more desktops shown) the per-window reports are not trusted.
@@ -471,7 +520,7 @@ final class Controller {
 
         // 2. follow the focus the user set by clicking / app switching
         Profile.phase("focus") {
-            if let f = Windows.focusedWindowID(), known[f.id] != nil, f.id != engine.focused {
+            if let f = focused, lastAction < listingStarted, known[f.id] != nil, f.id != engine.focused {
                 engine.setFocused(f.id)
             }
         }
@@ -866,6 +915,7 @@ final class Controller {
     /// was busy; a focus key is then dropped (the app got its arrow key), everything else still runs.
     private func handle(_ action: Action, late: Bool = false) -> Bool {
         Log.write("hotkey \(action)\(late ? " (late)" : "")")
+        lastAction = CACurrentMediaTime()
         wake()
         if late, case .focus = action { return false }
         if case .togglePause = action { togglePaused(); return true }
@@ -964,6 +1014,7 @@ final class Controller {
     }
 
     private func perform(_ action: Action) -> Bool {
+        lastAction = CACurrentMediaTime()
         switch action {
         case .workspace(let n):
             goTo(n)
@@ -1128,6 +1179,7 @@ final class Controller {
 
     fileprivate func menuSelect(_ id: WindowID) {
         guard known[id] != nil else { return }
+        lastAction = CACurrentMediaTime()
         engine.activate(id)
         applyPlan()
         focusEngineChoice()

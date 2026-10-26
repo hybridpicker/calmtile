@@ -4,8 +4,9 @@ import QuartzCore
 /// Tick profile for development (CALMTILE_DEBUG or CALMTILE_PROFILE): every 20 full ticks one log line with the
 /// main thread's time per tick (p50/p95/max), time per phase, Accessibility and window server calls per tick,
 /// notifications by kind, the slowest apps to list, and how long hotkeys waited for the main thread.
-/// Numbers and bundle ids only, never titles. Everything runs on the main thread except `ax()`/`ws()`, which may
-/// be called from anywhere and are counted under a lock.
+/// Numbers and bundle ids only, never titles. Everything runs on the main thread except `ax()`, `ws()` and
+/// `listed()`, which the listing thread calls too and which are counted under a lock. A tick's time is the main
+/// thread's share only: the wait for the listing thread in between does not count (see `suspendTick`).
 enum Profile {
     static let on = Log.debug || ProcessInfo.processInfo.environment["CALMTILE_PROFILE"] != nil
     private static let every = 20
@@ -60,7 +61,7 @@ enum Profile {
 
     static func listed(_ bundleID: String, _ dt: Double) {
         guard on else { return }
-        appListing[bundleID, default: 0] += dt
+        lock.lock(); appListing[bundleID, default: 0] += dt; lock.unlock()
     }
 
     static func tickRequested() {
@@ -75,7 +76,22 @@ enum Profile {
         if late { lateKeys += 1 }
     }
 
+    private static var tickAccum: Double = 0
+
     static func beginTick() {
+        guard on else { return }
+        tickStart = CACurrentMediaTime()
+        tickAccum = 0
+    }
+
+    /// The tick hands the listing to its thread: stop counting until `resumeTick`.
+    static func suspendTick() {
+        guard on, tickStart > 0 else { return }
+        tickAccum += CACurrentMediaTime() - tickStart
+        tickStart = 0
+    }
+
+    static func resumeTick() {
         guard on else { return }
         tickStart = CACurrentMediaTime()
     }
@@ -85,8 +101,9 @@ enum Profile {
 
     static func endTick() {
         guard on, tickStart > 0 else { return }
-        tickTimes.append(CACurrentMediaTime() - tickStart)
+        tickTimes.append(tickAccum + CACurrentMediaTime() - tickStart)
         tickStart = 0
+        tickAccum = 0
         if tickTimes.count >= every { flush() }
     }
 
@@ -102,7 +119,8 @@ enum Profile {
         line += " tick ms p50=\(ms(pct(0.5))) p95=\(ms(pct(0.95))) max=\(ms(sorted.last ?? 0))"
         line += " phase ms/tick " + phaseOrder.map { "\($0)=\(ms((phases[$0] ?? 0) / n))" }.joined(separator: " ")
         line += " ax/tick=\(Int((Double(ax) / n).rounded())) ws/tick=\(Int((Double(wsc) / n).rounded()))"
-        let slow = appListing.sorted { $0.value > $1.value }.prefix(3).filter { $0.value / n > 0.002 }
+        lock.lock(); let listing = appListing; appListing.removeAll(); lock.unlock()
+        let slow = listing.sorted { $0.value > $1.value }.prefix(3).filter { $0.value / n > 0.002 }
         if !slow.isEmpty { line += " list ms/tick " + slow.map { "\($0.key)=\(ms($0.value / n))" }.joined(separator: " ") }
         if !notes.isEmpty {
             line += " notes " + notes.sorted { $0.value > $1.value }.prefix(6).map { "\($0.key)=\($0.value)" }.joined(separator: " ")
@@ -113,7 +131,6 @@ enum Profile {
         phases.removeAll()
         phaseOrder.removeAll()
         notes.removeAll()
-        appListing.removeAll()
         keyWaits.removeAll()
         lateKeys = 0
         requested = 0

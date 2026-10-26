@@ -51,18 +51,22 @@ enum Windows {
         AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), messagingTimeout)
     }
 
+    /// The back-off state is shared by the main thread and the listing thread.
+    private static let stallLock = NSLock()
     private static var stalledUntil = [pid_t: CFTimeInterval]()
     private static var timeouts = [pid_t: Int]()
     private static var stallLogged = [pid_t: CFTimeInterval]()
 
     /// The app sent a notification, so it is answering: stop leaving it alone.
     static func alive(_ pid: pid_t) {
+        stallLock.lock(); defer { stallLock.unlock() }
         stalledUntil[pid] = nil
         timeouts[pid] = nil
     }
 
     /// True while `pid` is being left alone after a timeout. Every read and write to its elements returns at once.
     static func isStalled(_ pid: pid_t) -> Bool {
+        stallLock.lock(); defer { stallLock.unlock() }
         guard let t = stalledUntil[pid] else { return false }
         if CACurrentMediaTime() < t { return true }
         stalledUntil[pid] = nil
@@ -88,14 +92,20 @@ enum Windows {
         guard p != 0 else { return err }
         if err == .cannotComplete, CACurrentMediaTime() - t0 >= Double(messagingTimeout) * 0.8 {
             let now = CACurrentMediaTime()
+            stallLock.lock()
             let n = (timeouts[p] ?? 0) + 1
             timeouts[p] = n
             stalledUntil[p] = now + stallPause(after: n)
-            guard n >= 3, now - (stallLogged[p] ?? 0) > 30 else { return err }   // a hang, once per hang
-            stallLogged[p] = now
-            Log.write("app \(NSRunningApplication(processIdentifier: p)?.bundleIdentifier ?? String(p)) did not answer \(n) times in a row: left alone for up to 4 s at a time")
-        } else if timeouts[p] != nil {
-            timeouts[p] = nil
+            let log = n >= 3 && now - (stallLogged[p] ?? 0) > 30   // a hang, once per hang
+            if log { stallLogged[p] = now }
+            stallLock.unlock()
+            if log {
+                Log.write("app \(NSRunningApplication(processIdentifier: p)?.bundleIdentifier ?? String(p)) did not answer \(n) times in a row: left alone for up to 4 s at a time")
+            }
+        } else {
+            stallLock.lock()
+            if timeouts[p] != nil { timeouts[p] = nil }
+            stallLock.unlock()
         }
         return err
     }
@@ -124,7 +134,10 @@ enum Windows {
     /// Chromium and Electron apps (Chrome, Slack, Teams, VS Code) expose no windows until an assistive
     /// client asks for it; AXManualAccessibility is their documented switch (no UI side effects).
     static func enableAccessibility(_ ax: AXUIElement, pid: pid_t) {
-        guard enabledPids.insert(pid).inserted else { return }
+        stallLock.lock()
+        let first = enabledPids.insert(pid).inserted
+        stallLock.unlock()
+        guard first else { return }
         AXUIElementSetAttributeValue(ax, "AXManualAccessibility" as CFString, kCFBooleanTrue)
     }
 
@@ -193,13 +206,30 @@ enum Windows {
     /// `all` asks again every app that has windows in either view, as right after a desktop switch, when the
     /// Accessibility view lags the window server; an app with no window in either has nothing to catch up on.
     static func list(excluding selfPid: pid_t, ignoring ignored: [String] = [], changed: Set<pid_t> = [], all: Bool = true) -> Listing {
-        var out = [AXWin]()
-        let apps = regularApps()
+        return list(apps: apps(excluding: selfPid, ignoring: ignored), changed: changed, all: all)
+    }
+
+    /// An app as the listing needs it, read on the main thread.
+    struct AppRef {
+        let pid: pid_t
+        let bundleID: String
+    }
+
+    /// The regular apps that calmtile manages (main thread).
+    static func apps(excluding selfPid: pid_t, ignoring ignored: [String]) -> [AppRef] {
+        return regularApps()
             .filter { $0.processIdentifier != selfPid && !ignored.contains($0.bundleIdentifier ?? "") }
+            .map { AppRef(pid: $0.processIdentifier, bundleID: $0.bundleIdentifier ?? "?") }
+    }
+
+    /// The listing itself; safe to run off the main thread, but on one thread at a time (its memory of the last
+    /// answers is not shared).
+    static func list(apps: [AppRef], changed: Set<pid_t>, all: Bool) -> Listing {
+        var out = [AXWin]()
         let (onscreen, frames) = Windows.onscreen()
         let now = CACurrentMediaTime()
         for app in apps {
-            let pid = app.processIdentifier
+            let pid = app.pid
             let shown = onscreen[pid] ?? []
             if !changed.contains(pid), let last = lastListed[pid], listedOnscreen[pid] == shown,
                !(all && !(shown.isEmpty && last.isEmpty)),
@@ -210,8 +240,8 @@ enum Windows {
             let t0 = CACurrentMediaTime()
             defer {
                 let dt = CACurrentMediaTime() - t0
-                Profile.listed(app.bundleIdentifier ?? "?", dt)
-                if dt > 0.5 { Log.write("slow: listing \(app.bundleIdentifier ?? "?") took \(String(format: "%.1f", dt)) s") }
+                Profile.listed(app.bundleID, dt)
+                if dt > 0.5 { Log.write("slow: listing \(app.bundleID) took \(String(format: "%.1f", dt)) s (listing thread)") }
             }
             if isStalled(pid) { out += lastListed[pid] ?? []; continue }
             let ax = AXUIElementCreateApplication(pid)
@@ -219,7 +249,7 @@ enum Windows {
             var mine = [AXWin]()
             if let wins: [AXUIElement] = attr(ax, kAXWindowsAttribute) {
                 for w in wins {
-                    if let win = classify(w, pid: pid, bundleID: app.bundleIdentifier ?? "?") { mine.append(win) }
+                    if let win = classify(w, pid: pid, bundleID: app.bundleID) { mine.append(win) }
                 }
             }
             // A timeout part way through leaves an incomplete list: keep the last complete one instead.
@@ -229,7 +259,7 @@ enum Windows {
             listedAt[pid] = now
             out += mine
         }
-        let living = Set(apps.map { $0.processIdentifier })
+        let living = Set(apps.map { $0.pid })
         for pid in Array(lastListed.keys) where !living.contains(pid) {
             lastListed[pid] = nil
             listedOnscreen[pid] = nil
@@ -416,10 +446,15 @@ enum Windows {
     /// The window that currently has keyboard focus, if any.
     static func focusedWindowID() -> (id: WindowID, bundleID: String)? {
         guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
-        let ax = AXUIElementCreateApplication(app.processIdentifier)
+        return focusedWindowID(of: AppRef(pid: app.processIdentifier, bundleID: app.bundleIdentifier ?? "?"))
+    }
+
+    /// The focused window of `app` (any thread).
+    static func focusedWindowID(of app: AppRef) -> (id: WindowID, bundleID: String)? {
+        let ax = AXUIElementCreateApplication(app.pid)
         guard let w: AXUIElement = attr(ax, kAXFocusedWindowAttribute) else { return nil }
         var wid = CGWindowID(0)
         guard call(w, { _AXUIElementGetWindow(w, &wid) }) == .success, wid != 0 else { return nil }
-        return (wid, app.bundleIdentifier ?? "?")
+        return (wid, app.bundleID)
     }
 }
