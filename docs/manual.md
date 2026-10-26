@@ -116,7 +116,8 @@ to its layout position so the overview is readable, and parked again afterwards.
 
 **Desktops mode (`"useSpaces": true`).** Workspace N is a macOS desktop; `⌘N` switches desktops through the
 Dock, a missing desktop is created on the spot, numbers stay with their desktops even when macOS reorders
-them, and windows always tile where they are. [desktops.md](desktops.md) has the mechanics and the limits
+them, and windows always tile where they are; with `removeEmptyDesktops` a desktop you leave empty goes
+away. [desktops.md](desktops.md) has the mechanics and the limits
 (no second display for workspaces 6–9, `⌘⌥N` drags the window with the system shortcut).
 
 **Where a new window goes.** On the current workspace, split from the focused window. In parked mode a
@@ -190,6 +191,7 @@ the effective config, and a wrong value is reported in an alert.
 | `outerGap` | 6 | pixels between the layout and the screen edge |
 | `mainWorkspaces` | 5 | workspaces 1…N on the main display, the rest on a second one (parked mode) |
 | `useSpaces` | false | workspaces are real macOS desktops |
+| `removeEmptyDesktops` | false | desktops mode: a desktop left without windows is removed (Mission Control shows for a second) |
 | `minTileWidth`, `minTileHeight` | 420, 280 | smallest tile in parked mode; 0 turns the rule off |
 | `theme` | `"catppuccin"` | default theme |
 | `borderColor` | theme accent | `"#rrggbb"` |

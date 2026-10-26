@@ -19,8 +19,14 @@ Hyprland semantics: `⌘N` on a desktop that does not exist opens Mission Contro
 its "add desktop" button and clicks the new desktop, which gets number N whatever its position (`⌘5` with
 desktops 1–3 creates only 5). macOS has no API for this short of disabling SIP; the Dock's Spaces bar is
 driven through Accessibility, as yabai does. Verified on one display; with two displays the Spaces bar of
-the display holding the active desktop is picked by position (not tested). Desktops are never removed
-automatically; `--remove-desktop N` does it by hand (see [development.md](development.md)).
+the display holding the active desktop is picked by position (not tested). `--remove-desktop N` removes
+one by hand (see [development.md](development.md)).
+
+With `"removeEmptyDesktops": true` a desktop you leave empty is removed, as Hyprland drops an empty
+workspace: 1.2 s after the switch away (by key, swipe or Mission Control), when no window of any app lives
+there any more (minimized and hidden ones count, a window shown on every desktop keeps every desktop),
+calmtile removes it through the same Spaces bar. That opens Mission Control for about a second; a workspace
+key pressed meanwhile runs right after. Off by default for that reason. `⌘N` brings the desktop back.
 
 ## Switching goes through the Dock
 
