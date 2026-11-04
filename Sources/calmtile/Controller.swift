@@ -43,6 +43,8 @@ final class Controller {
     /// tick. A window calmtile moves during the tick is dropped from it, so later reads ask the app again.
     private var serverFrames = [WindowID: CGRect]()
     private var checkedServerFrame = Set<WindowID>()
+    /// Where each window was when it appeared, before it was tiled: where it goes back to if it has to float after all.
+    private var appearedAt = [WindowID: CGRect]()
 
     /// Where a window is now. Within a tick from the window server's snapshot (no round trip to the app: two
     /// Accessibility reads per window and tick before, for every tiled window, the outline and floating ones),
@@ -284,7 +286,8 @@ final class Controller {
         // the neighbour down to 176 px. It floats. Checked once per window, not on every listing.
         let panel = w.resizable && Windows.hasNoWindowButtons(w.element)
         let float = (!w.resizable && !fixed) || panel || config.floatApps.contains(w.bundleID) || titleFloats(w)
-        let frame = float || fixed ? Windows.frame(of: w.element) : nil
+        let frame = currentFrame(w.id, w)
+        appearedAt[w.id] = frame
         engine.windowAppeared(w.id, floating: float, frame: float ? frame : nil, workspace: desktop,
                               fixedSize: fixed && !float ? frame?.size : nil)
         return float
@@ -549,6 +552,7 @@ final class Controller {
             retries[id] = nil
             self.settled[id] = nil
             checkedServerFrame.remove(id)
+            appearedAt[id] = nil
             reportedDesktop[id] = nil
             missingSince[id] = nil
             titleChecked.remove(id)
@@ -784,7 +788,7 @@ final class Controller {
             if case .frame(let want) = placement, !engine.isFloating(id), engine.tiledFrames().count > 1,
                let got = settled[id], got.width > want.width + 8 || got.height > want.height + 8 {
                 Log.write("minimum size exceeds the tile (\(w.bundleID))")
-                engine.noteMinSize(id, want: want.size, got: got.size)
+                engine.noteMinSize(id, want: want.size, got: got.size, natural: appearedAt[id])
                 applied = [:]
                 requestTick()
                 return

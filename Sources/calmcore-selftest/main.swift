@@ -466,6 +466,25 @@ do {
     check(e.fixedSize(of: 4) == nil, "a floating window keeps no fixed tile size")
 }
 
+// a new window next to a focused fixed-size one goes where the free space is, not into the strip under it
+do {
+    let e = Engine(monitors: [Monitor(id: 0, frame: CGRect(x: 0, y: 0, width: 1440, height: 900))])
+    e.gap = 0
+    e.outerGap = 0
+    e.allowOverflow = false
+    e.windowAppeared(1, floating: false)
+    e.windowAppeared(2, floating: false, fixedSize: CGSize(width: 410, height: 880))   // focused now
+    e.windowAppeared(3, floating: false)
+    let p = e.plan()
+    let f2 = frame(p[2]), f3 = frame(p[3])
+    check(f2?.size == CGSize(width: 410, height: 880), "the fixed-size window keeps its size")
+    check((f3?.height ?? 0) == 900 && (f3?.width ?? 0) >= 300, "the new window gets the width beside it, full height")
+    // a minimum that cannot fit: the window floats where the app had put it, not at the size it was squeezed to
+    e.noteMinSize(3, want: f3?.size ?? .zero, got: CGSize(width: 2000, height: 900), natural: CGRect(x: 100, y: 50, width: 656, height: 422))
+    check(e.isFloating(3) && frame(e.plan()[3]) == CGRect(x: 100, y: 50, width: 656, height: 422),
+          "a window that has to float goes back to its own frame")
+}
+
 // micro-benchmark: 200 windows in and out with a plan every ten, so regressions in the core show up
 do {
     var best = Double.infinity

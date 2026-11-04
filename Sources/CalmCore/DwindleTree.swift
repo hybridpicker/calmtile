@@ -195,7 +195,19 @@ public final class DwindleTree {
         else if let last = windows.last, let l = leaf(of: last) { target = l }
         else { target = root }
         let targetFrame = target.window.flatMap { frames[$0] } ?? rect
-        let axis: Axis = targetFrame.width >= targetFrame.height ? .horizontal : .vertical
+        var axis: Axis = targetFrame.width >= targetFrame.height ? .horizontal : .vertical
+        // A fixed-size window keeps its size, so the new one can only have what that leaves free; split on the side of
+        // the workspace where it leaves more. Its own tile is no guide, being cut to its size. Going by the window's
+        // shape (a tall Simulator) put a new window into the 20 px under it, where it could not fit and ended up
+        // floating as a strip.
+        if let w = target.window {
+            let m = maxSize(w)
+            if m.width.isFinite || m.height.isFinite {
+                let freeW = rect.width - min(rect.width, m.width)
+                let freeH = rect.height - min(rect.height, m.height)
+                axis = freeW >= freeH ? .horizontal : .vertical
+            }
+        }
 
         let oldParent = target.parent
         let split = Node(first: target, second: newLeaf, axis: axis)

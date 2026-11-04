@@ -168,7 +168,9 @@ public final class Engine {
 
     /// The app could not get as small as its tile. Remember the size it insists on so the neighbours make
     /// room; when even that cannot fit the workspace, it floats at that size instead.
-    public func noteMinSize(_ id: WindowID, want: CGSize, got: CGSize) {
+    /// `natural` is where the app had put the window before it was tiled: a window that ends up floating goes back
+    /// there instead of keeping the size it was squeezed to (a 720 x 46 strip, measured).
+    public func noteMinSize(_ id: WindowID, want: CGSize, got: CGSize, natural: CGRect? = nil) {
         guard let n = home[id], n != 0, let ws = workspaces[n], ws.tree.contains(id) else { return }
         let m = CGSize(width: got.width > want.width + 8 ? got.width : 0, height: got.height > want.height + 8 ? got.height : 0)
         guard m.width > 0 || m.height > 0 else { return }
@@ -188,7 +190,7 @@ public final class Engine {
             } else {
                 minSizes[id] = nil
                 ws.floating.append(id)
-                floatFrames[id] = centered(got, on: ws.monitor)
+                floatFrames[id] = natural ?? centered(got, on: ws.monitor)
             }
         }
     }
