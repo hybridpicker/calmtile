@@ -180,7 +180,10 @@ lists scratchpad windows; clicking one shows it.
   neighbours moves to the next workspace with room; in desktops mode, and when no workspace has room, it
   floats at its minimum size. Apps that snap their size to a grid (Terminal) are trimmed back into the tile.
 - `passthroughApps`: while one of these is frontmost, calmtile intercepts no key at all. The default is a
-  password manager, so nothing calmtile does can get between you and a password field.
+  password manager, so nothing calmtile does can get between you and a password field. calmtile's keys
+  win over an app's own: in Chrome and Safari `⌘1…9` switch workspaces, not tabs, and in Terminal `⌘1…9` no
+  longer pick a window. Put such an app in `passthroughApps` (then none of calmtile's keys work while it is
+  frontmost) or rebind the workspace keys. The same goes for `⌘Return` in every app.
 
 **Finding a bundle id:** `osascript -e 'id of app "Calendar"'`.
 

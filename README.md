@@ -110,8 +110,8 @@ and restores it afterwards.
 
 ## Known limits
 
-- Windows are moved by the app after they open (there is no compositor), so a short flicker remains
-  possible; new windows are placed from the creation notification to keep it short.
+- Windows are moved after they open (there is no compositor): a new window is drawn at its own size first.
+  Measured for Terminal: 0.24-0.5 s, including macOS's opening animation.
 - A window whose minimum size cannot sit beside its neighbours floats; two such windows cannot share a
   1440 px wide workspace.
 - Resizing a tiled window by its edge snaps back; use the mouse modifier + right drag to move dividers.

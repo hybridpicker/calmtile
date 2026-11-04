@@ -128,6 +128,24 @@ On 4 Nov 2026 (same setup, a test desktop, actions through the command file):
   frames, and nothing is placed again afterwards.
 - A hidden app (`NSRunningApplication.hide`, as `⌘H`): its window loses its tile and the neighbour takes the
   full width within a tick; shown again, both tiles come back.
+- A new window beside a focused fixed-size one (the Simulator) opens next to it at full height; TextEdit's
+  open panel at launch floats.
+- A desktop switch away and back 300 ms apart (`workspace 2`, `workspace 1`): 0.2 s later the window server
+  shows exactly one Space, no `late` or `dropped` key, nothing placed during the animation.
+- TextEdit stopped with `kill -STOP` for 10 s, two windows: main-thread ticks at most 20 ms, tiles unchanged.
+- `removeEmptyDesktops`: leaving an empty desktop removes exactly that one, also with a full-screen app's Space
+  in the Spaces bar (it used to remove the desktop left of it); a desktop holding only a minimized window
+  stays. Creating a desktop clicks the right button of the bar.
+- Title-bar drag (`--post-drag`): the window follows the pointer and swaps with the tile it is dropped on.
+- The `⌘Space` panel opened from the command file is the key window after 17-62 ms; picking an app writes only
+  its name to `launcher-usage.json`.
+- The listing thread: no `slow:` or `main thread busy` line all day with the current builds; `list(thread)` in
+  the profile line, not part of the tick time.
+- A config with a misspelt key or a wrong type: reported at launch in the log and an alert.
+- `scripts/matrix.sh` with 0, 1, 2 and 5 windows: no problem line.
+- A new window is drawn at its own size before it is placed: measured from the window server every 10 ms,
+  a new Terminal shows for 0.24-0.5 s at its own frame (including macOS's 0.23 s opening animation) and is
+  then placed by the tick; the creation notification comes while Terminal is still too busy to answer.
 
 Not verified yet: title-bar drag swap; Chrome with several windows and Picture-in-Picture; `⌘⌥N` with real
 desktops; whether a new window is visibly placed before its first frame (by eye; the log shows it placed
