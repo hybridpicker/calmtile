@@ -146,7 +146,8 @@ On 4 Nov 2026 (same setup, a test desktop, actions through the command file):
   its name to `launcher-usage.json`.
 - The listing thread: no `slow:` or `main thread busy` line all day with the current builds; `list(thread)` in
   the profile line, not part of the tick time.
-- A config with a misspelt key or a wrong type: reported at launch in the log and an alert.
+- A config with a misspelt key or a wrong type: reported at launch in the log (`config: …`). The alert uses the
+  same call as on reload; nobody looked at it on screen in this run.
 - `scripts/matrix.sh` with 0, 1, 2 and 5 windows: no problem line.
 - A new window is drawn at its own size before it is placed: measured from the window server every 10 ms,
   a new Terminal shows for 0.24-0.5 s at its own frame (including macOS's 0.23 s opening animation) and is
