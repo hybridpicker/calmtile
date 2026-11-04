@@ -68,6 +68,9 @@ and, when one of them was focused, pull macOS straight back to it.
   between Spaces (the private call has no effect on macOS 26.5, verified), so `minTileWidth`/`minTileHeight`
   only apply without `useSpaces`. Only a window whose own minimum size cannot sit beside its neighbours
   floats.
+- Windows of a hidden app (`⌘H`) get no tile: Accessibility keeps listing them on their desktop although nothing
+  is drawn, and as invisible neighbours they used to leave the visible windows half-sized. They are treated like
+  minimized ones and tile again when the app is shown.
 - Focus and the focused-window border never go to a window on another desktop: activating such a window
   makes macOS switch to its desktop.
 

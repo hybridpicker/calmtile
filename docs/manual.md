@@ -163,7 +163,10 @@ lists scratchpad windows; clicking one shows it.
 
 - Only windows whose Accessibility subrole is `AXStandardWindow`. Dialogs, sheets, floating panels,
   popovers, Picture-in-Picture, the Finder desktop and system prompts are never tiled, parked or moved.
-- Standard windows that cannot be resized float at their own size.
+- Standard windows that cannot be resized float at their own size, unless their app is in `tileFixedApps` (the
+  iOS Simulator by default): those get a tile of exactly their size, at the top-left corner of the space the
+  layout gives them, and the neighbours get the rest. When such a window changes its size (a rotated device),
+  its tile follows.
 - Standard windows without resize and without close or minimize buttons (transient popups) and every
   window of the apps in `ignoreApps` are not touched at all.
 - The apps in `floatApps` float. `floatTitles` floats a window whose title contains one of the words given
@@ -201,6 +204,7 @@ the effective config, and a wrong value is reported in an alert.
 | `scratchpadApp` | `"Terminal"` | app opened by `⌃⌥Q` on an empty scratchpad |
 | `spotlightAppsOnly` | false | restrict the system Spotlight to applications while running (section 9) |
 | `floatApps` | System Settings, Calculator, Activity Monitor, Archive Utility, preference pane previews | bundle ids that float |
+| `tileFixedApps` | iOS Simulator | bundle ids whose fixed-size windows tile instead of floating |
 | `floatTitles` | VLC playlist/inspector/controller/equalizer/effects/messages windows, Chrome DevTools | `{"bundle id": ["word", …]}` |
 | `ignoreApps` | system alert and authentication helpers | bundle ids never touched |
 | `passthroughApps` | `["com.dashlane.dashlanephonefinal"]` | bundle ids with all keys left alone |
@@ -276,9 +280,9 @@ desktop (desktops mode) it hides. Report it if it stays.
 
 **A hotkey came late or not at all.** A call into an app gives up after 150 ms, and a key waits at most
 0.25 s for the main thread before the key tap decides on its own; an app whose calls keep timing out is left
-alone for a few seconds (`app … did not answer … left alone` in the log) and its windows keep their last known state. A key that could not be handled for more than a
-second is dropped instead of running late (`hotkey … dropped`), and of several waiting workspace keys
-only the last one runs.
+alone for a few seconds (`app … did not answer … left alone` in the log) and its windows keep their last
+known state. A key that could not be handled for more than a second is dropped instead of running late
+(`hotkey … dropped`), and of several waiting workspace keys only the last one runs.
 
 **Log.** `~/Library/Logs/calmtile.log`: actions, permission state, desktop re-homings, the window count
 (at most once a minute), and every step of the loop that took long, with the app it waited on. Window

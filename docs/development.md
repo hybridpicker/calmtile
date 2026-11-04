@@ -109,13 +109,22 @@ full), from the debug log and the profile line, with actions sent through the co
 
 - A Terminal opened beside another window and closed again, 13 times in a row: each Terminal window is
   placed once (716 px in its 720 px tile, then left alone), and the neighbour grows back to the full width
-  after the close.
+  after the close: 0.105-0.113 s after it on 4 Nov 2026 (0.5 s before a closing window was recognised by its
+  element).
 - Desktop switches 2→1→2 with that in between: window counts as expected, no window re-homed.
 - An app stopped with `kill -STOP` for 10 s (TextEdit, two windows): ticks stay under 160 ms, the windows
   keep their tiles, nothing is logged as slow; it resumes normally after `kill -CONT`.
 - The tick in numbers (see the profile line): idle p95 under 20 ms at one tick per second, under 50 ms
   while windows open, close and desktops switch; no `slow:` or `main thread busy` line.
 - `⌘Space` panel (from the command file): built and ordered front in under 20 ms after the first time.
+
+On 4 Nov 2026 (same setup, a test desktop, actions through the command file):
+
+- `tileFixedApps`: an iOS Simulator window (410 × 880, not resizable) beside a Terminal sits in a tile of its
+  own size at the right edge, the Terminal takes the rest; window server and Accessibility agree on both
+  frames, and nothing is placed again afterwards.
+- A hidden app (`NSRunningApplication.hide`, as `⌘H`): its window loses its tile and the neighbour takes the
+  full width within a tick; shown again, both tiles come back.
 
 Not verified yet: title-bar drag swap; Chrome with several windows and Picture-in-Picture; `⌘⌥N` with real
 desktops; whether a new window is visibly placed before its first frame (by eye; the log shows it placed

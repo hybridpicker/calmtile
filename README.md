@@ -18,7 +18,8 @@ minutes; the [manual](docs/manual.md) has everything else.
 - **Launcher** (`⌃⌥Space`) for windows, apps, actions and themes, and an applications-only launcher on
   `⌘Space` that takes the key from Spotlight while calmtile runs.
 - **Scratchpad** and a drop-down terminal (`⌃⌥Q`).
-- **Per-app rules**: float, ignore, pass keys through, float by window title. Only standard windows are
+- **Per-app rules**: float, ignore, pass keys through, float by window title, tile fixed-size windows (the
+  iOS Simulator) at their own size. Only standard windows are
   managed; dialogs, sheets, popovers and system prompts are never touched.
 - **Workspace keys win over app shortcuts** (`⌘1` switches workspace even in Chrome), and the key tap runs
   on its own thread, so a stuck app cannot make a key leak through.
