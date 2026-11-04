@@ -500,7 +500,7 @@ final class Controller {
             // they came back the next tick as new ones, appended to the layout with their place and split ratios
             // gone. A window that is still drawn keeps its tile for a few seconds; one that stays missing from
             // Accessibility that long (it became a sheet or a panel) goes as before.
-            if !gone, !config.useSpaces, living[id] == true {
+            if !gone, !config.useSpaces, living[id] == true, !(known[id].map { Windows.isGone($0.element) } ?? false) {
                 let since = missingSince[id] ?? Date()
                 missingSince[id] = since
                 if Date().timeIntervalSince(since) < 3 { continue }
@@ -517,8 +517,11 @@ final class Controller {
                 }
                 // On this desktop but missing from Accessibility: right after a switch the list has simply not
                 // caught up yet, so the window stays. Otherwise its app hid, minimized or ordered it out (Word's
-                // start gallery, say) and it must not keep a tile.
-                if n != nil, onscreen || justSwitched { continue }
+                // start gallery, say) and it must not keep a tile. A window that is closing is still drawn for its
+                // closing animation and its destroyed notification comes after the listing (measured: the neighbour
+                // got the room back 0.5 s after Terminal's close, every time); its element already answers that it
+                // is gone, so it goes now.
+                if n != nil, onscreen || justSwitched, !(onscreen && known[id].map { Windows.isGone($0.element) } ?? false) { continue }
             }
             if id == focusedBefore { focusedClosed = true }
             engine.windowGone(id)

@@ -345,6 +345,13 @@ enum Windows {
         return t
     }
 
+    /// True when the app says the element no longer exists (the window was closed). One round trip; an app that
+    /// does not answer in time does not count as having closed it.
+    static func isGone(_ el: AXUIElement) -> Bool {
+        var ref: CFTypeRef?
+        return call(el, { AXUIElementCopyAttributeValue(el, kAXRoleAttribute as CFString, &ref) }) == .invalidUIElement
+    }
+
     static func frame(of el: AXUIElement) -> CGRect? {
         guard let p: AXValue = attr(el, kAXPositionAttribute), let s: AXValue = attr(el, kAXSizeAttribute) else { return nil }
         var pos = CGPoint.zero
