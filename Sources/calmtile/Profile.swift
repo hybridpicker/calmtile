@@ -23,7 +23,9 @@ enum Profile {
     private static var keyWaits = [Double]()
     private static var lateKeys = 0
     private static var requested = 0
-    private static var windowStart = CACurrentMediaTime()
+    /// Set by the first tick: a static initialiser runs lazily, on first use, which was the first `flush`, so the
+    /// first line of every run said "in -0.0 s".
+    private static var windowStart: CFTimeInterval = 0
     private static var tickStart: CFTimeInterval = 0
 
     /// One Accessibility round trip (attribute read or write, action).
@@ -82,6 +84,7 @@ enum Profile {
         guard on else { return }
         tickStart = CACurrentMediaTime()
         tickAccum = 0
+        if windowStart == 0 { windowStart = tickStart }
     }
 
     /// The tick hands the listing to its thread: stop counting until `resumeTick`.
