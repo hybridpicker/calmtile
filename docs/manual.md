@@ -188,7 +188,8 @@ lists scratchpad windows; clicking one shows it.
 
 `~/.config/calmtile/config.json`, optional. Missing keys fall back to the defaults below. `⌃⌥R` or the
 menu item **Reload config** applies changes; `calmtile --print-config` (the binary inside the .app) prints
-the effective config, and a wrong value is reported in an alert.
+the effective config. An unknown key or a value of the wrong type is ignored and reported, at launch and on
+reload, in an alert and in the log (`config: …`); `--print-config` writes the same lines to stderr.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -268,6 +269,9 @@ neighbours should have made room, and in parked mode the window moves to a works
 pixels smaller: the app snaps to its own grid (Terminal to character cells) and calmtile leaves it there.
 More than that, or elsewhere: calmtile places it again until it matches; if it never does, the app refuses
 Accessibility moves (look for `set ->` codes other than 0 in the debug log).
+
+**A binding does nothing.** Look in the log: `config: …` names keys and values that were ignored, and an
+`open` binding whose app name matches no application logs `open …: no application of that name`.
 
 **A window floats that should tile.** It is not a standard window, cannot be resized, matches a
 `floatTitles` word, or its app is in `floatApps`. `⌃⌥T` tiles it for this session; the config rule decides
