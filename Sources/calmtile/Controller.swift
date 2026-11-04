@@ -83,9 +83,13 @@ final class Controller {
     private var lastTrusted: Bool?
     private let myPid = ProcessInfo.processInfo.processIdentifier
 
+    /// Problems found in the config file at launch, shown once the app runs (an alert needs the run loop).
+    private var startProblems = [String]()
+
     init() {
-        let (cfg, _) = Config.load()
+        let (cfg, problems) = Config.load()
         config = cfg
+        startProblems = problems
         spotlightOn = cfg.spotlightAppsOnly
         engine = Engine(monitors: Screens.monitors())
         applyConfig()
@@ -132,6 +136,10 @@ final class Controller {
         overviewTimer = ot
         setTickInterval(Controller.activeInterval)
         tick()
+        // After the first tick, so the windows are tiled while the alert waits for a click.
+        let problems = startProblems
+        startProblems = []
+        DispatchQueue.main.async { [weak self] in self?.reportConfigProblems(problems) }
     }
 
     // MARK: - Tick rate
@@ -184,7 +192,14 @@ final class Controller {
         updateSpotlight()
         monitorsDirty = true
         applied = [:]
-        if !problems.isEmpty { notify(problems.joined(separator: "\n")) }
+        reportConfigProblems(problems)
+    }
+
+    /// Before, problems found at launch were dropped: a broken config only showed up on Reload.
+    private func reportConfigProblems(_ problems: [String]) {
+        guard !problems.isEmpty else { return }
+        for p in problems { Log.write("config: \(p)") }
+        notify("~/.config/calmtile/config.json:\n" + problems.joined(separator: "\n"))
     }
 
     // MARK: - Accessibility notifications

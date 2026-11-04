@@ -1,7 +1,9 @@
 import AppKit
 
 if CommandLine.arguments.contains("--print-config") {
-    print(Config.load().0.json())
+    let (cfg, problems) = Config.load()
+    print(cfg.json())
+    for p in problems { FileHandle.standardError.write("config: \(p)\n".data(using: .utf8)!) }
     exit(0)
 }
 

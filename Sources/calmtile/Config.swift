@@ -230,13 +230,37 @@ struct Config {
         return NSString(string: "~/.config/calmtile/config.json").expandingTildeInPath
     }
 
+    /// Every key the config file may hold, with a test for its value and how to name that type in a message.
+    private static let keyTypes: [String: ((Any) -> Bool, String)] = {
+        let number: ((Any) -> Bool, String) = ({ $0 is NSNumber && CFGetTypeID($0 as CFTypeRef) != CFBooleanGetTypeID() }, "a number")
+        let flag: ((Any) -> Bool, String) = ({ $0 is NSNumber && CFGetTypeID($0 as CFTypeRef) == CFBooleanGetTypeID() }, "true or false")
+        let text: ((Any) -> Bool, String) = ({ $0 is String }, "a string")
+        let list: ((Any) -> Bool, String) = ({ $0 is [String] }, "a list of strings")
+        var t = [String: ((Any) -> Bool, String)]()
+        for k in ["gap", "outerGap", "mainWorkspaces", "minTileWidth", "minTileHeight", "borderWidth", "borderRadius", "borderFlash"] { t[k] = number }
+        for k in ["useSpaces", "removeEmptyDesktops", "spotlightAppsOnly"] { t[k] = flag }
+        for k in ["borderColor", "theme", "scratchpadApp", "mouseModifier"] { t[k] = text }
+        for k in ["floatApps", "tileFixedApps", "ignoreApps", "passthroughApps"] { t[k] = list }
+        t["floatTitles"] = ({ $0 is [String: [String]] }, "an object of lists of strings")
+        t["bindings"] = ({ $0 is [String: String] }, "an object of strings")
+        return t
+    }()
+
     /// Defaults, overridden by ~/.config/calmtile/config.json. A binding set to "" removes the default.
     static func load() -> (Config, [String]) {
         var cfg = Config()
         var problems = [String]()
         if let data = FileManager.default.contents(atPath: path) {
-            guard let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            guard let raw = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
                 return (cfg, ["config.json is not a JSON object - using defaults"])
+            }
+            // A key that is misspelt or has a value of the wrong type was skipped without a word, so a typo looked
+            // like a setting that does nothing. Only the keys that pass are read below (JSON's 1 would otherwise
+            // pass for true).
+            var obj = [String: Any]()
+            for (k, v) in raw.sorted(by: { $0.key < $1.key }) {
+                guard let (fits, kind) = Config.keyTypes[k] else { problems.append("unknown key: \(k)"); continue }
+                if fits(v) { obj[k] = v } else { problems.append("\(k) must be \(kind) - ignored") }
             }
             if let v = obj["minTileWidth"] as? Double { cfg.minTileWidth = CGFloat(v) }
             if let v = obj["minTileHeight"] as? Double { cfg.minTileHeight = CGFloat(v) }
