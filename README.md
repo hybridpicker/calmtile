@@ -138,6 +138,7 @@ and restores it afterwards.
 - [Manual](docs/manual.md): every key, option, rule and switch, with troubleshooting and undo.
 - [Real desktops](docs/desktops.md): how `"useSpaces"` works and why switching goes through the Dock.
 - [Development](docs/development.md): build details, debug log, test aids and what has been verified live.
+- [Changelog](CHANGELOG.md): what is in 0.1.0.
 
 ## License
 

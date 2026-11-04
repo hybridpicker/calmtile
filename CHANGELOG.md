@@ -1,0 +1,40 @@
+# Changelog
+
+## 0.1.0 – unreleased
+
+The first version. Built and tested on macOS 26 with one display; see [docs/development.md](docs/development.md)
+for what has been verified live and what has not.
+
+**Layout**
+- Hyprland's dwindle layout on whole-point tiles, gaps, a focused-window border that flashes on focus changes,
+  eight themes.
+- Minimum sizes an app insists on are learned and given room; windows that cannot be resized tile at their own
+  size for the apps in `tileFixedApps` (the iOS Simulator) and float otherwise.
+- Floating, calmtile's own fullscreen, a scratchpad with a drop-down terminal.
+
+**Workspaces**
+- Nine workspaces on `⌘1…9`, `⌘⌥1…9` to send a window there, back-and-forth, a second display for 6–9.
+- Parked mode (default): inactive workspaces are parked in a corner, spread out while Mission Control is open.
+- Desktops mode (`useSpaces`): workspaces are real macOS desktops with stable numbers, switched through the
+  Dock's shortcut, created on demand and optionally removed when left empty (`removeEmptyDesktops`).
+
+**Keys, mouse, launcher**
+- Omarchy-style `⌃⌥`/`⌘` keys and the AeroSpace `⌥` keys; every binding configurable on physical key positions.
+- Modifier drag to move, swap and resize; title-bar drag swaps tiles.
+- A launcher for windows, apps, actions and themes, and an applications-only launcher on `⌘Space`, ranked by
+  word starts and how often an app is started. An opt-in switch restricts the system Spotlight to applications.
+
+**Window rules**
+- Only standard windows are managed; dialogs, sheets, popovers, panels without window buttons and system
+  prompts float or are left alone. Per-app `floatApps`, `floatTitles`, `ignoreApps`, `passthroughApps`
+  (a password manager by default).
+
+**Robustness**
+- The key tap runs on its own thread and the windows are listed on another, every Accessibility call gives up
+  after 150 ms, an app that does not answer is backed off, late keys are dropped instead of running late.
+- Idle tick p95 under 20 ms, under 50 ms while windows open, close and desktops switch (profile line in the
+  debug log).
+
+**Tooling**
+- `scripts/build.sh` (self-test, build, sign), CI on macOS 15, test aids (`--post-key`, `--dump-windows`,
+  the command file), a manual, first steps and the desktops notes.
