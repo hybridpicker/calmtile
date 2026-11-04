@@ -29,6 +29,9 @@ enum Spaces {
     private struct Layout {
         let display: String
         let spaces: [UInt64]   // normal desktops only, in the Dock's order (full-screen app Spaces are left out)
+        /// Every Space of the display in the Dock's order, full-screen app Spaces included: what the buttons of the
+        /// Spaces bar in Mission Control stand for, one each.
+        let bar: [UInt64]
     }
 
     /// One reading of the desktops: every display's normal desktops, the display holding the active Space (a
@@ -48,7 +51,8 @@ enum Spaces {
         for d in raw {
             guard let id = d["Display Identifier"] as? String, let list = d["Spaces"] as? [[String: Any]] else { continue }
             let l = Layout(display: id, spaces: list.filter { ($0["type"] as? Int) == 0 }
-                .compactMap { ($0["ManagedSpaceID"] as? NSNumber)?.uint64Value })
+                .compactMap { ($0["ManagedSpaceID"] as? NSNumber)?.uint64Value },
+                           bar: list.compactMap { ($0["ManagedSpaceID"] as? NSNumber)?.uint64Value })
             out.append(l)
             if current == nil, list.contains(where: { ($0["ManagedSpaceID"] as? NSNumber)?.uint64Value == active }) { current = l }
         }
@@ -362,6 +366,20 @@ extension Spaces {
     }
 
     /// The desktop buttons of the Spaces bar, left to right (press = switch there and leave Mission Control).
+    /// The Spaces bar button of desktop `id`, looked up by its place among all Spaces of the display. Counting only
+    /// the normal desktops pointed one button too far left of a full-screen app Space: removing desktop 5 removed
+    /// desktop 4 (measured, with a full-screen app between 3 and 4), whose windows macOS moved to another desktop.
+    /// Nil when the bar does not have one button per Space, rather than guess.
+    private static func button(of id: UInt64, in group: AXUIElement) -> AXUIElement? {
+        guard let l = layout(), let i = l.bar.firstIndex(of: id) else { return nil }
+        let buttons = desktopButtons(in: group)
+        guard buttons.count == l.bar.count else {
+            Log.write("Spaces bar has \(buttons.count) buttons for \(l.bar.count) Spaces: not touching it")
+            return nil
+        }
+        return buttons[i]
+    }
+
     private static func desktopButtons(in group: AXUIElement) -> [AXUIElement] {
         guard let list = find("mc.spaces.list", within: group), let kids: [AXUIElement] = attr(list, kAXChildrenAttribute) else { return [] }
         for k in kids { AXUIElementSetMessagingTimeout(k, 1.0) }
@@ -401,10 +419,7 @@ extension Spaces {
                 // the click while the overview is still animating in, so give it a moment; the Dock may also have
                 // reordered the bar by now, so look the button up by the desktop's current position.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                    let buttons = desktopButtons(in: group)
-                    if let i = layout()?.spaces.firstIndex(of: id), i < buttons.count {
-                        AXUIElementPerformAction(buttons[i], kAXPressAction as CFString)
-                    }
+                    if let b = button(of: id, in: group) { AXUIElementPerformAction(b, kAXPressAction as CFString) }
                     poll(every: 0.1, attempts: 10, until: { CGSGetActiveSpace(cid) == id }) { switched in
                         if switched { completion(true); return }
                         // Plan B: leave the overview ourselves and switch the way `⌘N` always does.
@@ -440,14 +455,23 @@ extension Spaces {
             }
             // Like the click on a desktop, the removal is ignored while the overview is still animating in.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                guard ready, let group = displayGroup(in: dock), let i = layout()?.spaces.firstIndex(of: id) else {
+                guard ready, let group = displayGroup(in: dock) else {
                     Log.write("remove desktop \(n): Spaces bar not found (ready=\(ready))")
                     finish(false)
                     return
                 }
-                let buttons = desktopButtons(in: group)
-                guard i < buttons.count else { Log.write("remove desktop \(n): position \(i + 1) but only \(buttons.count) buttons"); finish(false); return }
-                let err = AXUIElementPerformAction(buttons[i], "AXRemoveDesktop" as CFString)
+                guard let b = button(of: id, in: group) else { Log.write("remove desktop \(n): no button for it"); finish(false); return }
+                // Second check before something that cannot be undone: the button is labelled with the desktop's
+                // place among the desktops, its only number ("Zu Schreibtisch 3 wechseln" on a German system,
+                // measured); it must be the place of this one. A full-screen app's button has no number.
+                let label: String = attr(b, kAXDescriptionAttribute) ?? ""
+                let numbers = label.split(separator: " ").filter { !$0.isEmpty && $0.allSatisfy(\.isNumber) }
+                guard let pos = layout()?.spaces.firstIndex(of: id), numbers == [Substring(String(pos + 1))] else {
+                    Log.write("remove desktop \(n): its button is not labelled as desktop \((layout()?.spaces.firstIndex(of: id) ?? -2) + 1): not removing")
+                    finish(false)
+                    return
+                }
+                let err = AXUIElementPerformAction(b, "AXRemoveDesktop" as CFString)
                 guard err == .success else { Log.write("remove desktop \(n): AXRemoveDesktop failed (\(err.rawValue))"); finish(false); return }
                 poll(every: 0.1, attempts: 20, until: { !(layout()?.spaces.contains(id) ?? true) }) { removed in
                     if !removed { Log.write("remove desktop \(n): the Dock accepted the action but the desktop is still there") }
