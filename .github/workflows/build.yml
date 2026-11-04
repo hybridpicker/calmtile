@@ -10,5 +10,5 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
-      - name: Self-test and build
-        run: scripts/build.sh
+      - name: Self-test and build (warnings are errors)
+        run: CALMTILE_STRICT=1 scripts/build.sh
