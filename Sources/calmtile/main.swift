@@ -86,6 +86,28 @@ if CommandLine.arguments.contains("--apply-spotlight") {   // manual test of the
 if CommandLine.arguments.contains("--install-login") { LoginItem.install(); exit(0) }
 if CommandLine.arguments.contains("--uninstall-login") { LoginItem.uninstall(); exit(0) }
 
+if let i = CommandLine.arguments.firstIndex(of: "--post-drag"), i + 4 < CommandLine.arguments.count {
+    // test aid: a left-button drag from (x0, y0) to (x1, y1) in global coordinates (title-bar drag of a window). Events
+    // only reach the window server from a process with the Accessibility grant, which a shell's tools lack.
+    let v = CommandLine.arguments[(i + 1)...(i + 4)].compactMap { Double($0) }
+    guard v.count == 4 else { print("--post-drag x0 y0 x1 y1"); exit(1) }
+    let src = CGEventSource(stateID: .hidSystemState)
+    func post(_ t: CGEventType, _ x: Double, _ y: Double) {
+        let e = CGEvent(mouseEventSource: src, mouseType: t, mouseCursorPosition: CGPoint(x: x, y: y), mouseButton: .left)
+        if t != .mouseMoved { e?.setIntegerValueField(.mouseEventClickState, value: 1) }
+        e?.post(tap: .cghidEventTap)
+    }
+    post(.mouseMoved, v[0], v[1]); usleep(100_000)
+    post(.leftMouseDown, v[0], v[1]); usleep(200_000)
+    for k in 1...30 {
+        let f = Double(k) / 30
+        post(.leftMouseDragged, v[0] + (v[2] - v[0]) * f, v[1] + (v[3] - v[1]) * f); usleep(20_000)
+    }
+    usleep(200_000)
+    post(.leftMouseUp, v[2], v[3])
+    exit(0)
+}
+
 if let i = CommandLine.arguments.firstIndex(of: "--post-key"), i + 1 < CommandLine.arguments.count,
    let combo = parseCombo(CommandLine.arguments[i + 1])
     ?? keyCodes[CommandLine.arguments[i + 1].lowercased()].map({ KeyCombo(keyCode: $0, mods: []) }) {   // test aid: synthesize a key press (bare keys allowed here, e.g. escape)
