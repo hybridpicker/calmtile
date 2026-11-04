@@ -286,6 +286,12 @@ enum Windows {
         return AXWin(id: wid, element: w, pid: pid, bundleID: bundleID, resizable: settable.boolValue)
     }
 
+    /// Neither a close nor a minimize button: a panel shown as a window of its own (two round trips).
+    static func hasNoWindowButtons(_ el: AXUIElement) -> Bool {
+        return (attr(el, kAXCloseButtonAttribute) as AXUIElement?) == nil
+            && (attr(el, kAXMinimizeButtonAttribute) as AXUIElement?) == nil
+    }
+
     /// A window element straight from an Accessibility notification, if it is one calmtile manages (regular app,
     /// not ignored, standard window).
     static func standardWindow(_ el: AXUIElement, ignoring ignored: [String]) -> AXWin? {

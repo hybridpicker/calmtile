@@ -259,12 +259,16 @@ final class Controller {
         }
     }
 
-    /// Hand a new window to the engine: floating (rules, or it cannot be resized), tiled at its own size (cannot be
-    /// resized, app in `tileFixedApps`), or tiled.
+    /// Hand a new window to the engine: floating (rules, a panel, or it cannot be resized), tiled at its own size
+    /// (cannot be resized, app in `tileFixedApps`), or tiled.
     @discardableResult
     private func appear(_ w: AXWin, on desktop: Int?) -> Bool {
         let fixed = !w.resizable && config.tileFixedApps.contains(w.bundleID)
-        let float = (!w.resizable && !fixed) || config.floatApps.contains(w.bundleID) || titleFloats(w)
+        // A resizable standard window without close and minimize buttons is a panel in a window of its own, such as
+        // the open panel TextEdit shows at launch (880 x 448, no buttons, measured): tiled, its minimum width pushed
+        // the neighbour down to 176 px. It floats. Checked once per window, not on every listing.
+        let panel = w.resizable && Windows.hasNoWindowButtons(w.element)
+        let float = (!w.resizable && !fixed) || panel || config.floatApps.contains(w.bundleID) || titleFloats(w)
         let frame = float || fixed ? Windows.frame(of: w.element) : nil
         engine.windowAppeared(w.id, floating: float, frame: float ? frame : nil, workspace: desktop,
                               fixedSize: fixed && !float ? frame?.size : nil)
