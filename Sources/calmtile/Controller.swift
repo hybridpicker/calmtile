@@ -445,7 +445,14 @@ final class Controller {
         // the Accessibility list. That list lags a desktop switch by a moment and still shows the desktop just
         // left; taking those windows as "here" tiled them into the wrong workspace, and focusing one of them
         // then pulled macOS straight back to its desktop.
-        let current = listing.windows
+        // A hidden app (Cmd+H) still lists its windows in Accessibility, with the desktop they sit on, but nothing is
+        // drawn: as tiles they took half of a desktop from the windows that are really there. They are treated like
+        // minimized ones (no tile) and come back when the app is shown again.
+        var hiddenApps = [pid_t: Bool]()
+        let current = !config.useSpaces ? listing.windows : listing.windows.filter { w in
+            if hiddenApps[w.pid] == nil { hiddenApps[w.pid] = NSRunningApplication(processIdentifier: w.pid)?.isHidden ?? false }
+            return hiddenApps[w.pid] != true
+        }
         serverFrames = listing.frames
         defer { serverFrames = [:] }
         let knownBefore = Set(known.keys)
