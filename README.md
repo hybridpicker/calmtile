@@ -43,7 +43,7 @@ launcher built in, who are happy to build from source, and who care about worksp
 
 ## Install
 
-Requirements: macOS 11 or later (developed and tested on macOS 26), Xcode Command Line Tools
+Requirements: macOS 14 or later (developed and tested only on macOS 26 with Apple silicon), Xcode Command Line Tools
 (`xcode-select --install`).
 
 ```bash
