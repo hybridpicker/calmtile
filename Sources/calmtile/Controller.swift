@@ -529,6 +529,7 @@ final class Controller {
             applied[id] = nil
             retries[id] = nil
             self.settled[id] = nil
+            checkedServerFrame.remove(id)
             reportedDesktop[id] = nil
             missingSince[id] = nil
             titleChecked.remove(id)
