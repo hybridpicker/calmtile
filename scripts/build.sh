@@ -13,19 +13,24 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$OUT" "$WORK/mc" "$WORK/app" "$WORK/test"
 
+# The oldest macOS the app is built for. Without it swiftc targets the build machine's own version, so a build
+# on macOS 26 would not start on 15. macOS 14 is the oldest the sources compile for without warnings (11 fails:
+# kIOMainPortDefault needs 12; the activation calls assume 14's behaviour). Only macOS 26 has been tested live.
+TARGET="$(uname -m)-apple-macos14.0"
+
 # The sources are split in two SwiftPM targets; for swiftc we compile them as one module.
 strip_import() { sed '/^import CalmCore/d' "$1" > "$2"; }
 
 echo "== self-test"
 strip_import Sources/calmcore-selftest/main.swift "$WORK/test/main.swift"
-swiftc -O -module-cache-path "$WORK/mc" -o "$WORK/test/selftest" Sources/CalmCore/*.swift "$WORK/test/main.swift"
+swiftc -O -target "$TARGET" -module-cache-path "$WORK/mc" -o "$WORK/test/selftest" Sources/CalmCore/*.swift "$WORK/test/main.swift"
 "$WORK/test/selftest"
 
 echo "== app"
 for f in Sources/calmtile/*.swift; do strip_import "$f" "$WORK/app/$(basename "$f")"; done
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
-swiftc -O -module-cache-path "$WORK/mc" -o "$APP/Contents/MacOS/calmtile" Sources/CalmCore/*.swift "$WORK/app"/*.swift
+swiftc -O -target "$TARGET" -module-cache-path "$WORK/mc" -o "$APP/Contents/MacOS/calmtile" Sources/CalmCore/*.swift "$WORK/app"/*.swift
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -38,7 +43,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>LSUIElement</key><true/>
-  <key>LSMinimumSystemVersion</key><string>11.0</string>
+  <key>LSMinimumSystemVersion</key><string>14.0</string>
 </dict>
 </plist>
 PLIST

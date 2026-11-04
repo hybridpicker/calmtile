@@ -1,9 +1,9 @@
-// swift-tools-version:5.3
+// swift-tools-version:5.9
 import PackageDescription
 
 let package = Package(
     name: "calmtile",
-    platforms: [.macOS(.v11)],
+    platforms: [.macOS(.v14)],
     targets: [
         // Pure layout/workspace logic (dwindle tree, workspaces, focus). No AppKit, fully testable.
         .target(name: "CalmCore"),
