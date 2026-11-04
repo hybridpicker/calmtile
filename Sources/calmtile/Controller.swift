@@ -1158,7 +1158,11 @@ final class Controller {
             p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
             // Terminal only gets a new window when it is handed a folder.
             p.arguments = app == "Terminal" ? ["-a", app, NSHomeDirectory()] : ["-a", app]
-            try? p.run()
+            // A binding with a misspelt app name did nothing and said nothing: `open` fails with a status instead.
+            p.terminationHandler = { proc in
+                if proc.terminationStatus != 0 { Log.write("open \(app): no application of that name (open exited with \(proc.terminationStatus))") }
+            }
+            do { try p.run() } catch { Log.write("open \(app): could not run /usr/bin/open") }
         case .scratchpad:
             if engine.toggleScratchpad() {
                 applyPlan()
