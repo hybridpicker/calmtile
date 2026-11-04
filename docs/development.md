@@ -27,7 +27,8 @@ again after each build.
   thread), `Controller.swift` (the loop that reconciles windows, applies the plan, handles actions, menu bar,
   mouse; the window listing of each tick runs on a serial queue of its own and the rest on the main thread), `Spaces.swift` (real desktops: window server calls, Mission Control through the Dock's
   accessibility tree, system shortcut state), `Launcher.swift`, `Config.swift`, `Border.swift`,
-  `Spotlight.swift`, `LoginItem.swift`, `main.swift` (one-shot commands and test aids).
+  `Spotlight.swift`, `LoginItem.swift`, `Log.swift` (the log file), `Profile.swift` (the profile line),
+  `main.swift` (one-shot commands and test aids).
 
 ## Log and debugging
 
