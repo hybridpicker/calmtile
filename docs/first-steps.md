@@ -103,8 +103,9 @@ Press `⌃⌥R`. The gaps change at once; the border and the launcher take the t
 others). Add an app to `passthroughApps` when it needs `⌘1…9` for itself, such as a terminal with tabs; while
 it is frontmost calmtile intercepts nothing. `scratchpadApp`, `bindings` and the rest are in the manual.
 
-If the alert "unknown key combination" or "unknown action" appears, the config has a typo; `⌃⌥R` again after
-fixing it.
+If an alert lists problems ("unknown key", "must be a number", "unknown key combination", "unknown
+action"), the config has a typo and those entries were ignored; `⌃⌥R` again after fixing it. The same lines
+are in the log.
 
 ## 8. Optional: real macOS desktops
 
