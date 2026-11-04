@@ -93,12 +93,13 @@ set are avoided on purpose: on a German keyboard `⌥L` types `@`.
   "gap": 4,
   "theme": "catppuccin",
   "useSpaces": false,
-  "passthroughApps": ["com.apple.Terminal"],
+  "floatApps": ["com.apple.systempreferences", "com.apple.calculator", "com.apple.Music"],
   "bindings": { "cmd-alt-return": "open Safari", "ctrl-alt-p": "" }
 }
 ```
 
-Every key with its default, the key-combo syntax and the list of actions are in the
+A list replaces its default rather than adding to it; `bindings` are merged. Every key with its default, the key-combo syntax and
+the list of actions are in the
 [config reference](docs/manual.md#8-config). The opt-in "Spotlight: applications only" switch has its
 [own section](docs/manual.md#9-spotlight-applications-only-system-setting): it changes a system setting
 and restores it afterwards.

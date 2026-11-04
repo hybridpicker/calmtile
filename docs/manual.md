@@ -195,7 +195,7 @@ the effective config, and a wrong value is reported in an alert.
 | `minTileWidth`, `minTileHeight` | 420, 280 | smallest tile in parked mode; 0 turns the rule off |
 | `theme` | `"catppuccin"` | default theme |
 | `borderColor` | theme accent | `"#rrggbb"` |
-| `borderWidth`, `borderRadius` | 3, 12 | border in pixels, 0 = no border |
+| `borderWidth`, `borderRadius` | 3, 12 | border width and corner radius in points; width 0 = no border |
 | `borderFlash` | 0.6 | seconds the border shows after the focus moves; 0 = always on |
 | `mouseModifier` | `"cmd-alt"` | modifier for mouse move and resize, `""` = off |
 | `scratchpadApp` | `"Terminal"` | app opened by `⌃⌥Q` on an empty scratchpad |
@@ -215,6 +215,10 @@ Actions: `workspace N`, `move-to-workspace N`, `focus <left|right|up|down>`, `sw
 `resize-grow`, `resize-shrink`, `toggle-float`, `toggle-fullscreen`, `toggle-split`, `close`,
 `back-and-forth`, `move-workspace-to-monitor`, `scratchpad`, `move-to-scratchpad`, `launcher`,
 `app-launcher`, `theme <name>`, `theme-next`, `reload`, `pause`, `open <App name>`.
+
+A list given in the config, and `floatTitles`, replaces its default instead of adding to it, so repeat the
+default entries you want to keep (above all the password manager in `passthroughApps`). `bindings` is merged
+with the defaults.
 
 Example:
 
@@ -270,9 +274,9 @@ short; apps that restore their last frame open in place.
 **The focus border is drawn around nothing.** It follows the focused window; if that window is on another
 desktop (desktops mode) it hides. Report it if it stays.
 
-**A hotkey came late or not at all.** calmtile waits at most 0.25 s for any app's Accessibility answer; an
-app that keeps running into that is left alone for a few seconds (`app … did not answer … left alone` in
-the log) and its windows keep their last known state. A key that could not be handled for more than a
+**A hotkey came late or not at all.** A call into an app gives up after 150 ms, and a key waits at most
+0.25 s for the main thread before the key tap decides on its own; an app whose calls keep timing out is left
+alone for a few seconds (`app … did not answer … left alone` in the log) and its windows keep their last known state. A key that could not be handled for more than a
 second is dropped instead of running late (`hotkey … dropped`), and of several waiting workspace keys
 only the last one runs.
 
@@ -305,6 +309,7 @@ anything that needs the Accessibility grant, through `open -g -n -a ~/Applicatio
 | `--print-config` | print the effective config as JSON |
 | `--install-login`, `--uninstall-login` | write or remove the LaunchAgent |
 | `--restore-spotlight` | put the Spotlight categories back from the backup |
+| `--apply-spotlight` | switch Spotlight to applications only once, as `spotlightAppsOnly` does (test aid; undo with `--restore-spotlight`) |
 | `--dump-windows` | one line per window of every app: role, subrole, resizable, buttons, size; never the title |
 | `--post-key <combo>` | synthesize a key press for the running instance (test aid) |
 | `--remove-desktop N`, `--dump-dock`, `--probe-switch N`, `--probe-hotkey-switch N` | desktops-mode test aids, see [development.md](development.md) |
