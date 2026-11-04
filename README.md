@@ -55,8 +55,11 @@ open ~/Applications/calmtile.app
 ```
 
 On the first start allow calmtile under System Settings → Privacy & Security → **Accessibility** (and
-**Input Monitoring** if macOS asks), then start it again. The menu bar shows `▦ <workspace>` (`▦ ⏸`
-while paused, `🔒` while secure keyboard entry blocks all hotkeys).
+**Input Monitoring** if macOS asks), then start it again. The build is signed with your "Apple Development"
+certificate if you have one; otherwise it is signed ad hoc and macOS asks for Accessibility again after every
+rebuild (remove the old entry in that list first). Built on your Mac, the app is not quarantined, so Gatekeeper
+does not get in the way. The menu bar shows `▦ <workspace>` (`▦ ⏸` while paused, `🔒` while secure keyboard
+entry blocks all hotkeys).
 
 Run only one hotkey or tiling tool at a time (AeroSpace, yabai, Karabiner bindings on the same keys):
 whichever tool installed its key tap last sees a key first.
