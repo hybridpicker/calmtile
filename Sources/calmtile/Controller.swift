@@ -516,46 +516,9 @@ final class Controller {
         let justSwitched = Date().timeIntervalSince(switchedAt) < 0.8
         for id in seen { missingSince[id] = nil }
         for id in missing {
-            let gone = destroyed.contains(id)   // its element said so: no reason to wait for the window server
-            // Parked mode: the window server, not one Accessibility answer, says whether a window still exists. An
-            // app that answered the window list wrongly once (busy, a call that failed) used to lose its windows:
-            // they came back the next tick as new ones, appended to the layout with their place and split ratios
-            // gone. A window that is still drawn keeps its tile for a few seconds; one that stays missing from
-            // Accessibility that long (it became a sheet or a panel) goes as before.
-            if !gone, !config.useSpaces, living[id] == true, !(known[id].map { Windows.isGone($0.element) } ?? false) {
-                let since = missingSince[id] ?? Date()
-                missingSince[id] = since
-                if Date().timeIntervalSince(since) < 3 { continue }
-            }
-            if !gone, config.useSpaces, let onscreen = living[id] {
-                let n = Spaces.number(ofWindow: id)
-                if let n = n, n != engine.currentWorkspace {
-                    // On another desktop (not visible to Accessibility right now): keep it, follow it if it moved.
-                    if let home = engine.workspaceOf(id), home != 0, home != n, settled, reportedDesktop[id] == n {
-                        relocateKnown(id, to: n, from: home)
-                    }
-                    reportedDesktop[id] = n
-                    continue
-                }
-                // On this desktop but missing from Accessibility: right after a switch the list has simply not
-                // caught up yet, so the window stays. Otherwise its app hid, minimized or ordered it out (Word's
-                // start gallery, say) and it must not keep a tile. A window that is closing is still drawn for its
-                // closing animation and its destroyed notification comes after the listing (measured: the neighbour
-                // got the room back 0.5 s after Terminal's close, every time); its element already answers that it
-                // is gone, so it goes now.
-                if n != nil, onscreen || justSwitched, !(onscreen && known[id].map { Windows.isGone($0.element) } ?? false) { continue }
-            }
+            if keepsMissing(id, living: living, settled: settled, justSwitched: justSwitched) { continue }
             if id == focusedBefore { focusedClosed = true }
-            engine.windowGone(id)
-            known[id] = nil
-            applied[id] = nil
-            retries[id] = nil
-            self.settled[id] = nil
-            checkedServerFrame.remove(id)
-            appearedAt[id] = nil
-            reportedDesktop[id] = nil
-            missingSince[id] = nil
-            titleChecked.remove(id)
+            forget(id)
         }
         destroyed.removeAll()
 
@@ -608,6 +571,54 @@ final class Controller {
         }
         Profile.workspace = engine.currentWorkspace
         Profile.endTick()
+    }
+
+    /// A window that the Accessibility list no longer shows: does it keep its tile for now (true), or is it gone?
+    private func keepsMissing(_ id: WindowID, living: [WindowID: Bool], settled: Bool, justSwitched: Bool) -> Bool {
+        let gone = destroyed.contains(id)   // its element said so: no reason to wait for the window server
+        // Parked mode: the window server, not one Accessibility answer, says whether a window still exists. An
+        // app that answered the window list wrongly once (busy, a call that failed) used to lose its windows:
+        // they came back the next tick as new ones, appended to the layout with their place and split ratios
+        // gone. A window that is still drawn keeps its tile for a few seconds; one that stays missing from
+        // Accessibility that long (it became a sheet or a panel) goes as before.
+        if !gone, !config.useSpaces, living[id] == true, !(known[id].map { Windows.isGone($0.element) } ?? false) {
+            let since = missingSince[id] ?? Date()
+            missingSince[id] = since
+            if Date().timeIntervalSince(since) < 3 { return true }
+        }
+        if !gone, config.useSpaces, let onscreen = living[id] {
+            let n = Spaces.number(ofWindow: id)
+            if let n = n, n != engine.currentWorkspace {
+                // On another desktop (not visible to Accessibility right now): keep it, follow it if it moved.
+                if let home = engine.workspaceOf(id), home != 0, home != n, settled, reportedDesktop[id] == n {
+                    relocateKnown(id, to: n, from: home)
+                }
+                reportedDesktop[id] = n
+                return true
+            }
+            // On this desktop but missing from Accessibility: right after a switch the list has simply not
+            // caught up yet, so the window stays. Otherwise its app hid, minimized or ordered it out (Word's
+            // start gallery, say) and it must not keep a tile. A window that is closing is still drawn for its
+            // closing animation and its destroyed notification comes after the listing (measured: the neighbour
+            // got the room back 0.5 s after Terminal's close, every time); its element already answers that it
+            // is gone, so it goes now.
+            if n != nil, onscreen || justSwitched, !(onscreen && known[id].map { Windows.isGone($0.element) } ?? false) { return true }
+        }
+        return false
+    }
+
+    /// Drop a window that is gone, with everything remembered about it.
+    private func forget(_ id: WindowID) {
+        engine.windowGone(id)
+        known[id] = nil
+        applied[id] = nil
+        retries[id] = nil
+        settled[id] = nil
+        checkedServerFrame.remove(id)
+        appearedAt[id] = nil
+        reportedDesktop[id] = nil
+        missingSince[id] = nil
+        titleChecked.remove(id)
     }
 
     /// Development aid (CALMTILE_DEBUG only): an action written to ~/.config/calmtile/command, e.g. `workspace 2`, runs
