@@ -441,6 +441,31 @@ do {
           "a fractional area shrinks to whole points")
 }
 
+// fixed-size windows (tileFixedApps): a tile of their own size, the neighbours get the rest
+do {
+    let e = makeEngine()   // area 1904 x 1064 at (8, 8), gap 8
+    e.windowAppeared(1, floating: false)
+    e.windowAppeared(2, floating: false, fixedSize: CGSize(width: 410, height: 880))
+    let f1 = frame(e.plan()[1]), f2 = frame(e.plan()[2])
+    check(f2?.size == CGSize(width: 410, height: 880), "a fixed-size window's tile is its own size")
+    check(f2?.minY == 8 && f2?.maxX == 1912, "it sits at the top-left corner of the space it was given")
+    check(f1?.width == 1904 - 8 - 410 && f1?.height == 1064, "the neighbour takes all the width it cannot use")
+    e.setFocused(1)
+    e.windowAppeared(3, floating: false)   // splits window 1
+    let p = e.plan()
+    check(frame(p[2])?.size == CGSize(width: 410, height: 880), "it keeps its size when its neighbour splits")
+    let tiles = [1, 3, 2].compactMap { frame(p[WindowID($0)]) }
+    check(tiles.count == 3 && !tiles[0].intersects(tiles[1]) && !tiles[0].intersects(tiles[2]) && !tiles[1].intersects(tiles[2]),
+          "no overlap with a fixed-size window")
+    e.setFixedSize(2, CGSize(width: 880, height: 410))   // the device rotated
+    check(frame(e.plan()[2])?.size == CGSize(width: 880, height: 410), "the tile follows a new size")
+    e.windowGone(2)
+    check(max(frame(e.plan()[1])?.maxX ?? 0, frame(e.plan()[3])?.maxX ?? 0) == 1912, "after it closes the others share the full width again")
+    check(e.fixedSize(of: 2) == nil, "its size is forgotten when it closes")
+    e.windowAppeared(4, floating: true, fixedSize: CGSize(width: 300, height: 300))
+    check(e.fixedSize(of: 4) == nil, "a floating window keeps no fixed tile size")
+}
+
 // micro-benchmark: 200 windows in and out with a plan every ten, so regressions in the core show up
 do {
     var best = Double.infinity

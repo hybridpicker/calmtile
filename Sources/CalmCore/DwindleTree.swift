@@ -76,6 +76,13 @@ public final class DwindleTree {
 
     public func minimum(gap: CGFloat) -> CGSize { return root.map { minimum(of: $0, gap: gap) } ?? .zero }
 
+    /// Largest size a window can take (a window that cannot be resized, tiled at its own size); infinite for the
+    /// rest. A split gives such a window no more than that, so its neighbours get the space it cannot use.
+    public var maxSize: (WindowID) -> CGSize = { _ in CGSize(width: CGFloat.infinity, height: CGFloat.infinity) }
+    /// False while no window has a maximum: the layout then skips that bookkeeping (it took the self-test's
+    /// benchmark from 18 to 24 ms).
+    public var hasMaxSizes: () -> Bool = { false }
+
     /// Split `r` into the two children's rectangles, the first one `extent` wide (or high). Edges are rounded to
     /// whole points, so every tile is integral, the halves never overlap and with no gap they meet exactly, even
     /// when `r` or `gap` is fractional (a Dock of 64.5 pt, a gap of 7.5).
@@ -113,13 +120,45 @@ public final class DwindleTree {
             mins[ObjectIdentifier(n)] = m
             return m
         }
+        var maxs = [ObjectIdentifier: CGSize]()
+        func maximum(of n: Node) -> CGSize {
+            if let m = maxs[ObjectIdentifier(n)] { return m }
+            let m: CGSize
+            if let w = n.window { m = maxSize(w) }
+            else if let a = n.first, let b = n.second {
+                let xa = maximum(of: a), xb = maximum(of: b)
+                switch n.axis {
+                case .horizontal: m = CGSize(width: xa.width + xb.width + gap, height: max(xa.height, xb.height))
+                case .vertical: m = CGSize(width: max(xa.width, xb.width), height: xa.height + xb.height + gap)
+                }
+            } else { m = CGSize(width: CGFloat.infinity, height: CGFloat.infinity) }
+            maxs[ObjectIdentifier(n)] = m
+            return m
+        }
+        /// A side that cannot grow past its maximum leaves the rest to the other side, so a fixed-size window's
+        /// neighbour gets everything it cannot use. When both sides have a maximum and space is left over, the first
+        /// side's tile takes it and its window keeps its own size in the corner.
+        func capped(_ e1: CGFloat, total: CGFloat, maxA: CGFloat, maxB: CGFloat) -> CGFloat {
+            var e = e1
+            if maxA.isFinite { e = min(e, maxA) }
+            if maxB.isFinite { e = max(e, total - gap - maxB) }
+            return e
+        }
+        let limited = hasMaxSizes()
         func place(_ n: Node, _ r: CGRect) {
-            if let w = n.window { out[w] = r; return }
+            if let w = n.window, !limited { out[w] = r; return }
+            if let w = n.window {
+                // A fixed-size window gets a tile of its own size at the tile's top-left corner, never larger.
+                let m = maxSize(w)
+                out[w] = CGRect(x: r.minX, y: r.minY, width: min(r.width, m.width), height: min(r.height, m.height))
+                return
+            }
             guard let a = n.first, let b = n.second else { return }
             switch n.axis {
             case .horizontal:
                 var w1 = ((r.width - gap) * n.ratio).rounded()
                 let ma = minimum(of: a, gap: gap).width, mb = minimum(of: b, gap: gap).width
+                if limited { w1 = capped(w1, total: r.width, maxA: maximum(of: a).width, maxB: maximum(of: b).width) }
                 if ma + mb + gap <= r.width {   // a minimum is only honoured when both sides can have theirs
                     w1 = min(max(w1, ma), r.width - gap - mb)
                 }
@@ -129,6 +168,7 @@ public final class DwindleTree {
             case .vertical:
                 var h1 = ((r.height - gap) * n.ratio).rounded()
                 let ma = minimum(of: a, gap: gap).height, mb = minimum(of: b, gap: gap).height
+                if limited { h1 = capped(h1, total: r.height, maxA: maximum(of: a).height, maxB: maximum(of: b).height) }
                 if ma + mb + gap <= r.height {
                     h1 = min(max(h1, ma), r.height - gap - mb)
                 }

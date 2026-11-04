@@ -63,6 +63,8 @@ public final class Engine {
     private var workspaces = [Int: Workspace]()
     /// Minimum sizes apps turned out to insist on (window -> size, 0 = no limit on that axis).
     private var minSizes = [WindowID: CGSize]()
+    /// Windows that cannot be resized but tile anyway (`tileFixedApps`): their tile is exactly this size.
+    private var fixedSizes = [WindowID: CGSize]()
     /// Workspaces the user moved to another monitor by hand (workspace -> monitor).
     private var monitorOverride = [Int: Int]()
     private var visible = [Int: Int]()          // monitor id -> workspace number
@@ -115,8 +117,10 @@ public final class Engine {
 
     /// A new window. `workspace` names the one it opened on when that is known (real macOS desktops); otherwise
     /// it joins the current workspace.
-    public func windowAppeared(_ id: WindowID, floating: Bool, frame: CGRect? = nil, workspace: Int? = nil) {
+    /// `fixedSize` tiles a window that cannot be resized at that size; the neighbours get the rest.
+    public func windowAppeared(_ id: WindowID, floating: Bool, frame: CGRect? = nil, workspace: Int? = nil, fixedSize: CGSize? = nil) {
         guard home[id] == nil else { return }
+        if !floating, let f = fixedSize { fixedSizes[id] = f }
         let ws = ensure(workspace ?? currentWorkspace)
         home[id] = ws.number
         if floating {
@@ -152,6 +156,14 @@ public final class Engine {
         ws.floating.append(id)
         if ws.fullscreen == id { ws.fullscreen = nil }
         floatFrames[id] = frame
+    }
+
+    public func fixedSize(of id: WindowID) -> CGSize? { return fixedSizes[id] }
+
+    /// A fixed-size window changed its size by itself (the Simulator rotated or zoomed its device): its tile follows.
+    public func setFixedSize(_ id: WindowID, _ size: CGSize) {
+        guard fixedSizes[id] != nil else { return }
+        fixedSizes[id] = size
     }
 
     /// The app could not get as small as its tile. Remember the size it insists on so the neighbours make
@@ -224,6 +236,7 @@ public final class Engine {
     public func windowGone(_ id: WindowID) {
         guard let n = home.removeValue(forKey: id) else { return }
         minSizes[id] = nil
+        fixedSizes[id] = nil
         if n == 0 {
             scratch.removeAll { $0 == id }
             floatFrames[id] = nil
@@ -529,7 +542,9 @@ public final class Engine {
     private func ensure(_ n: Int) -> Workspace {
         if let ws = workspaces[n] { return ws }
         let ws = Workspace(number: n, monitor: clampedMonitor(n))
-        ws.tree.minSize = { [unowned self] id in self.minSizes[id] ?? .zero }
+        ws.tree.minSize = { [unowned self] id in self.fixedSizes[id] ?? self.minSizes[id] ?? .zero }
+        ws.tree.maxSize = { [unowned self] id in self.fixedSizes[id] ?? CGSize(width: CGFloat.infinity, height: CGFloat.infinity) }
+        ws.tree.hasMaxSizes = { [unowned self] in !self.fixedSizes.isEmpty }
         workspaces[n] = ws
         if visible[ws.monitor] == nil { visible[ws.monitor] = n }
         return ws

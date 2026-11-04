@@ -137,6 +137,9 @@ struct Config {
         "com.apple.systempreferences", "com.apple.calculator", "com.apple.ActivityMonitor",
         "com.apple.archiveutility", "com.apple.PreferencePanes.Preview",
     ]
+    /// Apps whose windows cannot be resized but still tile, at their own size: the neighbours make room instead of
+    /// the window floating over them (the iOS Simulator).
+    var tileFixedApps: [String] = ["com.apple.iphonesimulator"]
     /// Windows of these apps float when their title contains one of the words (secondary windows that are
     /// standard windows: playlists, inspectors, DevTools). Matching is case-insensitive; titles are never logged.
     var floatTitles: [String: [String]] = [
@@ -257,6 +260,7 @@ struct Config {
             if let v = obj["spotlightAppsOnly"] as? Bool { cfg.spotlightAppsOnly = v }
             if let v = obj["mainWorkspaces"] as? Int { cfg.mainWorkspaces = v }
             if let v = obj["floatApps"] as? [String] { cfg.floatApps = v }
+            if let v = obj["tileFixedApps"] as? [String] { cfg.tileFixedApps = v }
             if let v = obj["floatTitles"] as? [String: [String]] { cfg.floatTitles = v }
             if let v = obj["ignoreApps"] as? [String] { cfg.ignoreApps = v }
             if let v = obj["passthroughApps"] as? [String] { cfg.passthroughApps = v }
@@ -286,7 +290,7 @@ struct Config {
             "mouseModifier": mouseModifier, "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces, "useSpaces": useSpaces, "removeEmptyDesktops": removeEmptyDesktops,
             "minTileWidth": Double(minTileWidth), "minTileHeight": Double(minTileHeight),
             "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "borderFlash": borderFlash, "theme": theme, "scratchpadApp": scratchpadApp,
-            "spotlightAppsOnly": spotlightAppsOnly, "floatApps": floatApps, "floatTitles": floatTitles, "ignoreApps": ignoreApps, "passthroughApps": passthroughApps, "bindings": bindings,
+            "spotlightAppsOnly": spotlightAppsOnly, "floatApps": floatApps, "tileFixedApps": tileFixedApps, "floatTitles": floatTitles, "ignoreApps": ignoreApps, "passthroughApps": passthroughApps, "bindings": bindings,
         ]
         if let c = borderColor { obj["borderColor"] = c }
         let data = (try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])) ?? Data()

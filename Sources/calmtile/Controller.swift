@@ -259,6 +259,18 @@ final class Controller {
         }
     }
 
+    /// Hand a new window to the engine: floating (rules, or it cannot be resized), tiled at its own size (cannot be
+    /// resized, app in `tileFixedApps`), or tiled.
+    @discardableResult
+    private func appear(_ w: AXWin, on desktop: Int?) -> Bool {
+        let fixed = !w.resizable && config.tileFixedApps.contains(w.bundleID)
+        let float = (!w.resizable && !fixed) || config.floatApps.contains(w.bundleID) || titleFloats(w)
+        let frame = float || fixed ? Windows.frame(of: w.element) : nil
+        engine.windowAppeared(w.id, floating: float, frame: float ? frame : nil, workspace: desktop,
+                              fixedSize: fixed && !float ? frame?.size : nil)
+        return float
+    }
+
     /// A window was just created: tile it now, while it is still appearing, instead of on the next tick (a few
     /// hundred milliseconds later, when it had already been drawn at the app's own size and visibly jumped).
     /// The tick afterwards finds it known and only confirms the placement.
@@ -270,8 +282,7 @@ final class Controller {
         }
         guard known[w.id] == nil else { return }
         let desktop: Int? = config.useSpaces ? (Spaces.number(ofWindow: w.id) ?? engine.currentWorkspace) : nil
-        let float = !w.resizable || config.floatApps.contains(w.bundleID) || titleFloats(w)
-        engine.windowAppeared(w.id, floating: float, frame: float ? Windows.frame(of: w.element) : nil, workspace: desktop)
+        let float = appear(w, on: desktop)
         known[w.id] = w
         if Log.debug { Log.write("created win \(w.id) \(w.bundleID) float=\(float): placed at once") }
         applyPlan()
@@ -454,8 +465,7 @@ final class Controller {
             }
             reportedDesktop[w.id] = desktop
             if known[w.id] == nil {
-                let float = !w.resizable || config.floatApps.contains(w.bundleID) || titleFloats(w)
-                engine.windowAppeared(w.id, floating: float, frame: float ? Windows.frame(of: w.element) : nil, workspace: desktop)
+                appear(w, on: desktop)
                 if let t = pendingScratch {
                     if Date().timeIntervalSince(t) > 5 {
                         pendingScratch = nil
@@ -700,6 +710,16 @@ final class Controller {
                 // for apps whose minimum size cannot fit the tile.
                 guard case .frame(let want) = placement, !engine.isFloating(id),
                       let actual = currentFrame(id, w), !Windows.framesMatch(actual, want) else { continue }
+                // A window tiled at its own size changed that size by itself: give it a tile of the new size instead of
+                // trying to resize it, which it refuses. Its size is read from the app, which is where it was taken.
+                if let fixed = engine.fixedSize(of: id), let now = Windows.frame(of: w.element)?.size,
+                   abs(now.width - fixed.width) > 2 || abs(now.height - fixed.height) > 2 {
+                    engine.setFixedSize(id, now)
+                    Log.write("fixed-size window of \(w.bundleID) is \(Int(now.width))x\(Int(now.height)) now")
+                    applied = [:]
+                    requestTick()
+                    return
+                }
                 // Still where our last placement left it, a few pixels off because the app snaps to its own grid
                 // (Terminal: 716 px in a 720 px tile after the trim): that is the app's answer, not a change. Placing
                 // it again gives the same result, and it did so every tick (measured: four AX writes and two reads
