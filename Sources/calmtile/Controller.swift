@@ -205,15 +205,19 @@ final class Controller {
     }
 
     /// Notifications an app has not accepted yet because it did not answer in time (it was still starting up):
-    /// tried again on the next ticks instead of waiting up to a second for each one.
-    private var unregistered = [pid_t: [String]]()
+    /// tried again on later ticks instead of waiting up to a second for each one. Each try that fails doubles the
+    /// wait before the next one, up to a minute. Measured after a restart at load average 50, with Photoshop,
+    /// Acrobat and Excel not answering: registering took 70 ms of main thread per tick for two minutes (idle p95
+    /// 255 ms against a target of 20). The stall back-off alone does not bound this, since any call an app answers
+    /// in time ends it. Without the notifications an app's windows are still found by the tick.
+    private var unregistered = [pid_t: (notes: [String], tries: Int, next: CFTimeInterval)]()
     private static let notifications = [kAXWindowCreatedNotification, kAXUIElementDestroyedNotification,
                                         kAXFocusedWindowChangedNotification] as [String]
 
     private func observe(pid: pid_t) {
         if let obs = observers[pid] {
-            guard let left = unregistered[pid], !Windows.isStalled(pid) else { return }
-            register(left, on: obs, pid: pid)
+            guard let left = unregistered[pid], CACurrentMediaTime() >= left.next, !Windows.isStalled(pid) else { return }
+            register(left.notes, on: obs, pid: pid, tries: left.tries)
             return
         }
         let callback: AXObserverCallback = { _, element, notification, refcon in
@@ -241,13 +245,18 @@ final class Controller {
         register(Controller.notifications, on: obs, pid: pid)
     }
 
-    private func register(_ notes: [String], on obs: AXObserver, pid: pid_t) {
+    private func register(_ notes: [String], on obs: AXObserver, pid: pid_t, tries: Int = 0) {
         let app = AXUIElementCreateApplication(pid)
         let me = Unmanaged.passUnretained(self).toOpaque()
         let left = timed("observing \(NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? String(pid))") {
             notes.filter { Windows.addNotification(obs, app, $0, me) == .cannotComplete }
         }
-        unregistered[pid] = left.isEmpty ? nil : left
+        if left.isEmpty { unregistered[pid] = nil; return }
+        let wait = min(60.0, pow(2.0, Double(tries)))
+        unregistered[pid] = (left, tries + 1, CACurrentMediaTime() + wait)
+        if Log.debug {
+            Log.write("notifications not accepted by \(NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? String(pid)) (\(left.count) left), next try in \(Int(wait)) s")
+        }
     }
 
     /// A window was just created: tile it now, while it is still appearing, instead of on the next tick (a few
