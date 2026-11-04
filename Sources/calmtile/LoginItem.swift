@@ -35,18 +35,4 @@ enum LoginItem {
     }
 
     static func toggle() { isInstalled ? uninstall() : install() }
-
-    /// A LaunchAgent left by the app's former name: unload and remove it, and install the current one in its place.
-    static func replaceOldItem(label old: String) {
-        let path = NSString(string: "~/Library/LaunchAgents/\(old).plist").expandingTildeInPath
-        guard FileManager.default.fileExists(atPath: path) else { return }
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-        p.arguments = ["bootout", "gui/\(getuid())/\(old)"]
-        try? p.run()
-        p.waitUntilExit()
-        try? FileManager.default.removeItem(atPath: path)
-        Log.write("login item \(old) replaced by \(label)")
-        install()
-    }
 }
