@@ -208,10 +208,12 @@ enum Spaces {
         guard position >= 1, position <= 9, let key = digitKeyCodes[position] else { return false }
         let hotKey = Int32(117 + position)
         let was = CGSIsSymbolicHotKeyEnabled(hotKey)
-        if !was { CGSSetSymbolicHotKeyEnabled(hotKey, true) }
+        // A refused enable means the Dock never sees the shortcut and the switch does not happen; a refused disable
+        // leaves the user's Control+digit switching desktops until the next login. Neither is visible otherwise.
+        if !was, CGSSetSymbolicHotKeyEnabled(hotKey, true) != 0 { Log.write("could not enable the desktop shortcut \(position)") }
         postKey(key, flags: .maskControl)
         DispatchQueue.main.asyncAfter(deadline: .now() + keyPressDuration + restoreAfter) {
-            if !was { CGSSetSymbolicHotKeyEnabled(hotKey, false) }
+            if !was, CGSSetSymbolicHotKeyEnabled(hotKey, false) != 0 { Log.write("could not disable the desktop shortcut \(position) again") }
             completion?()
         }
         return true

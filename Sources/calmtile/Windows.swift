@@ -435,7 +435,8 @@ enum Windows {
         _ = call(w.element) { AXUIElementPerformAction(w.element, kAXRaiseAction as CFString) }
         set(w.element, kAXMainAttribute, kCFBooleanTrue)
         set(w.element, kAXFocusedAttribute, kCFBooleanTrue)
-        NSRunningApplication(processIdentifier: w.pid)?.activate(options: [.activateIgnoringOtherApps])
+        // No `.activateIgnoringOtherApps`: deprecated since macOS 14, where it has no effect, so the call is the same.
+        NSRunningApplication(processIdentifier: w.pid)?.activate(options: [])
     }
 
     static func close(_ w: AXWin) {

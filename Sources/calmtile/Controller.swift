@@ -775,7 +775,7 @@ final class Controller {
         let here = engine.windows(in: engine.currentWorkspace)
         if here.contains(where: { known[$0]?.pid == running.processIdentifier }) { return false }
         let pid = running.processIdentifier
-        running.activate(options: [.activateIgnoringOtherApps])
+        running.activate(options: [])   // `.activateIgnoringOtherApps` has no effect since macOS 14 (deprecated)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             // Cmd+N (key code 45) straight to the app: File > New Window in Chrome, Safari, Finder, ...
             let src = CGEventSource(stateID: .hidSystemState)
