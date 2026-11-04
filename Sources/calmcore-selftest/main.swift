@@ -485,6 +485,32 @@ do {
           "a window that has to float goes back to its own frame")
 }
 
+// title rules, float frames and the Mission Control overview
+do {
+    let e = makeEngine()
+    e.windowAppeared(1, floating: false)
+    e.windowAppeared(2, floating: false)
+    let playlist = CGRect(x: 100, y: 100, width: 300, height: 400)
+    e.makeFloating(2, frame: playlist)
+    check(e.isFloating(2) && frame(e.plan()[2]) == playlist, "a title rule floats a tiled window at the frame given")
+    check(frame(e.plan()[1]) == CGRect(x: 8, y: 8, width: 1904, height: 1064), "the remaining window takes the workspace")
+    let moved = CGRect(x: 500, y: 200, width: 300, height: 400)
+    e.noteFloatFrame(2, moved)
+    e.switchWorkspace(2)
+    e.switchWorkspace(1)
+    check(frame(e.plan()[2]) == moved, "a floating window comes back where the user left it")
+    e.noteFloatFrame(1, moved)
+    check(frame(e.plan()[1]) == CGRect(x: 8, y: 8, width: 1904, height: 1064), "a tiled window ignores a float frame")
+    e.windowAppeared(3, floating: false, workspace: 2)
+    let o = e.overviewPlan()
+    check(o[1] != nil && o[2] == moved && o[3] == CGRect(x: 8, y: 8, width: 1904, height: 1064),
+          "the overview lays out every workspace, the hidden one included")
+    e.windowAppeared(4, floating: false)
+    e.setFocused(4)
+    e.toggleFullscreen()
+    check(e.currentFullscreen == 4, "fullscreen is reported for the current workspace")
+}
+
 // micro-benchmark: 200 windows in and out with a plan every ten, so regressions in the core show up
 do {
     var best = Double.infinity
