@@ -169,6 +169,8 @@ lists scratchpad windows; clicking one shows it.
   its tile follows.
 - Standard windows without resize and without close or minimize buttons (transient popups) and every
   window of the apps in `ignoreApps` are not touched at all.
+- Standard windows that can be resized but have neither a close nor a minimize button float: they are panels
+  shown as a window of their own, such as the open panel TextEdit shows at launch.
 - The apps in `floatApps` float. `floatTitles` floats a window whose title contains one of the words given
   for its bundle id; the check runs until it matches, once per window, so `⌃⌥T` back to tiled sticks.
   Titles are compared in memory and never logged.
