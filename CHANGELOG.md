@@ -11,6 +11,8 @@ for what has been verified live and what has not.
 - Minimum sizes an app insists on are learned and given room; windows that cannot be resized tile at their own
   size for the apps in `tileFixedApps` (the iOS Simulator) and float otherwise.
 - Floating, calmtile's own fullscreen, a scratchpad with a drop-down terminal.
+- A new window beside a fixed-size one opens where there is room; a window that has to float after all goes
+  back to the frame its app gave it.
 
 **Workspaces**
 - Nine workspaces on `⌘1…9`, `⌘⌥1…9` to send a window there, back-and-forth, a second display for 6–9.
@@ -32,9 +34,13 @@ for what has been verified live and what has not.
 **Robustness**
 - The key tap runs on its own thread and the windows are listed on another, every Accessibility call gives up
   after 150 ms, an app that does not answer is backed off, late keys are dropped instead of running late.
+- A closed window's room goes to its neighbour within about 0.1 s; a hidden app's windows give up their tiles
+  in desktops mode.
+- Config problems (unknown keys, wrong types, unknown key combinations or actions) are reported at launch and
+  on reload, in an alert and the log.
 - Idle tick p95 under 20 ms, under 50 ms while windows open, close and desktops switch (profile line in the
   debug log).
 
 **Tooling**
-- `scripts/build.sh` (self-test, build, sign), CI on macOS 15, test aids (`--post-key`, `--dump-windows`,
-  the command file), a manual, first steps and the desktops notes.
+- `scripts/build.sh` (self-test, build, sign), CI on macOS 15, test aids (`--post-key`, `--post-drag`,
+  `--dump-windows`, the command file, `scripts/matrix.sh`), a manual, first steps and the desktops notes.

@@ -69,6 +69,11 @@ not trusted and gets nothing.
   call and back, printing every 50 ms which desktop is active and which windows Accessibility lists;
   `--probe-hotkey-switch N [--delay s] [--restore-after s]` does it through the Dock shortcut and prints the
   shown Spaces.
+- `open -g -n -a ~/Applications/calmtile.app --args --post-drag x0 y0 x1 y1` drags with the left button from one
+  point to another (global coordinates), for the title-bar drag. Mouse events posted by a tool started from a
+  shell are dropped by macOS, because the shell's app has no Accessibility grant.
+- `scripts/matrix.sh` runs every action once through the command file on the workspace shown and reports the
+  log lines that point at a problem (numbers and bundle ids only). Use a test desktop.
 - **Do not judge desktop switching through helper launches.** Launching any helper app from a shell
   (`open -n -a …`, a scratch app) makes macOS re-activate the app that owns that shell about a second
   later, and with real desktops that switches back to its desktop: every switch then looks undone. With
@@ -147,12 +152,21 @@ On 4 Nov 2026 (same setup, a test desktop, actions through the command file):
   a new Terminal shows for 0.24-0.5 s at its own frame (including macOS's 0.23 s opening animation) and is
   then placed by the tick; the creation notification comes while Terminal is still too busy to answer.
 
-Not verified yet: title-bar drag swap; Chrome with several windows and Picture-in-Picture; `⌘⌥N` with real
-desktops; whether a new window is visibly placed before its first frame (by eye; the log shows it placed
-0.3-0.45 s after the command, usually by the tick rather than the creation notification); Zoom meetings;
-Xcode; a second display (self-tests only); whether Spotlight visibly honours the category list; parked mode
-since the changes of October 2026 (self-tests only). Built and self-tested, live test still to come (26 Oct
-2026): the listing thread, frames from the window server, `removeEmptyDesktops`, the launcher usage order.
+Not verified yet:
+
+- `⌘⌥N` with real desktops (the window is dragged to the other desktop with the system shortcut).
+- Parked mode since the changes of October and November 2026 (self-tests only), and docs/first-steps.md
+  followed step by step on a fresh config.
+- `⌘Space` pressed on the real keyboard (the panel was only opened through the command file).
+- Chrome with several windows, two profiles, Picture-in-Picture and DevTools; Zoom meetings and screen
+  sharing; Xcode's secondary windows (Organizer, Devices, inspectors); Claude Desktop's popups; Finder's
+  info, copy and connect dialogs and Quick Look; window dumps of Mail, Safari, Notes, Calendar, Preview, VLC,
+  Dashlane, Teams and VS Code since October.
+- A trackpad swipe between desktops: whether windows are written their frame while the swipe animates (one
+  case in the log, not reproducible without a real gesture).
+- A second display (self-tests only).
+- Whether Spotlight visibly honours the category list of `spotlightAppsOnly`.
+- The screenshots (`scripts/screenshots.sh` needs Screen Recording for the app that runs it).
 
 ## Privacy notes
 

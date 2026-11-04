@@ -325,4 +325,5 @@ anything that needs the Accessibility grant, through `open -g -n -a ~/Applicatio
 | `--apply-spotlight` | switch Spotlight to applications only once, as `spotlightAppsOnly` does (test aid; undo with `--restore-spotlight`) |
 | `--dump-windows` | one line per window of every app: role, subrole, resizable, buttons, size; never the title |
 | `--post-key <combo>` | synthesize a key press for the running instance (test aid) |
+| `--post-drag x0 y0 x1 y1` | synthesize a left-button drag (test aid) |
 | `--remove-desktop N`, `--dump-dock`, `--probe-switch N`, `--probe-hotkey-switch N` | desktops-mode test aids, see [development.md](development.md) |

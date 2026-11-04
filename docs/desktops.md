@@ -82,7 +82,9 @@ moment the same way as for switching. The pointer is put back afterwards. This p
 ## Limits
 
 - Only normal desktops of the display holding the active desktop count; full-screen app Spaces are skipped
-  and workspaces 6–9 do not move to a second display in this mode.
+  and workspaces 6–9 do not move to a second display in this mode. The Spaces bar in Mission Control does have
+  a button for a full-screen app's Space, so a desktop's button is found by its place among all Spaces, and a
+  desktop is only removed when its button's label carries that desktop's place ("Desktop 4").
 - Desktops are created through Mission Control, which cannot be driven while the screen is locked.
 
 # Parked workspaces and Mission Control (default mode)

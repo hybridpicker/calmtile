@@ -120,7 +120,8 @@ and restores it afterwards.
   it with the system shortcut; windows never overflow to another desktop. Creating a desktop (`⌘N` on a
   missing one) and removing an empty one (`removeEmptyDesktops`) go through Mission Control, which shows
   for about a second.
-- A second display is covered by self-tests only so far.
+- A second display is covered by self-tests only so far; what else is not verified live is listed in
+  [docs/development.md](docs/development.md#what-has-been-verified-live).
 
 ## How it works
 
