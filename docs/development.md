@@ -5,9 +5,11 @@
 ```bash
 scripts/build.sh           # self-test, then build/calmtile.app
 scripts/build.sh install   # additionally copy to ~/Applications
+CALMTILE_STRICT=1 scripts/build.sh   # warnings are errors, as in CI
 ```
 
-Plain `swiftc` from the Xcode Command Line Tools; no Xcode project, no dependencies. The two SwiftPM
+Plain `swiftc` from the Xcode Command Line Tools; no Xcode project, no dependencies. The build targets macOS
+14 whatever the build machine runs. The two SwiftPM
 targets in `Package.swift` are compiled as one module. The app is signed with the first "Apple Development"
 identity found (`CALMTILE_SIGN_ID` overrides), because macOS keeps the Accessibility grant across rebuilds
 only for a stable signature; without one it falls back to an ad-hoc signature and the grant has to be given
