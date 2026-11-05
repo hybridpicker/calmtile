@@ -12,3 +12,5 @@ jobs:
       - uses: actions/checkout@v5
       - name: Self-test and build (warnings are errors)
         run: CALMTILE_STRICT=1 scripts/build.sh
+      - name: Check the documentation
+        run: scripts/check-docs.sh
