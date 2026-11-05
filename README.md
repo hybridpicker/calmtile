@@ -107,8 +107,9 @@ accept a one-person project.
   at once. Apps in `fullscreenApps` (Claude Desktop) keep it. The window buttons themselves cannot be hidden.
 - Real desktops: macOS has no call to move a window to another desktop, so `⌘⌥N` drags it with the system
   shortcut. Creating and removing a desktop goes through Mission Control, which shows for about a second.
-  Desktop numbers stay with their desktop and may differ from the order in Mission Control
-  ([why](docs/desktops.md#numbers-stay-with-their-desktops)).
+  Desktop numbers stay with their desktop and may differ from the order in Mission Control, and the switch
+  slides by position. Switch off "Automatically rearrange Spaces based on most recent use" to make number
+  and position the same ([details](docs/desktops.md#the-slide-animation-and-its-direction)).
 - The full list of what has not been verified yet is in [docs/development.md](docs/development.md#what-has-been-verified-live).
 
 ## Privacy

@@ -109,7 +109,7 @@ are in the log.
 
 ## 8. Optional: real macOS desktops
 
-Add `"useSpaces": true` to the config and press `⌃⌥R`. From now on `⌘N` switches to the Nth desktop, creating
+Add `"useSpaces": true` to the config and press `⌃⌥R`. For numbers that match the order of the desktops, switch off "Automatically rearrange Spaces based on most recent use" first ([desktops.md](desktops.md#the-slide-animation-and-its-direction)). From now on `⌘N` switches to the Nth desktop, creating
 it if needed, and every desktop keeps its own tiling; swipes and Mission Control keep working. Try `⌘3` with
 only two desktops: Mission Control opens for a second, a desktop appears, and you are on it.
 

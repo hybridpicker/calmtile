@@ -48,7 +48,14 @@ rearranging does not matter. Beyond nine desktops the direct call is used. Verif
 The slide you see when `⌘N` switches desktops is the Dock's own animation: calmtile only presses the shortcut. It cannot be switched off from here without the direct call described above, which leaves two desktops drawn. Two settings of macOS help, and calmtile changes neither:
 
 - System Settings → Accessibility → Display → **Reduce motion** turns the slide into a short cross-fade.
-- The slide goes left or right by the *position* of the desktops, while `⌘N` uses calmtile's stable *number*. With "Automatically rearrange Spaces based on most recent use" on (the default; System Settings → Desktop & Dock → Mission Control), the positions change with use, so `⌘1` can slide to the right. With it off, numbers and positions agree.
+- The slide goes left or right by the *position* of the desktops, while `⌘N` uses calmtile's stable *number*. With "Automatically rearrange Spaces based on most recent use" on (the default; System Settings → Desktop & Dock → Mission Control), the positions change with use, so `⌘1` can slide to the right. With it off, numbers and positions agree and calmtile uses the Dock's order directly (read when calmtile
+  starts, so restart it after changing the setting). To switch it off from a shell:
+
+  ```bash
+  defaults write com.apple.dock mru-spaces -bool false && killall Dock
+  ```
+
+  Then drag the desktops into the order you want in Mission Control: `⌘1` is the leftmost.
 
 ## Which desktop a window is on
 
