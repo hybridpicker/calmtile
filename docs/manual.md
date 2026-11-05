@@ -178,8 +178,10 @@ lists scratchpad windows; clicking one shows it.
 - Minimized windows are left alone. A window that enters native fullscreen is taken out of it, unless its app is in `fullscreenApps` or `exitFullscreen` is off; then it is left alone.
 - **Minimum sizes.** When an app refuses to shrink to its tile, calmtile remembers the size it insists on
   and gives it that room; the neighbours shrink. In parked mode a window whose minimum cannot sit beside its
-  neighbours moves to the next workspace with room; in desktops mode, and when no workspace has room, it
-  floats at its minimum size. Apps that snap their size to a grid (Terminal) are trimmed back into the tile.
+  neighbours moves to the next workspace with room. In desktops mode calmtile first flips splits (side by side
+  to stacked and back, fewest first) to find an arrangement in which every learned minimum fits; only when
+  none does, and when no workspace has room in parked mode, the window floats at its minimum size. A window
+  that has already floated stays floating until `⌃⌥T` tiles it again. Apps that snap their size to a grid (Terminal) are trimmed back into the tile.
 - `passthroughApps`: while one of these is frontmost, calmtile intercepts no key at all. The default is a
   password manager, so nothing calmtile does can get between you and a password field. calmtile's keys
   win over an app's own: in Chrome and Safari `⌘1…9` switch workspaces, not tabs, and in Terminal `⌘1…9` no

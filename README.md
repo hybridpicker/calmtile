@@ -101,7 +101,9 @@ accept a one-person project.
 
 - Windows are moved after they open (there is no compositor), so a new window is drawn at its own size first.
   Measured for Terminal: 0.24 to 0.5 s, including macOS's opening animation.
-- A window whose minimum size cannot sit beside its neighbours floats.
+- A window whose minimum size cannot sit beside its neighbours floats, after calmtile has tried flipping
+  splits to make room (desktops mode; parked mode moves it to the next workspace). Four large windows on one
+  desktop of a 1440 pt wide display are about the limit.
 - Resizing a tiled window by its edge snaps back; use the mouse modifier and right drag.
 - macOS native fullscreen is switched off for managed windows (`exitFullscreen`): the window leaves it again
   at once. Apps in `fullscreenApps` (Claude Desktop) keep it. The window buttons themselves cannot be hidden.
