@@ -43,4 +43,4 @@ for what has been verified live and what has not.
 
 **Tooling**
 - `scripts/build.sh` (self-test, build, sign), CI on macOS 15, test aids (`--post-key`, `--post-drag`,
-  `--dump-windows`, the command file, `scripts/matrix.sh`), a manual, first steps and the desktops notes.
+  `--dump-windows`, the command file, `scripts/matrix.sh`), `scripts/check-docs.sh` (links, anchors, config keys and switches against the docs), a manual, first steps and the desktops notes.
