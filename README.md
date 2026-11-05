@@ -1,148 +1,141 @@
 # calmtile
 
-A calm screen for focused work on macOS. Windows arrange themselves in Hyprland's dwindle layout, workspaces
-sit on `⌘1…9`, the keyboard moves you between windows, and `⌘Space` opens what you need. You stop pushing
-windows around and keep your attention on the work in them. A small menu bar app; no SIP changes, no kernel
-extension, just the Accessibility API and a key tap.
+A keyboard-driven tiling window manager for macOS: Hyprland's dwindle layout, workspaces on `⌘1…9`, and an
+app launcher on `⌘Space`.
 
-New here? [First steps](docs/first-steps.md) takes you from install to a self-arranging workspace in ten
-minutes; the [manual](docs/manual.md) has everything else.
+<!-- IMAGES -->
 
-## What it does
+[![build](https://github.com/hybridpicker/calmtile/actions/workflows/build.yml/badge.svg)](https://github.com/hybridpicker/calmtile/actions/workflows/build.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-lightgrey)
 
-- **Dwindle tiling.** A new window splits the focused one along its longer side; closing a window gives
-  its space to the sibling. Gaps, a focused-window border and eight themes.
-- **Workspaces on `⌘1…9`**, `⌘⌥1…9` to send a window there. Parked (default, no macOS Spaces involved) or
-  on real macOS desktops (`"useSpaces": true`, see [docs/desktops.md](docs/desktops.md)).
-- **Keyboard focus, swap and resize**, plus `⌘⌥` + mouse drag to move or resize.
-- **Launcher** (`⌃⌥Space`) for windows, apps, actions and themes, and an applications-only launcher on
-  `⌘Space` that takes the key from Spotlight while calmtile runs.
-- **Scratchpad** and a drop-down terminal (`⌃⌥Q`).
-- **Per-app rules**: float, ignore, pass keys through, float by window title, tile fixed-size windows (the
-  iOS Simulator) at their own size. Only standard windows are
-  managed; dialogs, sheets, popovers and system prompts are never touched.
-- **Workspace keys win over app shortcuts** (`⌘1` switches workspace even in Chrome), and the key tap runs
-  on its own thread, so a stuck app cannot make a key leak through.
+## Why calmtile
 
-## First 10 minutes
-
-Build and start it, grant Accessibility, press `⌘Return` twice and watch the two windows share the
-screen. `⌘2` gives you an empty workspace, `⌘⌥2` sends a window there, `⌘←→` moves the focus, `⌘Space`
-opens an app. [First steps](docs/first-steps.md) walks through exactly that, with what to expect at each
-step and what it means when something else happens.
+New windows split the focused one and closed windows give their space back, so you stop pushing windows
+around. The keys use `⌘` and `⌃⌥`, as on a Mac, instead of a separate modifier you have to learn. It needs no
+SIP changes and no kernel extension, only the Accessibility API and a key tap, and it is small enough to read
+(18 Swift files, no dependencies).
 
 ## Status
 
-A personal daily driver on macOS 26 (Tahoe), one display, Apple silicon, built with the Xcode Command
-Line Tools only. It is young: expect rough edges, read [Known limits](#known-limits), and see
-[docs/development.md](docs/development.md) for what has actually been verified and how.
+A personal daily driver, young, with rough edges:
 
-If you want a mature, packaged tiling manager, look at [AeroSpace](https://github.com/nikitabobko/AeroSpace)
-(i3-like, CLI-driven, large community) or [HyprMac](https://github.com/zacharytgray/HyprMac) (Hyprland-like,
-DMG and Homebrew, auto-updates). calmtile is for people who want the dwindle layout with `⌘` keys and a
-launcher built in, who are happy to build from source, and who care about workspaces on real macOS desktops.
+- Tested only on **macOS 26 (Tahoe), Apple silicon, one display**. The build targets macOS 14, but nothing
+  below 26 and no Intel Mac has been tried. A second display is covered by self-tests only.
+- **There is no finished app.** No Developer ID signing, no notarisation, no release download. You build it
+  from source with the Xcode Command Line Tools.
+- It uses **private window server calls** (`CGS…` functions, `_AXUIElementGetWindow`) for real macOS
+  desktops. Apple can change or remove them in any macOS update.
+- What has and has not been verified live is listed in [docs/development.md](docs/development.md#what-has-been-verified-live).
+
+## Features
+
+- **Dwindle tiling.** A new window splits the focused one along its longer side. Gaps, a border on the
+  focused window, eight themes.
+- **Nine workspaces.** Either *parked* (default: other workspaces are moved off screen, no macOS desktops
+  involved) or real macOS desktops with `"useSpaces": true` ([how](docs/desktops.md)).
+- **Keyboard focus, swap and resize**, and `⌘⌥` + mouse drag to move or resize.
+- **Launchers.** `⌘Space` lists applications only; `⌃⌥Space` lists windows, applications, actions and themes.
+- **Scratchpad** and a drop-down terminal.
+- **Per-app rules.** Float, ignore, pass keys through, float by window title. Only standard windows are
+  managed; dialogs, sheets and system prompts are left alone.
 
 ## Install
 
-Requirements: macOS 14 or later (developed and tested only on macOS 26 with Apple silicon), Xcode Command Line Tools
-(`xcode-select --install`).
-
 ```bash
-git clone https://github.com/hybridpicker/calmtile.git
-cd calmtile
+xcode-select --install        # once, if you have no compiler yet
+git clone https://github.com/hybridpicker/calmtile.git && cd calmtile
 scripts/build.sh install      # self-test, build, copy to ~/Applications
 open ~/Applications/calmtile.app
 ```
 
-On the first start allow calmtile under System Settings → Privacy & Security → **Accessibility** (and
-**Input Monitoring** if macOS asks), then start it again. The build is signed with your "Apple Development"
-certificate if you have one; otherwise it is signed ad hoc and macOS asks for Accessibility again after every
-rebuild (remove the old entry in that list first). Built on your Mac, the app is not quarantined, so Gatekeeper
-does not get in the way. The menu bar shows `▦ <workspace>` (`▦ ⏸` while paused, `🔒` while secure keyboard
-entry blocks all hotkeys).
+On the first start, allow calmtile under System Settings → Privacy & Security → **Accessibility** (and
+**Input Monitoring** if macOS asks), then start it again. Without an "Apple Development" certificate the build
+is signed ad hoc, and macOS asks for Accessibility again after every rebuild. Run only one hotkey or tiling
+tool at a time. [First steps](docs/first-steps.md) walks through the first ten minutes.
 
-Run only one hotkey or tiling tool at a time (AeroSpace, yabai, Karabiner bindings on the same keys):
-whichever tool installed its key tap last sees a key first.
-
-**Start at login** is off by default; the menu item "Start at login" (or `calmtile --install-login` /
-`--uninstall-login`) writes or removes `~/Library/LaunchAgents/local.calmtile.plist`. To remove calmtile
-completely, see [Undo everything](docs/manual.md#11-undo-everything).
-
-## The keys you need first
+## Keys
 
 | Keys | Action |
 |---|---|
 | `⌘1…9` / `⌘⌥1…9` | switch workspace / send the focused window there |
-| `⌘←↑↓→` or `⌃⌥←↑↓→` | focus the neighbour (`⌘`-arrows pass through when there is no neighbour) |
+| `⌘←↑↓→` or `⌃⌥←↑↓→` | focus the neighbour |
 | `⌃⌥⇧←↑↓→` | swap with the neighbour |
 | `⌃⌥F` / `⌃⌥T` / `⌃⌥S` | fullscreen / float / flip split |
 | `⌃⌥W` | close the window |
-| `⌥Tab` | back to the previous workspace |
 | `⌘Return` | open a new Terminal window |
-| `⌘Space` / `⌃⌥Space` | applications launcher / windows, apps, actions and themes |
+| `⌘Space` / `⌃⌥Space` | applications / windows, apps, actions, themes |
 | `⌃⌥Q` | show or hide the scratchpad |
 | `⌃⌥R` / `⌃⌥P` | reload the config / pause tiling |
 
-Every binding can be changed or removed in the config. The full list, the AeroSpace-style `⌥` keys and
-the mouse gestures are in the [manual](docs/manual.md#3-keys). Option-letter combos beyond the AeroSpace
-set are avoided on purpose: on a German keyboard `⌥L` types `@`.
+Every binding can be changed in the config; the full list is in the [manual](docs/manual.md#3-keys).
 
 ## Config
 
-`~/.config/calmtile/config.json` is optional; everything missing falls back to the defaults, and
+`~/.config/calmtile/config.json` is optional. Missing keys fall back to the defaults, and
 `calmtile --print-config` (the binary inside the .app) prints the effective config.
 
 ```json
 {
-  "gap": 4,
-  "theme": "catppuccin",
+  "gap": 8,
+  "theme": "nord",
   "useSpaces": false,
-  "floatApps": ["com.apple.systempreferences", "com.apple.calculator", "com.apple.Music"],
+  "floatApps": ["com.apple.systempreferences", "com.apple.calculator"],
   "bindings": { "cmd-alt-return": "open Safari", "ctrl-alt-p": "" }
 }
 ```
 
-A list replaces its default rather than adding to it; `bindings` are merged. Every key with its default, the key-combo syntax and
-the list of actions are in the
-[config reference](docs/manual.md#8-config). The opt-in "Spotlight: applications only" switch has its
-[own section](docs/manual.md#9-spotlight-applications-only-system-setting): it changes a system setting
-and restores it afterwards.
+A list replaces its default instead of adding to it; `bindings` are merged. All keys, the combo syntax and the
+actions are in the [config reference](docs/manual.md#8-config).
+
+## Compared with AeroSpace and HyprMac
+
+[AeroSpace](https://github.com/nikitabobko/AeroSpace) (i3-like, configured in a file and driven by a
+command line client) and [HyprMac](https://github.com/zacharytgray/HyprMac) (Hyprland-inspired, with a DMG and
+a Homebrew cask) are packaged, have users, and have been through more macOS versions than calmtile. Choose one
+of them if you want something finished. calmtile is for you if you want the dwindle layout on `⌘` keys with a
+launcher built in, workspaces that can be real macOS desktops, and you are willing to build from source and
+accept a one-person project.
 
 ## Known limits
 
-- Windows are moved after they open (there is no compositor): a new window is drawn at its own size first.
-  Measured for Terminal: 0.24-0.5 s, including macOS's opening animation.
-- A window whose minimum size cannot sit beside its neighbours floats; two such windows cannot share a
-  1440 px wide workspace.
-- Resizing a tiled window by its edge snaps back; use the mouse modifier + right drag to move dividers.
-- macOS native fullscreen windows are left alone (they live on their own Space).
-- Real desktops: macOS offers no way to move a window to another desktop, so `⌘⌥N` works by dragging
-  it with the system shortcut; windows never overflow to another desktop. Creating a desktop (`⌘N` on a
-  missing one) and removing an empty one (`removeEmptyDesktops`) go through Mission Control, which shows
-  for about a second.
-- A second display is covered by self-tests only so far; what else is not verified live is listed in
-  [docs/development.md](docs/development.md#what-has-been-verified-live).
+- Windows are moved after they open (there is no compositor), so a new window is drawn at its own size first.
+  Measured for Terminal: 0.24 to 0.5 s, including macOS's opening animation.
+- A window whose minimum size cannot sit beside its neighbours floats.
+- Resizing a tiled window by its edge snaps back; use the mouse modifier and right drag.
+- macOS native fullscreen windows are left alone.
+- Real desktops: macOS has no call to move a window to another desktop, so `⌘⌥N` drags it with the system
+  shortcut. Creating and removing a desktop goes through Mission Control, which shows for about a second.
+  Desktop numbers stay with their desktop and may differ from the order in Mission Control
+  ([why](docs/desktops.md#numbers-stay-with-their-desktops)).
+- The full list of what has not been verified yet is in [docs/development.md](docs/development.md#what-has-been-verified-live).
 
-## How it works
+## Privacy
 
-- `Sources/CalmCore` holds the dwindle tree, workspaces, focus and the layout decisions. It knows nothing
-  about macOS (windows are ids, frames are rectangles) and is covered by the self-test in
-  `Sources/calmcore-selftest`, which `scripts/build.sh` runs before every build.
-- `Sources/calmtile` is the app: windows through the Accessibility API, a `CGEventTap` on its own thread
-  for the keys, the menu bar, the launcher, config, themes, the login item and, for real desktops, the
-  window server's Space calls that other tiling tools use as well.
-- The loop never waits on an app from the main thread the keys depend on: the windows are listed on a
-  thread of their own, an app is asked again only when the window server shows a change or the app sends a
-  notification, a call into an app gives up after 150 ms, and an app that keeps not answering is left
-  alone for a few seconds. When nothing happens the loop ticks once a second.
+A key tap and Accessibility access could, technically, read every key you type and the titles and contents of
+every window. What calmtile does with them, so that you can check it in the code:
+
+- **Keys.** The tap (`Sources/calmtile/Hotkeys.swift`) reads the key code and the modifiers of each event and
+  compares them with the binding table. Nothing is stored. While a password manager or any app in
+  `passthroughApps` is frontmost, no key is touched, and while secure keyboard entry is on, macOS delivers no keys to the tap at all.
+- **Window titles** are read for the launcher list and the title rules only. They are never written to the
+  log or to a file.
+- **Log.** `~/Library/Logs/calmtile.log` holds window counts, action names, permission state and bundle ids.
+- **Network.** The source contains no network code (no `URLSession`, sockets or `Network` framework; search
+  for them). The only programs it starts are `/usr/bin/open` (for `open <App>` bindings and the login item)
+  and `/usr/bin/killall` (to restart Spotlight when you switch on `spotlightAppsOnly`).
+- **Files it writes:** the log, `~/.config/calmtile/desktops.json` (desktop numbers),
+  `launcher-usage.json` (how often you start each app, by name), the LaunchAgent if you enable start at
+  login, and the Spotlight preference if you enable `spotlightAppsOnly` (restored on quit).
 
 ## Documentation
 
 - [First steps](docs/first-steps.md): install to a working setup in ten minutes.
-- [Manual](docs/manual.md): every key, option, rule and switch, with troubleshooting and undo.
-- [Real desktops](docs/desktops.md): how `"useSpaces"` works and why switching goes through the Dock.
-- [Development](docs/development.md): build details, debug log, test aids and what has been verified live.
-- [Changelog](CHANGELOG.md): what is in 0.1.0.
+- [Manual](docs/manual.md): every key, option, rule and switch, with troubleshooting and
+  [how to undo everything](docs/manual.md#11-undo-everything).
+- [Real desktops](docs/desktops.md): how `"useSpaces"` works.
+- [Development](docs/development.md): build, log, test aids, what has been verified.
+- [Contributing](CONTRIBUTING.md), [Security](SECURITY.md), [Changelog](CHANGELOG.md).
 
 ## License
 
