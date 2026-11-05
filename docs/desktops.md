@@ -43,6 +43,13 @@ meaning. The position is looked up in the Dock's current order at every press, s
 rearranging does not matter. Beyond nine desktops the direct call is used. Verified live on macOS 26.5
 (window server checked for 5 s after each switch: one shown Space, no return).
 
+### The slide animation and its direction
+
+The slide you see when `⌘N` switches desktops is the Dock's own animation: calmtile only presses the shortcut. It cannot be switched off from here without the direct call described above, which leaves two desktops drawn. Two settings of macOS help, and calmtile changes neither:
+
+- System Settings → Accessibility → Display → **Reduce motion** turns the slide into a short cross-fade.
+- The slide goes left or right by the *position* of the desktops, while `⌘N` uses calmtile's stable *number*. With "Automatically rearrange Spaces based on most recent use" on (the default; System Settings → Desktop & Dock → Mission Control), the positions change with use, so `⌘1` can slide to the right. With it off, numbers and positions agree.
+
 ## Which desktop a window is on
 
 Read from the window server (`CGSCopySpacesForWindows`), never from a window's presence in the
