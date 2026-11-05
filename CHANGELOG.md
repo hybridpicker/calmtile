@@ -3,7 +3,7 @@
 ## 0.1.0 – unreleased
 
 The first version. Built and tested on macOS 26 with one display; see [docs/development.md](docs/development.md)
-for what has been verified live and what has not.
+for what has been verified live and what has not (`⌘⌥N` only through the action, not the key combination).
 
 **Layout**
 - Hyprland's dwindle layout on whole-point tiles, gaps, a focused-window border that flashes on focus changes,

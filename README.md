@@ -106,7 +106,7 @@ accept a one-person project.
 - macOS native fullscreen is switched off for managed windows (`exitFullscreen`): the window leaves it again
   at once. Apps in `fullscreenApps` (Claude Desktop) keep it. The window buttons themselves cannot be hidden.
 - Real desktops: macOS has no call to move a window to another desktop, so `⌘⌥N` drags it with the system
-  shortcut. Creating and removing a desktop goes through Mission Control, which shows for about a second.
+  shortcut (checked through the action, not yet with the key combination). Creating and removing a desktop goes through Mission Control, which shows for about a second.
   Desktop numbers stay with their desktop and may differ from the order in Mission Control, and the switch
   slides by position. Switch off "Automatically rearrange Spaces based on most recent use" to make number
   and position the same ([details](docs/desktops.md#the-slide-animation-and-its-direction)).

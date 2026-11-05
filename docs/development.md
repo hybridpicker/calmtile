@@ -161,9 +161,11 @@ On 5 Nov 2026 (second run, test desktop, config `{}` so parked mode, actions thr
 - Mission Control spreads the windows of all workspaces while it is open; after it closes the workspace shows its tiles again. Closing it re-activates the last window, so the workspace of that window is shown (parked mode follows activation). Re-parking of a window on another workspace was not looked at.
 - Four windows (two Terminals, TextEdit, Dictionary) on one desktop with `useSpaces`: all tiled, none overlapping. Their minimum sizes were small, so the flipped-splits path was not exercised live.
 
+On 5 Nov 2026 (third run, test desktop 5, `move-to-workspace 4` from the command file, staged TextEdit window): the window went to desktop 4 in about half a second (`moved window to desktop 4`), was tiled beside the window already there, and the test desktop and TextEdit were removed again afterwards (the Spaces list shows four). Only the action was sent, not the key combination.
+
 Not verified yet:
 
-- `⌘⌥N` with real desktops (the window is dragged to the other desktop with the system shortcut).
+- `⌘⌥N` pressed as a real key combination (the action through the command file works, see above), `exitFullscreen: false` and the `fullscreenApps` exception.
 - docs/first-steps.md steps 5 to 9 (focus keys, launcher, config edit, desktops, undo) on a fresh config; steps 1 to 4 were followed (see above).
 - `⌘Space` pressed on the real keyboard (the panel was only opened through the command file).
 - Chrome with several windows, two profiles, Picture-in-Picture and DevTools; Zoom meetings and screen
