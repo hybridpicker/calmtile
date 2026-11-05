@@ -155,11 +155,16 @@ On 4 Nov 2026 (same setup, a test desktop, actions through the command file):
 
 On 5 Nov 2026 (test desktop, TextEdit, native fullscreen entered with `⌃⌘F`): with `exitFullscreen` on, the window's fullscreen Space appeared and was gone again about a second later, the log says `fullscreen left: com.apple.TextEdit`, and the view was back on the test desktop. The exception list (`fullscreenApps`) and `exitFullscreen: false` were not exercised.
 
+On 5 Nov 2026 (second run, test desktop, config `{}` so parked mode, actions through the command file):
+
+- first-steps steps 3 and 4: two `open Terminal` give two tiles with gaps; an empty workspace hides the others (parked at the bottom-right corner), a Terminal opened there fills it; back-and-forth and `move-to-workspace` do what the text says; a third window splits the focused one.
+- Mission Control spreads the windows of all workspaces while it is open; after it closes the workspace shows its tiles again. Closing it re-activates the last window, so the workspace of that window is shown (parked mode follows activation). Re-parking of a window on another workspace was not looked at.
+- Four windows (two Terminals, TextEdit, Dictionary) on one desktop with `useSpaces`: all tiled, none overlapping. Their minimum sizes were small, so the flipped-splits path was not exercised live.
+
 Not verified yet:
 
 - `⌘⌥N` with real desktops (the window is dragged to the other desktop with the system shortcut).
-- Parked mode since the changes of October and November 2026 (self-tests only), and docs/first-steps.md
-  followed step by step on a fresh config.
+- docs/first-steps.md steps 5 to 9 (focus keys, launcher, config edit, desktops, undo) on a fresh config; steps 1 to 4 were followed (see above).
 - `⌘Space` pressed on the real keyboard (the panel was only opened through the command file).
 - Chrome with several windows, two profiles, Picture-in-Picture and DevTools; Zoom meetings and screen
   sharing; Xcode's secondary windows (Organizer, Devices, inspectors); Claude Desktop's popups; Finder's
