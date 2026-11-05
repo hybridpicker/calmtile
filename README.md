@@ -103,7 +103,8 @@ accept a one-person project.
   Measured for Terminal: 0.24 to 0.5 s, including macOS's opening animation.
 - A window whose minimum size cannot sit beside its neighbours floats.
 - Resizing a tiled window by its edge snaps back; use the mouse modifier and right drag.
-- macOS native fullscreen windows are left alone.
+- macOS native fullscreen is switched off for managed windows (`exitFullscreen`): the window leaves it again
+  at once. Apps in `fullscreenApps` (Claude Desktop) keep it. The window buttons themselves cannot be hidden.
 - Real desktops: macOS has no call to move a window to another desktop, so `⌘⌥N` drags it with the system
   shortcut. Creating and removing a desktop goes through Mission Control, which shows for about a second.
   Desktop numbers stay with their desktop and may differ from the order in Mission Control

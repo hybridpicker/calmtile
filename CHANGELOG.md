@@ -27,6 +27,8 @@ for what has been verified live and what has not.
   word starts and how often an app is started. An opt-in switch restricts the system Spotlight to applications.
 
 **Window rules**
+- A window that enters macOS's own fullscreen is taken out of it and tiled (`exitFullscreen`, exceptions in
+  `fullscreenApps`). Not measured live yet.
 - Only standard windows are managed; dialogs, sheets, popovers, panels without window buttons and system
   prompts float or are left alone. Per-app `floatApps`, `floatTitles`, `ignoreApps`, `passthroughApps`
   (a password manager by default).

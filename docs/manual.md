@@ -19,8 +19,9 @@ your attention on the work in them.
 - **Floating windows** sit on top of the tiles wherever you put them. Some windows float on their own
   (section 7); `⌃⌥T` floats or tiles the focused window by hand.
 - **Fullscreen** (`⌃⌥F`) is calmtile's own: the window covers the workspace and the other tiles stay
-  behind it. macOS native fullscreen (the green button) moves a window to its own Space and calmtile
-  leaves it alone.
+  behind it. macOS native fullscreen (the green button) moves a window to its own Space: calmtile
+  takes the window out of it again and tiles it (`exitFullscreen`, section 8), except for the apps in
+  `fullscreenApps`.
 
 ## 2. Install and permissions
 
@@ -174,7 +175,7 @@ lists scratchpad windows; clicking one shows it.
 - The apps in `floatApps` float. `floatTitles` floats a window whose title contains one of the words given
   for its bundle id; the check runs until it matches, once per window, so `⌃⌥T` back to tiled sticks.
   Titles are compared in memory and never logged.
-- Minimized windows and windows in native fullscreen are left alone.
+- Minimized windows are left alone. A window that enters native fullscreen is taken out of it, unless its app is in `fullscreenApps` or `exitFullscreen` is off; then it is left alone.
 - **Minimum sizes.** When an app refuses to shrink to its tile, calmtile remembers the size it insists on
   and gives it that room; the neighbours shrink. In parked mode a window whose minimum cannot sit beside its
   neighbours moves to the next workspace with room; in desktops mode, and when no workspace has room, it
@@ -208,6 +209,8 @@ reload, in an alert and in the log (`config: …`); `--print-config` writes the 
 | `borderFlash` | 0.6 | seconds the border shows after the focus moves; 0 = always on |
 | `mouseModifier` | `"cmd-alt"` | modifier for mouse move and resize, `""` = off |
 | `scratchpadApp` | `"Terminal"` | app opened by `⌃⌥Q` on an empty scratchpad |
+| `exitFullscreen` | true | a window that enters macOS's own fullscreen (the green button) leaves it again and is tiled |
+| `fullscreenApps` | Claude Desktop | bundle ids whose native fullscreen is kept |
 | `spotlightAppsOnly` | false | restrict the system Spotlight to applications while running (section 9) |
 | `floatApps` | System Settings, Calculator, Activity Monitor, Archive Utility, preference pane previews | bundle ids that float |
 | `tileFixedApps` | iOS Simulator | bundle ids whose fixed-size windows tile instead of floating |
