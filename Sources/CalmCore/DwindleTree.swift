@@ -249,6 +249,38 @@ public final class DwindleTree {
         p.axis = (p.axis == .horizontal) ? .vertical : .horizontal
     }
 
+    /// Flip splits (side by side <-> stacked) until the minimum sizes fit `rect`, changing as few splits as possible.
+    /// Returns false, leaving the tree as it was, when no combination fits. The order of the windows is kept.
+    public func rearrangeToFit(in rect: CGRect, gap: CGFloat) -> Bool {
+        var inner = [Node]()
+        func collect(_ n: Node?) {
+            guard let n = n, n.window == nil else { return }
+            inner.append(n)
+            collect(n.first); collect(n.second)
+        }
+        collect(root)
+        guard !inner.isEmpty, inner.count <= 12 else { return false }
+        func fits() -> Bool {
+            let m = minimum(gap: gap)
+            return m.width <= rect.width && m.height <= rect.height
+        }
+        func flip(_ i: Int) { inner[i].axis = inner[i].axis == .horizontal ? .vertical : .horizontal }
+        // Subsets by number of flips: 1, 2, ... (at most 4095 trees of at most 12 splits).
+        for count in 1...inner.count {
+            var chosen = [Int]()
+            func search(from i: Int) -> Bool {
+                if chosen.count == count { return fits() }
+                guard i < inner.count, inner.count - i >= count - chosen.count else { return false }
+                flip(i); chosen.append(i)
+                if search(from: i + 1) { return true }
+                flip(i); chosen.removeLast()
+                return search(from: i + 1)
+            }
+            if search(from: 0) { return true }
+        }
+        return false
+    }
+
     /// Move the nearest divider of the matching axis in `direction`.
     public func moveDivider(of id: WindowID, direction: Direction, amount: CGFloat) {
         let want: Axis = (direction == .left || direction == .right) ? .horizontal : .vertical

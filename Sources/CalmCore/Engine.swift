@@ -177,6 +177,9 @@ public final class Engine {
         minSizes[id] = m
         let area = rect(of: ws), need = ws.tree.minimum(gap: gap)
         if need.width > area.width || need.height > area.height {
+            // Without overflow to another workspace (desktops mode) another arrangement of the same windows may hold
+            // every minimum: flip splits before giving a window up. With overflow the window moves on instead.
+            if !allowOverflow, ws.tree.rearrangeToFit(in: area, gap: gap) { return }
             // Cannot sit beside its neighbours without overlapping them: move it to a workspace with room.
             ws.tree.remove(id)
             if ws.lastFocused == id { ws.lastFocused = ws.tree.windows.last ?? ws.floating.last }

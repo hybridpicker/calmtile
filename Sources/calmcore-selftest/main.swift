@@ -485,6 +485,29 @@ do {
           "a window that has to float goes back to its own frame")
 }
 
+// minimum sizes that do not fit the first arrangement: flip splits instead of floating a window
+do {
+    let e = Engine(monitors: [Monitor(id: 0, frame: CGRect(x: 0, y: 0, width: 1440, height: 900))])
+    e.gap = 0
+    e.outerGap = 0
+    e.allowOverflow = false
+    for id in 1...4 { e.windowAppeared(UInt32(id), floating: false) }   // 1 | (2 over (3 | 4))
+    let small = CGSize(width: 100, height: 100)
+    e.noteMinSize(3, want: small, got: CGSize(width: 515, height: 100))
+    e.noteMinSize(4, want: small, got: CGSize(width: 500, height: 100))
+    e.noteMinSize(1, want: small, got: CGSize(width: 600, height: 100))
+    let p = e.plan()
+    let fs = (1...4).compactMap { frame(p[UInt32($0)]) }
+    check(fs.count == 4 && (1...4).allSatisfy { !e.isFloating(UInt32($0)) }, "four windows with large minimums all stay tiled")
+    check(fs.count == 4 && (fs[0].width >= 600 && fs[2].width >= 515 && fs[3].width >= 500), "every tile gets its minimum width")
+    var overlap = false
+    for i in 0..<fs.count { for j in (i + 1)..<fs.count where fs[i].intersection(fs[j]).width > 0.5 && fs[i].intersection(fs[j]).height > 0.5 { overlap = true } }
+    check(!overlap, "the rearranged tiles do not overlap")
+    // really too much: three windows of 600 do not fit side by side in 1440 and cannot be stacked high enough either
+    e.noteMinSize(2, want: small, got: CGSize(width: 1500, height: 100))
+    check(e.isFloating(2), "a minimum that no arrangement holds still floats")
+}
+
 // title rules, float frames and the Mission Control overview
 do {
     let e = makeEngine()
