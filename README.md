@@ -3,8 +3,6 @@
 A keyboard-driven tiling window manager for macOS: Hyprland's dwindle layout, workspaces on `⌘1…9`, and an
 app launcher on `⌘Space`.
 
-<!-- IMAGES -->
-
 [![build](https://github.com/hybridpicker/calmtile/actions/workflows/build.yml/badge.svg)](https://github.com/hybridpicker/calmtile/actions/workflows/build.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-lightgrey)
