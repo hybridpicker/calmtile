@@ -178,6 +178,7 @@ final class Controller {
         let n = config.mainWorkspaces
         engine.preferredMonitor = config.useSpaces ? { _ in 0 } : { $0 <= n ? 0 : 1 }
         engine.allowOverflow = !config.useSpaces
+        Windows.fullscreenExempt = config.exitFullscreen ? Set(config.fullscreenApps) : nil
         hotkeys.table = config.table()
         hotkeys.mouseModifier = parseMods(config.mouseModifier)
         border.width = config.borderWidth

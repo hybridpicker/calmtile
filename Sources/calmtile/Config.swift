@@ -171,6 +171,10 @@ struct Config {
     /// Desktops mode: a desktop left without any window is removed (Hyprland: an empty workspace disappears),
     /// through Mission Control, which shows for about a second. `⌘N` creates it again when needed.
     var removeEmptyDesktops = false
+    /// A managed window that enters macOS's own fullscreen is taken out of it again (and tiled), except for the apps
+    /// in `fullscreenApps`. Off: native fullscreen windows are left alone.
+    var exitFullscreen = true
+    var fullscreenApps: [String] = ["com.anthropic.claudefordesktop"]
     /// A tile is never split below this size; the new window goes to a workspace with room instead.
     var minTileWidth: CGFloat = 420
     var minTileHeight: CGFloat = 280
@@ -238,9 +242,9 @@ struct Config {
         let list: ((Any) -> Bool, String) = ({ $0 is [String] }, "a list of strings")
         var t = [String: ((Any) -> Bool, String)]()
         for k in ["gap", "outerGap", "mainWorkspaces", "minTileWidth", "minTileHeight", "borderWidth", "borderRadius", "borderFlash"] { t[k] = number }
-        for k in ["useSpaces", "removeEmptyDesktops", "spotlightAppsOnly"] { t[k] = flag }
+        for k in ["useSpaces", "removeEmptyDesktops", "spotlightAppsOnly", "exitFullscreen"] { t[k] = flag }
         for k in ["borderColor", "theme", "scratchpadApp", "mouseModifier"] { t[k] = text }
-        for k in ["floatApps", "tileFixedApps", "ignoreApps", "passthroughApps"] { t[k] = list }
+        for k in ["floatApps", "tileFixedApps", "ignoreApps", "passthroughApps", "fullscreenApps"] { t[k] = list }
         t["floatTitles"] = ({ $0 is [String: [String]] }, "an object of lists of strings")
         t["bindings"] = ({ $0 is [String: String] }, "an object of strings")
         return t
@@ -282,6 +286,8 @@ struct Config {
                 if !v.isEmpty && parseMods(v) == nil { problems.append("unknown mouseModifier: \(v)") } else { cfg.mouseModifier = v }
             }
             if let v = obj["spotlightAppsOnly"] as? Bool { cfg.spotlightAppsOnly = v }
+            if let v = obj["exitFullscreen"] as? Bool { cfg.exitFullscreen = v }
+            if let v = obj["fullscreenApps"] as? [String] { cfg.fullscreenApps = v }
             if let v = obj["mainWorkspaces"] as? Int { cfg.mainWorkspaces = v }
             if let v = obj["floatApps"] as? [String] { cfg.floatApps = v }
             if let v = obj["tileFixedApps"] as? [String] { cfg.tileFixedApps = v }
@@ -314,7 +320,7 @@ struct Config {
             "mouseModifier": mouseModifier, "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces, "useSpaces": useSpaces, "removeEmptyDesktops": removeEmptyDesktops,
             "minTileWidth": Double(minTileWidth), "minTileHeight": Double(minTileHeight),
             "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "borderFlash": borderFlash, "theme": theme, "scratchpadApp": scratchpadApp,
-            "spotlightAppsOnly": spotlightAppsOnly, "floatApps": floatApps, "tileFixedApps": tileFixedApps, "floatTitles": floatTitles, "ignoreApps": ignoreApps, "passthroughApps": passthroughApps, "bindings": bindings,
+            "spotlightAppsOnly": spotlightAppsOnly, "exitFullscreen": exitFullscreen, "fullscreenApps": fullscreenApps, "floatApps": floatApps, "tileFixedApps": tileFixedApps, "floatTitles": floatTitles, "ignoreApps": ignoreApps, "passthroughApps": passthroughApps, "bindings": bindings,
         ]
         if let c = borderColor { obj["borderColor"] = c }
         let data = (try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])) ?? Data()

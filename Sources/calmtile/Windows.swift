@@ -268,13 +268,23 @@ enum Windows {
         return Listing(windows: out, frames: frames)
     }
 
+    /// Bundle ids whose native fullscreen is kept; nil keeps all of them (`exitFullscreen` off). Set from the config.
+    static var fullscreenExempt: Set<String>? = nil
+
     /// The managed-window test for one element: a standard, non-minimized, non-fullscreen window with a window id.
     private static func classify(_ w: AXUIElement, pid: pid_t, bundleID: String) -> AXWin? {
         let role: String? = attr(w, kAXRoleAttribute)
         let subrole: String? = attr(w, kAXSubroleAttribute)
         guard role == kAXWindowRole as String, subrole == "AXStandardWindow" else { return nil }
         if let min: Bool = attr(w, kAXMinimizedAttribute), min { return nil }
-        if let fs: Bool = attr(w, "AXFullScreen"), fs { return nil }   // native macOS fullscreen: leave alone
+        if let fs: Bool = attr(w, "AXFullScreen"), fs {
+            // Native macOS fullscreen: leave alone, or (exitFullscreen) take the window out of it; the next listing
+            // finds an ordinary window and tiles it.
+            if let exempt = fullscreenExempt, !exempt.contains(bundleID) {
+                if set(w, "AXFullScreen", kCFBooleanFalse) == .success { Log.write("fullscreen left: \(bundleID)") }
+            }
+            return nil
+        }
         var wid = CGWindowID(0)
         guard call(w, { _AXUIElementGetWindow(w, &wid) }) == .success, wid != 0 else { return nil }
         var settable = DarwinBoolean(false)
