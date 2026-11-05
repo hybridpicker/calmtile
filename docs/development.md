@@ -153,6 +153,8 @@ On 4 Nov 2026 (same setup, a test desktop, actions through the command file):
   a new Terminal shows for 0.24-0.5 s at its own frame (including macOS's 0.23 s opening animation) and is
   then placed by the tick; the creation notification comes while Terminal is still too busy to answer.
 
+On 5 Nov 2026 (test desktop, TextEdit, native fullscreen entered with `⌃⌘F`): with `exitFullscreen` on, the window's fullscreen Space appeared and was gone again about a second later, the log says `fullscreen left: com.apple.TextEdit`, and the view was back on the test desktop. The exception list (`fullscreenApps`) and `exitFullscreen: false` were not exercised.
+
 Not verified yet:
 
 - `⌘⌥N` with real desktops (the window is dragged to the other desktop with the system shortcut).
