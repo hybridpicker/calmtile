@@ -22,8 +22,9 @@ again after each build.
   Spotlight category list. No AppKit.
 - `Sources/calmcore-selftest` – the checks `scripts/build.sh` runs before every build (layout, workspaces,
   focus, scratchpad, minimum sizes, monitors, launcher matching).
-- `assets` – the logo and the app icon, both written by `scripts/make-icon.swift` from one list of tiles.
-  `scripts/build.sh` copies the icon into the app.
+- `assets` – the logo and the app icon, both written by `swift scripts/make-icon.swift` from one list of
+  tiles; run it from the top of the repository after changing them. `scripts/build.sh` copies the icon into
+  the app.
 - `Sources/calmtile` – the app: `Windows.swift` (Accessibility: the listing with its per-app memory of
   the last answers, timeouts and back-off, window frames from the window server), `Hotkeys.swift` (event tap on its own
   thread), `Controller.swift` (the loop that reconciles windows, applies the plan, handles actions, menu bar,
@@ -37,8 +38,8 @@ again after each build.
 `~/Library/Logs/calmtile.log` holds window counts, actions, permission state and desktop re-homings; window
 titles are never written. `CALMTILE_DEBUG=1` in the environment (for example
 `launchctl setenv CALMTILE_DEBUG 1` before `open -a calmtile`, and `launchctl unsetenv` afterwards) adds every
-placement with frames, what the Accessibility list shows after a desktop switch, and the "created" path of
-new windows.
+placement with frames, what a window that snaps to a grid took of its tile (`fit`), what the Accessibility
+list shows after a desktop switch, and the "created" path of new windows.
 
 With `CALMTILE_DEBUG=1` (or `CALMTILE_PROFILE=1` for the profile alone) every 20 full ticks write one
 `profile:` line: the workspace shown, how long the 20 ticks took (5 s at the active rate of 250 ms, 20 s
@@ -89,8 +90,9 @@ not trusted and gets nothing.
 `scripts/screenshots.sh` stages three windows on the current workspace (Word with a sample document, Chrome
 with the public project page, Terminal with the project's log), captures `docs/screenshots/tiling.png`, opens
 the `⌘Space` launcher with a query and captures `docs/screenshots/launcher.png`, then closes what it opened.
-It needs the network for the page. macOS asks for Screen Recording for the app that runs it the first time
-(Terminal, or the app that hosts your shell) and once for permission to control Terminal.
+Run it from Terminal on an empty workspace, with calmtile running and Word closed. It needs the network for
+the page. macOS asks for Screen Recording for the app that runs it the first time and once for permission to
+control Terminal.
 
 The capture is the whole screen, so the script keeps everything else out of it. It hides every other app
 (`NSRunningApplication.hide`, no extra permission), your own Chrome included, minimises the open Terminal
@@ -99,9 +101,9 @@ window lists recent files. The staged Chrome runs in a throwaway profile in a te
 account, bookmarks or history; the staged Terminal window is titled `calmtile` and closed by its id. The script
 asks the window server before each staged window and each capture, and stops if a window it did not stage is
 still on screen, since a prompt shows the user and machine name and a leftover window takes a tile, or if a
-window's title contains your user name. Word can
-still show the account it is signed in to, and the launcher lists the apps you have installed. Look at both
-pictures before committing them: no chat, mail, account, user name, private app or file name belongs in them.
+window's title contains your user name. Word can still show the account it is signed in to, and the launcher
+lists the apps you have installed. Look at both pictures before committing them, title bars included: no chat,
+mail, account, user name, private app or file name belongs in them.
 
 ## What has been verified live
 
@@ -112,8 +114,7 @@ On macOS 26.5, one 1440 × 900 display, menu bar and Dock hidden:
 - Real desktops: `⌘1→2→3→1` through the Dock shortcut switches desktops; after each switch the window
   server shows exactly one Space and keeps it; every window stays on its own desktop at its size, no window
   is re-homed, no focus pulls macOS back. Creating a missing desktop with `⌘4`/`⌘5`. Terminal's 724 px
-  snapped width is trimmed to 716 px, and its neighbours take what it leaves: in a screenshot of Word, Chrome
-  and Terminal the windows meet with no strip and no overlap, Terminal reaching both screen edges.
+  snapped width is trimmed to 716 px.
 - Window inspection of Calendar, VLC, Terminal, Dashlane, Notes, Mail, Finder, Safari, Preview, Teams, Zoom
   and VS Code.
 - Spotlight preference write and restore (checked with `defaults`).
@@ -171,8 +172,12 @@ On 5 Nov 2026 (second run, test desktop, config `{}` so parked mode, actions thr
 
 On 5 Nov 2026 (third run, test desktop 5, `move-to-workspace 4` from the command file, staged TextEdit window): the window went to desktop 4 in about half a second (`moved window to desktop 4`), was tiled beside the window already there, and the test desktop and TextEdit were removed again afterwards (the Spaces list shows four). Only the action was sent, not the key combination.
 
+On 6 Nov 2026 (desktops mode, no gaps, `scripts/screenshots.sh` on an empty desktop, edges read from the pixels of `tiling.png`): Terminal takes 716 × 444 of a 720 × 450 tile and sits at x 724-1440, y 456-900; Word reaches x 724 and Chrome y 456. The three windows meet with no strip and no overlap, and Terminal reaches both screen edges. The launcher picture was only looked at. Neither picture shows a user name.
+
 Not verified yet:
 
+- A window that snaps in parked mode, on a second display, after a resize by hand or beside a second Terminal (self-tests only, the second display and the resize not even there). Terminal beside two apps in desktops mode was measured, see above.
+- The app icon as Finder and System Settings show it: the bundle holds it and names it, nobody has looked at it there.
 - `⌘⌥N` pressed as a real key combination (the action through the command file works, see above), `exitFullscreen: false` and the `fullscreenApps` exception.
 - docs/first-steps.md steps 5 to 9 (focus keys, launcher, config edit, desktops, undo) on a fresh config; steps 1 to 4 were followed (see above).
 - `⌘Space` pressed on the real keyboard (the panel was only opened through the command file).
@@ -184,7 +189,6 @@ Not verified yet:
   case in the log, not reproducible without a real gesture).
 - A second display (self-tests only).
 - Whether Spotlight visibly honours the category list of `spotlightAppsOnly`.
-- The screenshots (`scripts/screenshots.sh` needs Screen Recording for the app that runs it).
 
 ## Privacy notes
 

@@ -181,7 +181,11 @@ lists scratchpad windows; clicking one shows it.
   neighbours moves to the next workspace with room. In desktops mode calmtile first flips splits (side by side
   to stacked and back, fewest first) to find an arrangement in which every learned minimum fits; only when
   none does, and when no workspace has room in parked mode, the window floats at its minimum size. A window
-  that has already floated stays floating until `⌃⌥T` tiles it again. Apps that snap their size to a grid (Terminal) are trimmed back into the tile.
+  that has already floated stays floating until `⌃⌥T` tiles it again.
+- **Windows that snap to a grid.** Terminal takes whole character cells, so it comes out a few points off its
+  tile. calmtile trims it back into the tile and remembers what it took for that tile size; the neighbours
+  take the rest, and the window moves up to the screen edge, so no strip of desktop shows. When a tile changes
+  size, the neighbour can move by a few points once more while calmtile measures the new size.
 - `passthroughApps`: while one of these is frontmost, calmtile intercepts no key at all. The default is a
   password manager, so nothing calmtile does can get between you and a password field. calmtile's keys
   win over an app's own: in Chrome and Safari `⌘1…9` switch workspaces, not tabs, and in Terminal `⌘1…9` no
@@ -274,8 +278,9 @@ does the job without touching the system.
 
 **A window stays smaller or larger than its tile.** Larger: the app's minimum size, see section 7; the
 neighbours should have made room, and in parked mode the window moves to a workspace with room. A few
-pixels smaller: the app snaps to its own grid (Terminal to character cells) and calmtile leaves it there.
-More than that, or elsewhere: calmtile places it again until it matches; if it never does, the app refuses
+pixels smaller: the app snaps to its own grid (Terminal to character cells) and the neighbours take the rest.
+A strip narrower than one cell stays only where nothing can take it: the window is alone in that direction, or
+its neighbour snaps as well. More than that, or elsewhere: calmtile places it again until it matches; if it never does, the app refuses
 Accessibility moves (look for `set ->` codes other than 0 in the debug log).
 
 **A binding does nothing.** Look in the log: `config: …` names keys and values that were ignored, and an
