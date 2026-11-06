@@ -101,8 +101,37 @@ public final class DwindleTree {
         }
     }
 
+    /// What a window really takes of a tile of the given size, for a window that snaps to its own grid (Terminal:
+    /// whole character cells); nil when nothing is known for that size. The rest of the tile goes to the neighbours.
+    public var gridFit: (WindowID, CGSize) -> CGSize? = { _, _ in nil }
+    /// False while no window is known to snap: the layout then runs once.
+    public var hasGridFits: () -> Bool = { false }
+
     public func frames(in rect: CGRect, gap: CGFloat) -> [WindowID: CGRect] {
+        let plain = layout(in: rect, gap: gap, slack: [:])
+        guard hasGridFits() else { return plain }
+        // Fits are known by the tile a window gets without them, which does not depend on what was given away before.
+        var slack = [WindowID: CGSize]()
+        for (w, f) in plain {
+            if let fit = gridFit(w, f.size) { slack[w] = CGSize(width: f.width - fit.width, height: f.height - fit.height) }
+        }
+        return slack.isEmpty ? plain : layout(in: rect, gap: gap, slack: slack)
+    }
+
+    private func layout(in rect: CGRect, gap: CGFloat, slack: [WindowID: CGSize]) -> [WindowID: CGRect] {
         var out = [WindowID: CGRect]()
+        /// How much narrower and lower a subtree can be. Beside a neighbour without slack the neighbour takes it, so
+        /// nothing is left to pass on along the split; across the split the one with the most slack decides, because
+        /// the other side can follow it.
+        func slackOf(_ n: Node) -> CGSize {
+            if let w = n.window { return slack[w] ?? .zero }
+            guard let a = n.first, let b = n.second else { return .zero }
+            let sa = slackOf(a), sb = slackOf(b)
+            switch n.axis {
+            case .horizontal: return CGSize(width: min(sa.width, sb.width), height: max(sa.height, sb.height))
+            case .vertical: return CGSize(width: max(sa.width, sb.width), height: min(sa.height, sb.height))
+            }
+        }
         // Each split asks for the minimum of both of its subtrees; computed once per node instead of once per
         // ancestor (quadratic in a dwindle spiral, which is as deep as it has windows).
         var mins = [ObjectIdentifier: CGSize]()
@@ -159,6 +188,7 @@ public final class DwindleTree {
                 var w1 = ((r.width - gap) * n.ratio).rounded()
                 let ma = minimum(of: a, gap: gap).width, mb = minimum(of: b, gap: gap).width
                 if limited { w1 = capped(w1, total: r.width, maxA: maximum(of: a).width, maxB: maximum(of: b).width) }
+                if !slack.isEmpty { w1 += slackOf(b).width - slackOf(a).width }
                 if ma + mb + gap <= r.width {   // a minimum is only honoured when both sides can have theirs
                     w1 = min(max(w1, ma), r.width - gap - mb)
                 }
@@ -169,6 +199,7 @@ public final class DwindleTree {
                 var h1 = ((r.height - gap) * n.ratio).rounded()
                 let ma = minimum(of: a, gap: gap).height, mb = minimum(of: b, gap: gap).height
                 if limited { h1 = capped(h1, total: r.height, maxA: maximum(of: a).height, maxB: maximum(of: b).height) }
+                if !slack.isEmpty { h1 += slackOf(b).height - slackOf(a).height }
                 if ma + mb + gap <= r.height {
                     h1 = min(max(h1, ma), r.height - gap - mb)
                 }

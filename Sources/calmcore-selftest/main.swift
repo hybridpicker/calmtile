@@ -508,6 +508,43 @@ do {
     check(e.isFloating(2), "a minimum that no arrangement holds still floats")
 }
 
+// a window that snaps to its own grid: the neighbours take what it leaves of its tile
+do {
+    let e = Engine(monitors: [Monitor(id: 0, frame: CGRect(x: 0, y: 0, width: 1440, height: 900))])
+    e.gap = 0
+    e.outerGap = 0
+    for id in 1...3 { e.windowAppeared(UInt32(id), floating: false) }   // 1 | (2 over 3)
+    let tile = CGSize(width: 720, height: 450), snapped = CGSize(width: 716, height: 445)
+    check(frame(e.plan()[3])?.size == tile, "a tile before anything is known about the grid")
+    check(!e.noteFit(3, tile: tile, got: tile), "a window that fills its tile does not snap")
+    check(e.noteFit(3, tile: tile, got: snapped), "a window a few points short of its tile does")
+    check(!e.noteFit(3, tile: tile, got: snapped), "the same answer again changes nothing")
+    var p = e.plan()
+    check(frame(p[3]) == CGRect(x: 724, y: 455, width: 716, height: 445), "it sits in the corner at the size it took")
+    check(frame(p[2]) == CGRect(x: 724, y: 0, width: 716, height: 455), "the neighbour above takes the height it leaves")
+    check(frame(p[1]) == CGRect(x: 0, y: 0, width: 724, height: 900), "the neighbour beside takes the width it leaves")
+    check(!e.noteFit(3, tile: snapped, got: snapped), "at that size it fills its tile, so the layout is stable")
+    check(frame(e.plan()[3]) == CGRect(x: 724, y: 455, width: 716, height: 445), "and stays there")
+    e.windowGone(2)
+    p = e.plan()
+    check(frame(p[3]) == CGRect(x: 720, y: 0, width: 720, height: 900), "a tile of another size is measured anew")
+    check(!e.noteFit(3, tile: CGSize(width: 720, height: 900), got: CGSize(width: 500, height: 900)), "far too small is no grid")
+    e.windowGone(1)
+    check(!e.noteFit(3, tile: CGSize(width: 1440, height: 900), got: CGSize(width: 1440, height: 900)) &&
+          frame(e.plan()[3]) == CGRect(x: 0, y: 0, width: 1440, height: 900), "alone there is no neighbour to take anything")
+    e.windowGone(3)
+    check(!e.snapsToGrid(3), "a closed window is forgotten")
+    // a window cannot give away what its neighbour cannot take either: two of them keep their tiles, without overlap
+    e.windowAppeared(4, floating: false)
+    e.windowAppeared(5, floating: false)
+    let half = CGSize(width: 720, height: 900)
+    _ = e.noteFit(4, tile: half, got: CGSize(width: 716, height: 900))
+    _ = e.noteFit(5, tile: half, got: CGSize(width: 716, height: 900))
+    p = e.plan()
+    check(frame(p[4]) == CGRect(x: 0, y: 0, width: 720, height: 900) && frame(p[5]) == CGRect(x: 720, y: 0, width: 720, height: 900),
+          "two snapping neighbours keep their tiles")
+}
+
 // title rules, float frames and the Mission Control overview
 do {
     let e = makeEngine()

@@ -65,6 +65,8 @@ public final class Engine {
     private var minSizes = [WindowID: CGSize]()
     /// Windows that cannot be resized but tile anyway (`tileFixedApps`): their tile is exactly this size.
     private var fixedSizes = [WindowID: CGSize]()
+    /// What a window that snaps to its own grid really takes of a tile, per tile size.
+    private var gridFits = [WindowID: [(tile: CGSize, fit: CGSize)]]()
     /// Workspaces the user moved to another monitor by hand (workspace -> monitor).
     private var monitorOverride = [Int: Int]()
     private var visible = [Int: Int]()          // monitor id -> workspace number
@@ -198,6 +200,25 @@ public final class Engine {
         }
     }
 
+    /// The app took a little less than its tile because it snaps to its own grid (Terminal: whole character cells).
+    /// Remember that for this tile size, so the neighbours take the rest and no strip of desktop shows between
+    /// windows. True when the layout changes because of it. A difference above one large cell is not a grid.
+    public func noteFit(_ id: WindowID, tile: CGSize, got: CGSize) -> Bool {
+        let dw = tile.width - got.width, dh = tile.height - got.height
+        let snapW = dw >= 1 && dw <= 32, snapH = dh >= 1 && dh <= 32
+        guard snapW || snapH else { return false }
+        let fit = CGSize(width: snapW ? tile.width - dw.rounded(.up) : tile.width,
+                         height: snapH ? tile.height - dh.rounded(.up) : tile.height)
+        var known = gridFits[id] ?? []
+        if known.contains(where: { $0.tile == tile && $0.fit == fit }) { return false }
+        known.removeAll { $0.tile == tile }
+        known.append((tile, fit))
+        gridFits[id] = Array(known.suffix(16))   // resizing by hand passes through many sizes
+        return true
+    }
+
+    public func snapsToGrid(_ id: WindowID) -> Bool { return gridFits[id] != nil }
+
     /// The next workspace (wrapping, same monitor) that can take one more window without overlap.
     private func roomyWorkspace(after ws: Workspace, needing m: CGSize = .zero) -> Int? {
         guard allowOverflow else { return nil }
@@ -242,6 +263,7 @@ public final class Engine {
         guard let n = home.removeValue(forKey: id) else { return }
         minSizes[id] = nil
         fixedSizes[id] = nil
+        gridFits[id] = nil
         if n == 0 {
             scratch.removeAll { $0 == id }
             floatFrames[id] = nil
@@ -550,6 +572,8 @@ public final class Engine {
         ws.tree.minSize = { [unowned self] id in self.fixedSizes[id] ?? self.minSizes[id] ?? .zero }
         ws.tree.maxSize = { [unowned self] id in self.fixedSizes[id] ?? CGSize(width: CGFloat.infinity, height: CGFloat.infinity) }
         ws.tree.hasMaxSizes = { [unowned self] in !self.fixedSizes.isEmpty }
+        ws.tree.gridFit = { [unowned self] id, tile in self.gridFits[id]?.first { $0.tile == tile }?.fit }
+        ws.tree.hasGridFits = { [unowned self] in !self.gridFits.isEmpty }
         workspaces[n] = ws
         if visible[ws.monitor] == nil { visible[ws.monitor] = n }
         return ws

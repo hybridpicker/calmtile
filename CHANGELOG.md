@@ -11,6 +11,8 @@ for what has been verified live and what has not (`⌘⌥N` only through the act
 - Minimum sizes an app insists on are learned and given room (in desktops mode splits are flipped to make them
   fit before a window floats; self-test only so far); windows that cannot be resized tile at their own
   size for the apps in `tileFixedApps` (the iOS Simulator) and float otherwise.
+- A window that snaps to its own grid (Terminal) leaves no strip of desktop beside its neighbours: they take
+  what it does not use of its tile.
 - Floating, calmtile's own fullscreen, a scratchpad with a drop-down terminal.
 - A new window beside a fixed-size one opens where there is room; a window that has to float after all goes
   back to the frame its app gave it.

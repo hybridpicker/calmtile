@@ -102,6 +102,9 @@ accept a one-person project.
 - A window whose minimum size cannot sit beside its neighbours floats, after calmtile has tried flipping
   splits to make room (desktops mode; parked mode moves it to the next workspace). Four large windows on one
   desktop of a 1440 pt wide display are about the limit.
+- A window that snaps to its own grid (Terminal: whole character cells) takes a little less than its tile, and
+  its neighbours take the rest. With no neighbour on that side to take it, or one that snaps as well, a strip
+  narrower than one character cell stays.
 - Resizing a tiled window by its edge snaps back; use the mouse modifier and right drag.
 - macOS native fullscreen is switched off for managed windows (`exitFullscreen`): the window leaves it again
   at once. Apps in `fullscreenApps` (Claude Desktop) keep it. The window buttons themselves cannot be hidden.

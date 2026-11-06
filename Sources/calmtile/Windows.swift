@@ -382,6 +382,13 @@ enum Windows {
             && abs(a.width - b.width) <= d && abs(a.height - b.height) <= d
     }
 
+    /// True when a window sits at the tile's corner and is only a few pixels off in size, which is what snapping to
+    /// a grid does. A snapped window does not move by itself, so a different position still has to be placed.
+    static func snapped(_ a: CGRect, into want: CGRect) -> Bool {
+        return abs(a.minX - want.minX) <= 1 && abs(a.minY - want.minY) <= 1
+            && abs(a.width - want.width) <= 8 && abs(a.height - want.height) <= 8
+    }
+
     static func setFrame(_ el: AXUIElement, _ r: CGRect) {
         var pos = r.origin
         var size = r.size

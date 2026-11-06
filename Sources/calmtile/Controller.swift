@@ -742,10 +742,12 @@ final class Controller {
                 // A new plan the window already fulfils: every window gets one after a desktop switch (which forgets
                 // what was applied), and each was written its unchanged frame again, three writes and the trim per
                 // window right when the next key may come (measured: every window on every switch). Recorded instead;
-                // a window that snapped a few pixels inside the same tile counts as fulfilling it, as above.
+                // a window that snapped a few pixels inside the same tile counts as fulfilling it, as above. Any other
+                // window has to be placed: it may be the neighbour that takes those few pixels.
                 if case .frame(let want) = placement, let actual = currentFrame(id, w),
                    Windows.framesMatch(actual, want, within: 0.5)
-                    || (settled[id].map { Windows.framesMatch(actual, $0) && Windows.framesMatch($0, want, within: 8) } ?? false) {
+                    || (engine.snapsToGrid(id)
+                        && settled[id].map { Windows.framesMatch(actual, $0) && Windows.snapped($0, into: want) } ?? false) {
                     applied[id] = placement
                     if settled[id] == nil { settled[id] = actual }
                     continue
@@ -770,7 +772,7 @@ final class Controller {
                 // (Terminal: 716 px in a 720 px tile after the trim): that is the app's answer, not a change. Placing
                 // it again gives the same result, and it did so every tick (measured: four AX writes and two reads
                 // per tick for each such window). Larger differences, such as a set call that timed out, still retry.
-                if let s = settled[id], Windows.framesMatch(actual, s), Windows.framesMatch(s, want, within: 8) { continue }
+                if let s = settled[id], Windows.framesMatch(actual, s), Windows.snapped(s, into: want) { continue }
                 // Larger than its tile: the app insists on a minimum size. After a few tries it stays where our
                 // last attempt left it, and that is not an intervention by the app, so do not fight it. A window
                 // that is smaller than its tile or sits elsewhere never has that excuse (a set call may have timed
@@ -801,6 +803,14 @@ final class Controller {
                let got = settled[id], got.width > want.width + 8 || got.height > want.height + 8 {
                 Log.write("minimum size exceeds the tile (\(w.bundleID))")
                 engine.noteMinSize(id, want: want.size, got: got.size, natural: appearedAt[id])
+                applied = [:]
+                requestTick()
+                return
+            }
+            // Snapped a little inside its tile: the neighbours take the rest, so no strip of desktop stays between them.
+            if case .frame(let want) = placement, !engine.isFloating(id), engine.fixedSize(of: id) == nil,
+               let got = settled[id], engine.noteFit(id, tile: want.size, got: got.size) {
+                if Log.debug { Log.write("fit \(id) \(w.bundleID) tile=\(want.size) got=\(got.size)") }
                 applied = [:]
                 requestTick()
                 return
