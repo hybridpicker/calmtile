@@ -21,7 +21,8 @@ your attention on the work in them.
 - **Fullscreen** (`⌃⌥F`) is calmtile's own: the window covers the workspace and the other tiles stay
   behind it. macOS native fullscreen (the green button) moves a window to its own Space: calmtile
   takes the window out of it again and tiles it (`exitFullscreen`, section 8), except for the apps in
-  `fullscreenApps`.
+  `fullscreenApps`. Browsers and video players are on that list, because a video's fullscreen is native
+  fullscreen too; their green button therefore also keeps its own Space.
 
 ## 2. Install and permissions
 
@@ -139,6 +140,12 @@ every installed application (`/Applications`, `/System/Applications`, their `Uti
 are, so pick the window entry to jump there), and calmtile actions: workspaces, move to workspace, float, fullscreen, flip split, close, scratchpad,
 reload, pause, themes. `↑↓` or `Tab` select, `Return` runs, `Esc` or a click elsewhere closes.
 
+Applications appear in the language of your system settings, as far as the app has a translation of its name
+("Kalender" on a German Mac); otherwise under their file name. The file name finds them too, so `cal` still
+leads to Kalender. If a system helper has the same translated name as an app, only the app is listed.
+`open` and `new-window` bindings and `scratchpadApp` are not translated and keep the names they use today, such
+as `Calendar`.
+
 `⌘Space` opens the same launcher with applications only. calmtile sees the key before Spotlight, so
 Spotlight does not open while calmtile runs; nothing in the system is changed. To keep Spotlight, remove
 the binding: `"bindings": {"cmd-space": ""}`.
@@ -181,8 +188,10 @@ lists scratchpad windows; clicking one shows it.
   and gives it that room; the neighbours shrink. In parked mode a window whose minimum cannot sit beside its
   neighbours moves to the next workspace with room. In desktops mode calmtile first flips splits (side by side
   to stacked and back, fewest first) to find an arrangement in which every learned minimum fits; only when
-  none does, and when no workspace has room in parked mode, the window floats at its minimum size. A window
-  that has already floated stays floating until `⌃⌥T` tiles it again.
+  none does, two windows stay side by side without overlapping: the one asking for the largest share of the
+  desktop on the left, the other past the right screen edge. With three or more, the one asking for the largest
+  share floats where its app had put it. When no workspace has room in parked mode, the window itself floats. A window
+  that floated for lack of room tiles again as soon as two windows are left; one floated by hand stays floating until `⌃⌥T`.
 - **Windows that snap to a grid.** Terminal takes whole character cells, so it comes out a few points off its
   tile. calmtile trims it back into the tile and remembers what it took for that tile size; the neighbours
   take the rest, and the window moves up to the screen edge, so no strip of desktop shows. When a tile changes
@@ -217,7 +226,7 @@ reload, in an alert and in the log (`config: …`); `--print-config` writes the 
 | `mouseModifier` | `"cmd-alt"` | modifier for mouse move and resize, `""` = off |
 | `scratchpadApp` | `"Terminal"` | app opened by `⌃⌥Q` on an empty scratchpad |
 | `exitFullscreen` | true | a window that enters macOS's own fullscreen (the green button) leaves it again and is tiled |
-| `fullscreenApps` | Claude Desktop | bundle ids whose native fullscreen is kept |
+| `fullscreenApps` | Claude Desktop, the common browsers, VLC, IINA, QuickTime Player, TV | bundle ids whose native fullscreen is kept; your own list replaces this one |
 | `spotlightAppsOnly` | false | restrict the system Spotlight to applications while running (section 9) |
 | `floatApps` | System Settings, Calculator, Activity Monitor, Archive Utility, preference pane previews | bundle ids that float |
 | `tileFixedApps` | iOS Simulator | bundle ids whose fixed-size windows tile instead of floating |

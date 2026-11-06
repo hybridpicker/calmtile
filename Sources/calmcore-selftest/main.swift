@@ -480,7 +480,7 @@ do {
     check(f2?.size == CGSize(width: 410, height: 880), "the fixed-size window keeps its size")
     check((f3?.height ?? 0) == 900 && (f3?.width ?? 0) >= 300, "the new window gets the width beside it, full height")
     // a minimum that cannot fit: the window floats where the app had put it, not at the size it was squeezed to
-    e.noteMinSize(3, want: f3?.size ?? .zero, got: CGSize(width: 2000, height: 900), natural: CGRect(x: 100, y: 50, width: 656, height: 422))
+    e.noteMinSize(3, want: f3?.size ?? .zero, got: CGSize(width: 2000, height: 900), natural: { _ in CGRect(x: 100, y: 50, width: 656, height: 422) })
     check(e.isFloating(3) && frame(e.plan()[3]) == CGRect(x: 100, y: 50, width: 656, height: 422),
           "a window that has to float goes back to its own frame")
 }
@@ -616,6 +616,121 @@ do {
     parked.minTile = CGSize(width: 2000, height: 2000)
     parked.windowAppeared(1, floating: false)
     check(parked.nextTile() == nil, "no next tile when the window would overflow to another workspace")
+}
+
+// Two windows whose minimum sizes fit neither side by side nor stacked (Quartet beside Chrome on a 1440 x 900 display):
+// a minimum learned on one axis must survive learning the other, or every flip of the split looks like it fits and
+// the windows jump for good. They settle side by side after a few steps, the one asking for the most on the left and
+// the other past the right edge, without overlapping, whichever was measured last.
+for first in [UInt32(1), 2] {
+    let e = Engine(monitors: [Monitor(id: 0, frame: CGRect(x: 0, y: 0, width: 1440, height: 900))])
+    e.gap = 0
+    e.outerGap = 0
+    e.allowOverflow = false
+    e.windowAppeared(first, floating: false)
+    e.windowAppeared(3 - first, floating: false)
+    let mins: [WindowID: CGSize] = [1: CGSize(width: 1051, height: 816), 2: CGSize(width: 500, height: 375)]
+    var steps = 0
+    var settled = false
+    while steps < 50, !settled {
+        settled = true
+        for (id, p) in e.plan().sorted(by: { $0.key < $1.key }) {
+            guard case .frame(let want) = p, !e.isFloating(id), e.tiledFrames().count > 1, let m = mins[id] else { continue }
+            let got = CGSize(width: max(want.width, m.width), height: max(want.height, m.height))
+            if got.width > want.width + 8 || got.height > want.height + 8, e.noteMinSize(id, want: want.size, got: got) {
+                settled = false
+                steps += 1
+                break
+            }
+        }
+    }
+    check(settled, "minimum sizes that fit in no arrangement settle instead of flipping the split for ever (\(steps) steps)")
+    check(!e.isFloating(1) && !e.isFloating(2), "two windows that cannot share the desktop both stay tiled")
+    check(frame(e.plan()[1]) == CGRect(x: 0, y: 0, width: 1051, height: 900), "the one asking for the larger share is on the left")
+    check(frame(e.plan()[2]) == CGRect(x: 1051, y: 0, width: 389, height: 900), "the other one starts right beside it")
+}
+
+// Three windows that fit in no arrangement: the one asking for the largest share floats, whichever was measured last.
+do {
+    let e = Engine(monitors: [Monitor(id: 0, frame: CGRect(x: 0, y: 0, width: 1440, height: 900))])
+    e.gap = 0
+    e.outerGap = 0
+    e.allowOverflow = false
+    for id in 1...3 { e.windowAppeared(UInt32(id), floating: false) }
+    let small = CGSize(width: 100, height: 100)
+    let natural = CGRect(x: 40, y: 30, width: 1200, height: 800)
+    e.noteMinSize(1, want: small, got: CGSize(width: 1200, height: 800))
+    e.noteMinSize(2, want: small, got: CGSize(width: 700, height: 500), natural: { $0 == 1 ? natural : nil })
+    check(e.isFloating(1) && !e.isFloating(2) && !e.isFloating(3), "the largest of three floats, not the last one measured")
+    check(frame(e.plan()[1]) == natural, "it floats where its app had put it")
+    // The third window closes (the App Store beside Quartet and Chrome): no reason to float any more, and floating it
+    // would stay on top of the neighbour, which now has the whole desktop.
+    e.windowGone(3)
+    check(!e.isFloating(1), "a window floated for lack of room tiles again when two are left")
+    let f1 = frame(e.plan()[1]), f2 = frame(e.plan()[2])
+    check(f1?.minX == 0 && f1?.width == 1200, "it is back on the left with its minimum width")
+    check(f2?.minX == 1200 && !(f1?.intersects(f2 ?? .zero) ?? true), "its neighbour is beside it, not under it")
+
+    // A window the user floated stays floating.
+    let u = Engine(monitors: [Monitor(id: 0, frame: CGRect(x: 0, y: 0, width: 1440, height: 900))])
+    u.allowOverflow = false
+    u.windowAppeared(1, floating: false)
+    u.windowAppeared(2, floating: false)
+    u.windowAppeared(3, floating: false)
+    u.setFocused(3)
+    u.toggleFloating()
+    u.windowGone(2)
+    check(u.isFloating(3), "a window floated by hand does not tile by itself")
+}
+
+// Learning a minimum on one axis keeps what was learned on the other.
+do {
+    let e = Engine(monitors: [Monitor(id: 0, frame: CGRect(x: 0, y: 0, width: 1440, height: 900))])
+    e.allowOverflow = false
+    e.windowAppeared(1, floating: false)
+    e.windowAppeared(2, floating: false)
+    e.noteMinSize(1, want: CGSize(width: 720, height: 900), got: CGSize(width: 1000, height: 900))
+    e.noteMinSize(1, want: CGSize(width: 1000, height: 300), got: CGSize(width: 1000, height: 500))
+    let f1 = frame(e.plan()[1]), f2 = frame(e.plan()[2])
+    check((f1?.width ?? 0) >= 1000 && (f1?.height ?? 0) >= 500, "both axes of a minimum are honoured")
+    check(!(f1?.intersects(f2 ?? .zero) ?? true), "the neighbour stays beside it")
+}
+
+// Application names in the user's language, from made-up bundles in the temporary folder.
+do {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("calmtile-selftest-\(ProcessInfo.processInfo.processIdentifier)")
+    defer { try? FileManager.default.removeItem(at: root) }
+    func app(_ name: String, table: [String: Any]? = nil, lproj: [String: [String: String]] = [:]) -> URL {
+        let url = root.appendingPathComponent("\(name).app")
+        let res = url.appendingPathComponent("Contents/Resources")
+        try? FileManager.default.createDirectory(at: res, withIntermediateDirectories: true)
+        if let table = table {
+            let data = try? PropertyListSerialization.data(fromPropertyList: table, format: .binary, options: 0)
+            try? data?.write(to: res.appendingPathComponent("InfoPlist.loctable"))
+        }
+        for (language, strings) in lproj {
+            let dir = res.appendingPathComponent("\(language).lproj")
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let data = try? PropertyListSerialization.data(fromPropertyList: strings, format: .xml, options: 0)
+            try? data?.write(to: dir.appendingPathComponent("InfoPlist.strings"))
+        }
+        return url
+    }
+    let de = ["de-AT"]
+    let calendar = app("Calendar", table: ["LocProvenance": ["de": 1],
+                                           "de": ["CFBundleDisplayName": "Kalender", "CFBundleName": "Kal."],
+                                           "en": ["CFBundleDisplayName": "Calendar"], "fr": ["CFBundleDisplayName": "Calendrier"]])
+    check(localizedAppName(at: calendar, preferredLanguages: de) == "Kalender", "a regional language finds its base language, the display name first")
+    check(localizedAppName(at: calendar, preferredLanguages: ["fr-FR", "de"]) == "Calendrier", "the first preferred language wins")
+    check(localizedAppName(at: calendar, preferredLanguages: ["ja", "de"]) == "Kalender", "then the next one the app has")
+    let settings = app("System Settings", table: ["de": ["CFBundleName": "System\u{AD}einstellungen"]])
+    check(localizedAppName(at: settings, preferredLanguages: de) == "Systemeinstellungen", "CFBundleName serves too, without soft hyphens")
+    check(localizedAppName(at: app("French", table: ["fr": ["CFBundleName": "Fran\u{E7}ais"]]), preferredLanguages: de) == nil, "a language nobody asked for is not used")
+    check(localizedAppName(at: app("NoName", table: ["de": ["NSCameraUsageDescription": "Kamera"]]), preferredLanguages: de) == nil, "a table without a name gives none")
+    let strings = app("Third Party", lproj: ["Base": ["CFBundleName": "Base"], "en": ["CFBundleName": "Third Party"], "de": ["CFBundleDisplayName": "Drittanbieter"]])
+    check(localizedAppName(at: strings, preferredLanguages: de) == "Drittanbieter", "InfoPlist.strings in an .lproj folder")
+    check(localizedAppName(at: app("Plain"), preferredLanguages: de) == nil, "an app without translations has no name of its own")
+    check(localizedAppName(at: root.appendingPathComponent("Missing.app"), preferredLanguages: de) == nil, "a missing app gives none")
 }
 
 if failures == 0 {

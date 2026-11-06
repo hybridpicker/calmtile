@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- A video in fullscreen stays in fullscreen: browsers and video players are now in `fullscreenApps` by default.
+  calmtile took them out of it like any other window, so YouTube left fullscreen right after entering it.
 - The focus border flashes only when a focus key (`⌘←` and so on) moves the focus, not on every focus change;
   `"borderFlash": 0` keeps it on all the time.
 - New windows reach their tile right away: Terminal 33 ms after its first frame instead of 600 ms, Chrome before it
@@ -9,6 +11,15 @@
 - New action `new-window <App>`, the default on `⇧⌘Return`: a new window on this workspace on every press.
 - `open` and `new-window` no longer switch to the desktop of an app's other windows.
 - An app too busy to answer no longer makes a new window float for good.
+- Two windows whose minimum sizes fit neither side by side nor stacked no longer jump between the two for good: a
+  minimum learned on one axis is kept when the other is learned. They stay side by side without overlapping, the
+  one asking for the largest share of the desktop on the left, the other past the right screen edge. With three or
+  more the largest floats, not whichever was measured last, and tiles again as soon as two windows are left.
+- A window that does not grow to its tile is no longer written to on every tick.
+- The launcher shows applications in the system language ("Kalender" on a German Mac, not "Calendar"), read from
+  each app's own bundle. The file name still finds them, launch counts carry over, and a system helper with the
+  same translated name as the real app ("Kontakte" for `PeopleViewService`) is no longer listed. `open` and
+  `new-window` bindings and `scratchpadApp` keep the names they use today.
 
 ## 0.1.0 – 2026-11-06
 

@@ -6,7 +6,17 @@ struct LauncherItem {
     let kind: Kind
     let title: String
     let detail: String
+    /// The same thing under its untranslated name ("Calendar" for "Kalender"): found by the search too, so a name
+    /// typed from habit still works, and for applications what the launch count goes by.
+    var plainName: String? = nil
     let run: () -> Void
+}
+
+struct InstalledApp {
+    /// In the user's language where the app has that, otherwise `fileName`.
+    let name: String
+    let fileName: String
+    let url: URL
 }
 
 /// Installed applications, scanned from the usual folders. The scan runs off the main thread: once at start, and
@@ -14,11 +24,23 @@ struct LauncherItem {
 /// (only the very first call before the start-up scan has finished does).
 enum Apps {
     private static let lock = NSLock()
-    private static var cache: [(name: String, url: URL)] = []
+    private static var cache: [InstalledApp] = []
+    private static var nameByPath: [String: String] = [:]
     private static var scanned = Date.distantPast
     private static var scanning = false
 
-    static func installed() -> [(name: String, url: URL)] {
+    /// What the launcher calls this running application. From the scan where it is listed, so opening the launcher
+    /// reads no files for the windows of the usual apps.
+    static func name(of running: NSRunningApplication?) -> String? {
+        guard let running = running else { return nil }
+        guard let url = running.bundleURL else { return running.localizedName }
+        lock.lock()
+        let known = nameByPath[url.path]
+        lock.unlock()
+        return known ?? localizedAppName(at: url, preferredLanguages: Locale.preferredLanguages) ?? running.localizedName
+    }
+
+    static func installed() -> [InstalledApp] {
         lock.lock()
         let have = cache, never = scanned == .distantPast, age = Date().timeIntervalSince(scanned)
         lock.unlock()
@@ -36,26 +58,34 @@ enum Apps {
         DispatchQueue.global(qos: .utility).async { store(scan()) }
     }
 
-    private static func store(_ list: [(name: String, url: URL)]) {
+    private static func store(_ list: [InstalledApp]) {
+        var paths = [String: String]()
+        for app in list { paths[app.url.path] = app.name }
         lock.lock()
         cache = list
+        nameByPath = paths
         scanned = Date()
         scanning = false
         lock.unlock()
     }
 
-    private static func scan() -> [(name: String, url: URL)] {
+    private static func scan() -> [InstalledApp] {
         let dirs = ["/Applications", "/Applications/Utilities", "/System/Applications", "/System/Applications/Utilities",
                     "/System/Library/CoreServices", "/System/Library/CoreServices/Applications",
                     NSString(string: "~/Applications").expandingTildeInPath]
-        var seen = Set<String>()
-        var out = [(name: String, url: URL)]()
+        let languages = Locale.preferredLanguages
+        var seenFiles = Set<String>(), seenNames = Set<String>()
+        var out = [InstalledApp]()
         for d in dirs {
             let url = URL(fileURLWithPath: d)
             let entries = (try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)) ?? []
-            for e in entries where e.pathExtension == "app" {
-                let name = e.deletingPathExtension().lastPathComponent
-                if seen.insert(name).inserted { out.append((name, e)) }
+            for e in entries.sorted(by: { $0.path < $1.path }) where e.pathExtension == "app" {
+                let file = e.deletingPathExtension().lastPathComponent
+                guard seenFiles.insert(file).inserted else { continue }
+                let name = localizedAppName(at: e, preferredLanguages: languages) ?? file
+                // Helpers in CoreServices share the translated name of the real app ("Kontakte" for both Contacts and
+                // PeopleViewService). The folders are in order, so the real app comes first and stays.
+                if seenNames.insert(name.lowercased()).inserted { out.append(InstalledApp(name: name, fileName: file, url: e)) }
             }
         }
         return out.sorted { $0.name.lowercased() < $1.name.lowercased() }
@@ -200,12 +230,19 @@ final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
 
     private func run(_ item: LauncherItem) {
         hide()
-        if item.kind == .app { LauncherUsage.record(item.title) }
+        if item.kind == .app { LauncherUsage.record(item.plainName ?? item.title) }
         item.run()
     }
 
     private func rank(_ i: LauncherItem, _ score: Int) -> LauncherRank {
-        return LauncherRank(score: score, uses: i.kind == .app ? LauncherUsage.uses(i.title) : 0, kind: i.kind.rawValue, title: i.title)
+        return LauncherRank(score: score, uses: i.kind == .app ? LauncherUsage.uses(i.plainName ?? i.title) : 0, kind: i.kind.rawValue, title: i.title)
+    }
+
+    /// The better of the shown name and the untranslated one.
+    private func score(_ query: String, _ i: LauncherItem) -> Int? {
+        let shown = fuzzyScore(query, i.title)
+        guard let plain = i.plainName, let other = fuzzyScore(query, plain) else { return shown }
+        return max(shown ?? other, other)
     }
 
     // MARK: - Search
@@ -215,7 +252,7 @@ final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
         if q.isEmpty {
             shown = Array(items.sorted { ranksBefore(rank($0, 0), rank($1, 0)) }.prefix(maxRows))
         } else {
-            let scored: [(LauncherItem, Int)] = items.compactMap { i in fuzzyScore(q, i.title).map { (i, $0) } }
+            let scored: [(LauncherItem, Int)] = items.compactMap { i in score(q, i).map { (i, $0) } }
             shown = Array(scored.sorted { ranksBefore(rank($0.0, $0.1), rank($1.0, $1.1)) }.prefix(maxRows).map { $0.0 })
         }
         selected = 0

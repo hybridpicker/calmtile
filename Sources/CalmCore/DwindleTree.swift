@@ -191,6 +191,8 @@ public final class DwindleTree {
                 if !slack.isEmpty { w1 += slackOf(b).width - slackOf(a).width }
                 if ma + mb + gap <= r.width {   // a minimum is only honoured when both sides can have theirs
                     w1 = min(max(w1, ma), r.width - gap - mb)
+                } else if overflowing {         // the first side has its minimum, the second runs past the edge
+                    w1 = min(max(w1, ma), r.width - gap)
                 }
                 let (ra, rb) = DwindleTree.halves(of: r, axis: .horizontal, first: w1, gap: gap)
                 place(a, ra)
@@ -278,6 +280,22 @@ public final class DwindleTree {
     public func toggleSplit(of id: WindowID) {
         guard let p = leaf(of: id)?.parent else { return }
         p.axis = (p.axis == .horizontal) ? .vertical : .horizontal
+    }
+
+    /// Two windows whose minimums fit neither side by side nor stacked were placed side by side anyway, the second one
+    /// running past the screen edge.
+    public var overflowing = false
+
+    /// Two windows side by side with `id` first, the other one allowed past the screen edge. False for any other tree.
+    public func placeSideBySide(first id: WindowID) -> Bool {
+        guard let r = root, let a = r.first, let b = r.second, a.window != nil, b.window != nil else { return false }
+        r.axis = .horizontal
+        if b.window == id {
+            r.first = b
+            r.second = a
+        }
+        overflowing = true
+        return true
     }
 
     /// Flip splits (side by side <-> stacked) until the minimum sizes fit `rect`, changing as few splits as possible.

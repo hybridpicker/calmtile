@@ -864,6 +864,12 @@ final class Controller {
                     guard (retries[id] ?? 0) < 6 else { continue }
                     if let s = settled[id], Windows.framesMatch(actual, s) { continue }
                     retries[id] = (retries[id] ?? 0) + 1
+                } else if let s = settled[id], Windows.framesMatch(actual, s),
+                          abs(actual.minX - want.minX) <= 2, abs(actual.minY - want.minY) <= 2 {
+                    // In its place and smaller than its tile, as it was after our last attempt: it does not grow (Quartet
+                    // stays 1051 x 816). A few tries for a set call that timed out, then no more writes for this plan.
+                    guard (retries[id] ?? 0) < 6 else { continue }
+                    retries[id] = (retries[id] ?? 0) + 1
                 }
             }
             if Log.debug {
@@ -882,9 +888,9 @@ final class Controller {
             // A minimum size larger than the tile would overlap the neighbours: tell the engine, which
             // makes room for it (or floats the window when the workspace cannot hold it).
             if case .frame(let want) = placement, !engine.isFloating(id), engine.tiledFrames().count > 1,
-               let got = settled[id], got.width > want.width + 8 || got.height > want.height + 8 {
+               let got = settled[id], got.width > want.width + 8 || got.height > want.height + 8,
+               engine.noteMinSize(id, want: want.size, got: got.size, natural: { appearedAt[$0] }) {
                 Log.write("minimum size exceeds the tile (\(w.bundleID))")
-                engine.noteMinSize(id, want: want.size, got: got.size, natural: appearedAt[id])
                 applied = [:]
                 requestTick()
                 return
@@ -983,21 +989,22 @@ final class Controller {
     private func launcherItems(appsOnly: Bool = false) -> [LauncherItem] {
         var out = [LauncherItem]()
         if appsOnly { return appItems() }
+        func windowItem(_ id: WindowID, _ w: AXWin, detail: String) -> LauncherItem {
+            let running = NSRunningApplication(processIdentifier: w.pid)
+            let title = Windows.title(of: w.element) ?? ""
+            func label(_ app: String) -> String { return title.isEmpty ? app : "\(app) \u{2013} \(title)" }
+            return LauncherItem(kind: .window, title: label(Apps.name(of: running) ?? w.bundleID), detail: detail,
+                                plainName: running?.localizedName.map(label)) { [weak self] in self?.menuSelect(id) }
+        }
         for n in engine.workspaceNumbers {
             for id in engine.windows(in: n) {
                 guard let w = known[id] else { continue }
-                let app = NSRunningApplication(processIdentifier: w.pid)?.localizedName ?? w.bundleID
-                let title = Windows.title(of: w.element) ?? ""
-                out.append(LauncherItem(kind: .window, title: title.isEmpty ? app : "\(app) \u{2013} \(title)",
-                                        detail: "window \u{00B7} workspace \(n)") { [weak self] in self?.menuSelect(id) })
+                out.append(windowItem(id, w, detail: "window \u{00B7} workspace \(n)"))
             }
         }
         for id in engine.scratchpadWindows {
             guard let w = known[id] else { continue }
-            let app = NSRunningApplication(processIdentifier: w.pid)?.localizedName ?? w.bundleID
-            let title = Windows.title(of: w.element) ?? ""
-            out.append(LauncherItem(kind: .window, title: title.isEmpty ? app : "\(app) \u{2013} \(title)",
-                                    detail: "window \u{00B7} scratchpad") { [weak self] in self?.menuSelect(id) })
+            out.append(windowItem(id, w, detail: "window \u{00B7} scratchpad"))
         }
         out += appItems()
         func act(_ title: String, _ action: Action) {
@@ -1022,7 +1029,7 @@ final class Controller {
 
     private func appItems() -> [LauncherItem] {
         return Apps.installed().map { app in
-            LauncherItem(kind: .app, title: app.name, detail: "application") {
+            LauncherItem(kind: .app, title: app.name, detail: "application", plainName: app.fileName) {
                 NSWorkspace.shared.openApplication(at: app.url, configuration: NSWorkspace.OpenConfiguration())
             }
         }

@@ -18,10 +18,11 @@ again after each build.
 ## Structure
 
 - `Sources/CalmCore` – dwindle tree (`DwindleTree.swift`), workspaces, focus and layout decisions
-  (`Engine.swift`), fuzzy matching and the result order for the launcher (`Fuzzy.swift`), themes, the
-  Spotlight category list. No AppKit.
+  (`Engine.swift`), fuzzy matching and the result order for the launcher (`Fuzzy.swift`), application names
+  in the user's language read from the app's bundle (`AppNames.swift`), themes, the Spotlight category list.
+  No AppKit.
 - `Sources/calmcore-selftest` – the checks `scripts/build.sh` runs before every build (layout, workspaces,
-  focus, scratchpad, minimum sizes, monitors, launcher matching).
+  focus, scratchpad, minimum sizes, monitors, launcher matching, translated application names).
 - `assets` – the logo and the app icon, both written by `swift scripts/make-icon.swift` from one list of
   tiles; run it from the top of the repository after changing them. `scripts/build.sh` copies the icon into
   the app.
@@ -173,6 +174,8 @@ On 4 Nov 2026 (same setup, a test desktop, actions through the command file):
 
 On 5 Nov 2026 (test desktop, TextEdit, native fullscreen entered with `⌃⌘F`): with `exitFullscreen` on, the window's fullscreen Space appeared and was gone again about a second later, the log says `fullscreen left: com.apple.TextEdit`, and the view was back on the test desktop. The exception list (`fullscreenApps`) and `exitFullscreen: false` were not exercised.
 
+On 6 Nov 2026 (the owner by hand, installed build, de-AT): a YouTube video in Chrome goes into fullscreen and calmtile leaves it there, which is the `fullscreenApps` exception, and the launcher shows application names in German. Only Chrome was tried from the list.
+
 On 5 Nov 2026 (second run, test desktop, config `{}` so parked mode, actions through the command file):
 
 - first-steps steps 3 and 4: two `open Terminal` give two tiles with gaps; an empty workspace hides the others (parked at the bottom-right corner), a Terminal opened there fills it; back-and-forth and `move-to-workspace` do what the text says; a third window splits the focused one.
@@ -187,7 +190,7 @@ Not verified yet:
 
 - A window that snaps in parked mode, on a second display, after a resize by hand or beside a second Terminal (self-tests only, the second display and the resize not even there). Terminal beside two apps in desktops mode was measured, see above.
 - The app icon as Finder and System Settings show it: the bundle holds it and names it, nobody has looked at it there.
-- `⌘⌥N` pressed as a real key combination (the action through the command file works, see above), `exitFullscreen: false` and the `fullscreenApps` exception.
+- `⌘⌥N` pressed as a real key combination (the action through the command file works, see above), `exitFullscreen: false`.
 - docs/first-steps.md steps 5 to 9 (focus keys, launcher, config edit, desktops, undo) on a fresh config; steps 1 to 4 were followed (see above).
 - `⌘Space` pressed on the real keyboard (the panel was only opened through the command file).
 - Chrome with several windows, two profiles, Picture-in-Picture and DevTools; Zoom meetings and screen

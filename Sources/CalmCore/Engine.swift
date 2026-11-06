@@ -63,6 +63,8 @@ public final class Engine {
     private var workspaces = [Int: Workspace]()
     /// Minimum sizes apps turned out to insist on (window -> size, 0 = no limit on that axis).
     private var minSizes = [WindowID: CGSize]()
+    /// Windows floating only because the desktop could not hold their minimum (desktops mode), not by the user's choice.
+    private var floatedForRoom = Set<WindowID>()
     /// Windows that cannot be resized but tile anyway (`tileFixedApps`): their tile is exactly this size.
     private var fixedSizes = [WindowID: CGSize]()
     /// What a window that snaps to its own grid really takes of a tile, per tile size.
@@ -180,22 +182,30 @@ public final class Engine {
 
     /// The app could not get as small as its tile. Remember the size it insists on so the neighbours make
     /// room; when even that cannot fit the workspace, it floats at that size instead.
-    /// `natural` is where the app had put the window before it was tiled: a window that ends up floating goes back
+    /// `natural` says where the app had put a window before it was tiled: a window that ends up floating goes back
     /// there instead of keeping the size it was squeezed to (a 720 x 46 strip, measured).
-    public func noteMinSize(_ id: WindowID, want: CGSize, got: CGSize, natural: CGRect? = nil) {
-        guard let n = home[id], n != 0, let ws = workspaces[n], ws.tree.contains(id) else { return }
-        let m = CGSize(width: got.width > want.width + 8 ? got.width : 0, height: got.height > want.height + 8 ? got.height : 0)
-        guard m.width > 0 || m.height > 0 else { return }
+    /// True when the layout changes because of it, so it has to be placed again.
+    @discardableResult
+    public func noteMinSize(_ id: WindowID, want: CGSize, got: CGSize, natural: (WindowID) -> CGRect? = { _ in nil }) -> Bool {
+        guard let n = home[id], n != 0, let ws = workspaces[n], ws.tree.contains(id) else { return false }
+        let tooWide = got.width > want.width + 8, tooHigh = got.height > want.height + 8
+        guard tooWide || tooHigh else { return false }
+        // Only the axis measured here changes. Forgetting the other one made each flip of a split look like it fits, so
+        // two windows that fit in no arrangement swapped between side by side and stacked for good (Quartet and Chrome).
+        let known = minSizes[id] ?? .zero
+        let m = CGSize(width: tooWide ? got.width : known.width, height: tooHigh ? got.height : known.height)
+        // Past the screen edge on purpose, and nothing new about its size: there is nothing to place again.
+        if ws.tree.overflowing, abs(m.width - known.width) <= 8, abs(m.height - known.height) <= 8 { return false }
         minSizes[id] = m
         let area = rect(of: ws), need = ws.tree.minimum(gap: gap)
         if need.width > area.width || need.height > area.height {
             // Without overflow to another workspace (desktops mode) another arrangement of the same windows may hold
             // every minimum: flip splits before giving a window up. With overflow the window moves on instead.
-            if !allowOverflow, ws.tree.rearrangeToFit(in: area, gap: gap) { return }
+            if !allowOverflow, arrangeWithoutFloating(ws) { return true }
             // Cannot sit beside its neighbours without overlapping them: move it to a workspace with room.
-            ws.tree.remove(id)
-            if ws.lastFocused == id { ws.lastFocused = ws.tree.windows.last ?? ws.floating.last }
             if let other = roomyWorkspace(after: ws, needing: m) {
+                ws.tree.remove(id)
+                if ws.lastFocused == id { ws.lastFocused = ws.tree.windows.last ?? ws.floating.last }
                 let target = ensure(other)
                 home[id] = other
                 insertTiled(id, into: target)
@@ -203,11 +213,55 @@ public final class Engine {
                 switchWorkspace(other)
                 focused = id
             } else {
-                minSizes[id] = nil
-                ws.floating.append(id)
-                floatFrames[id] = natural ?? centered(got, on: ws.monitor)
+                // Which window floats: the one asking for the largest share of the desktop, not whichever was measured
+                // last, so the others have the room.
+                let out = ws.tree.windows.filter { fixedSizes[$0] == nil }.max { share($0, of: area) < share($1, of: area) } ?? id
+                let tile = ws.tree.frames(in: area, gap: gap)[out]?.size ?? .zero
+                let least = minSizes[out] ?? .zero
+                ws.tree.remove(out)
+                if ws.lastFocused == out { ws.lastFocused = ws.tree.windows.last ?? ws.floating.last }
+                if allowOverflow { minSizes[out] = nil } else { floatedForRoom.insert(out) }
+                ws.floating.append(out)
+                ws.tree.overflowing = false
+                floatFrames[out] = natural(out) ?? centered(CGSize(width: max(tile.width, least.width),
+                                                                   height: max(tile.height, least.height)), on: ws.monitor)
             }
         }
+        return true
+    }
+
+    /// How much of the desktop a window insists on, along the axis where that is most.
+    private func share(_ w: WindowID, of area: CGRect) -> CGFloat {
+        let s = fixedSizes[w] ?? minSizes[w] ?? .zero
+        return max(s.width / area.width, s.height / area.height)
+    }
+
+    /// Desktops mode, minimums that do not fit the current arrangement: flip splits, or, for two windows that fit in no
+    /// arrangement, keep them side by side without overlapping: the one asking for the largest share of the desktop
+    /// first, the other past the right edge (Quartet of 1051 x 816 and the App Store on 1440 x 900). False when neither
+    /// helps, which leaves the tree as it was.
+    private func arrangeWithoutFloating(_ ws: Workspace) -> Bool {
+        let area = rect(of: ws)
+        if ws.tree.rearrangeToFit(in: area, gap: gap) {
+            ws.tree.overflowing = false
+            return true
+        }
+        let two = ws.tree.windows
+        guard two.count == 2, let large = two.max(by: { share($0, of: area) < share($1, of: area) }) else { return false }
+        return ws.tree.placeSideBySide(first: large)
+    }
+
+    /// A window that floated for lack of room tiles again once two windows can share the desktop. Left floating it would
+    /// stay on top of a neighbour that now has the whole desktop (Quartet over Chrome after the App Store closed).
+    private func rejoinFloated(in ws: Workspace) {
+        guard !allowOverflow, ws.tree.windows.count <= 1,
+              let back = ws.floating.first(where: { floatedForRoom.contains($0) }) else { return }
+        floatedForRoom.remove(back)
+        ws.floating.removeAll { $0 == back }
+        floatFrames[back] = nil
+        insertTiled(back, into: ws)
+        let area = rect(of: ws), need = ws.tree.minimum(gap: gap)
+        if need.width > area.width || need.height > area.height { _ = arrangeWithoutFloating(ws) }
     }
 
     /// The app took a little less than its tile because it snaps to its own grid (Terminal: whole character cells).
@@ -479,6 +533,7 @@ public final class Engine {
         guard let id = focused, let ws = workspaces[currentWorkspace] else { return }
         if let i = ws.floating.firstIndex(of: id) {
             ws.floating.remove(at: i)
+            floatedForRoom.remove(id)
             floatFrames[id] = nil
             insertTiled(id, into: ws)
         } else if let f = tiledFrames()[id] {
@@ -603,5 +658,7 @@ public final class Engine {
         ws.floating.removeAll { $0 == id }
         if ws.fullscreen == id { ws.fullscreen = nil }
         if ws.lastFocused == id { ws.lastFocused = ws.tree.windows.last ?? ws.floating.last }
+        floatedForRoom.remove(id)
+        rejoinFloated(in: ws)
     }
 }

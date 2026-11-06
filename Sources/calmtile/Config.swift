@@ -177,7 +177,16 @@ struct Config {
     /// A managed window that enters macOS's own fullscreen is taken out of it again (and tiled), except for the apps
     /// in `fullscreenApps`. Off: native fullscreen windows are left alone.
     var exitFullscreen = true
-    var fullscreenApps: [String] = ["com.anthropic.claudefordesktop"]
+    /// Browsers and players by default: a video's fullscreen is native fullscreen too, and looks the same as the green
+    /// button from outside, so taking the window out would end every video the moment it starts.
+    var fullscreenApps: [String] = [
+        "com.anthropic.claudefordesktop",
+        "com.apple.Safari", "com.google.Chrome", "com.google.Chrome.canary", "org.chromium.Chromium",
+        "org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition", "org.mozilla.nightly",
+        "com.microsoft.edgemac", "com.brave.Browser", "company.thebrowser.Browser", "com.vivaldi.Vivaldi",
+        "com.operasoftware.Opera",
+        "org.videolan.vlc", "com.colliderli.iina", "com.apple.QuickTimePlayerX", "com.apple.TV",
+    ]
     /// A tile is never split below this size; the new window goes to a workspace with room instead.
     var minTileWidth: CGFloat = 420
     var minTileHeight: CGFloat = 280
