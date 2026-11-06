@@ -22,6 +22,8 @@ again after each build.
   Spotlight category list. No AppKit.
 - `Sources/calmcore-selftest` – the checks `scripts/build.sh` runs before every build (layout, workspaces,
   focus, scratchpad, minimum sizes, monitors, launcher matching).
+- `assets` – the logo and the app icon, both written by `scripts/make-icon.swift` from one list of tiles.
+  `scripts/build.sh` copies the icon into the app.
 - `Sources/calmtile` – the app: `Windows.swift` (Accessibility: the listing with its per-app memory of
   the last answers, timeouts and back-off, window frames from the window server), `Hotkeys.swift` (event tap on its own
   thread), `Controller.swift` (the loop that reconciles windows, applies the plan, handles actions, menu bar,

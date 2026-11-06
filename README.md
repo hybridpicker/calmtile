@@ -1,3 +1,5 @@
+<img src="assets/logo.svg" alt="" width="96">
+
 # calmtile
 
 A keyboard-driven tiling window manager for macOS: Hyprland's dwindle layout, workspaces on `⌘1…9`, and an

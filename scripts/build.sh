@@ -32,7 +32,8 @@ swiftc "${SWIFTFLAGS[@]}" -module-cache-path "$WORK/mc" -o "$WORK/test/selftest"
 echo "== app"
 for f in Sources/calmtile/*.swift; do strip_import "$f" "$WORK/app/$(basename "$f")"; done
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+cp assets/calmtile.icns "$APP/Contents/Resources/"
 swiftc "${SWIFTFLAGS[@]}" -module-cache-path "$WORK/mc" -o "$APP/Contents/MacOS/calmtile" Sources/CalmCore/*.swift "$WORK/app"/*.swift
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
@@ -43,6 +44,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIdentifier</key><string>local.calmtile</string>
   <key>CFBundleName</key><string>calmtile</string>
   <key>CFBundleExecutable</key><string>calmtile</string>
+  <key>CFBundleIconFile</key><string>calmtile</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>LSUIElement</key><true/>

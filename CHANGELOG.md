@@ -47,5 +47,6 @@ for what has been verified live and what has not (`⌘⌥N` only through the act
   debug log).
 
 **Tooling**
+- A logo and app icon, drawn from one list of tiles by `scripts/make-icon.swift`.
 - `scripts/build.sh` (self-test, build, sign), CI on macOS 15, test aids (`--post-key`, `--post-drag`,
   `--dump-windows`, the command file, `scripts/matrix.sh`), `scripts/check-docs.sh` (links, anchors, config keys and switches against the docs), a manual, first steps and the desktops notes.
