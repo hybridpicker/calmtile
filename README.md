@@ -7,6 +7,8 @@ app launcher on `⌘Space`.
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-lightgrey)
 
+![Word, Chrome and Terminal tiled side by side on one desktop](docs/screenshots/tiling.png)
+
 ## Why calmtile
 
 New windows split the focused one and closed windows give their space back, so you stop pushing windows
@@ -37,6 +39,8 @@ A personal daily driver, young, with rough edges:
 - **Scratchpad** and a drop-down terminal.
 - **Per-app rules.** Float, ignore, pass keys through, float by window title. Only standard windows are
   managed; dialogs, sheets and system prompts are left alone.
+
+![The applications launcher over tiled windows, with a query that matches Terminal](docs/screenshots/launcher.png)
 
 ## Install
 

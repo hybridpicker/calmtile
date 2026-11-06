@@ -84,17 +84,22 @@ not trusted and gets nothing.
 
 ## Screenshots
 
-`scripts/screenshots.sh` stages three neutral windows on the current workspace (TextEdit with sample text,
-Terminal with a calendar, Preview with a system wallpaper), captures `docs/screenshots/tiling.png`, opens the
-`⌘Space` launcher with a query and captures `docs/screenshots/launcher.png`, then closes what it opened.
-macOS asks for Screen Recording for the app that runs it the first time (Terminal, or the app that hosts
-your shell) and once for permission to control Terminal.
+`scripts/screenshots.sh` stages three windows on the current workspace (Word with a sample document, Chrome
+with the public project page, Terminal with the project's log), captures `docs/screenshots/tiling.png`, opens
+the `⌘Space` launcher with a query and captures `docs/screenshots/launcher.png`, then closes what it opened.
+It needs the network for the page. macOS asks for Screen Recording for the app that runs it the first time
+(Terminal, or the app that hosts your shell) and once for permission to control Terminal.
 
 The capture is the whole screen, so the script keeps everything else out of it. It hides every other app
-(`NSRunningApplication.hide`, no extra permission), minimises the open Terminal windows, restores both on
-exit, and stops without staging anything if TextEdit or Preview already have windows open. The staged
-Terminal window is titled `calmtile` and closed by its id. Look at both pictures before committing them:
-no chat, mail, browser, user name or file name belongs in them.
+(`NSRunningApplication.hide`, no extra permission), your own Chrome included, minimises the open Terminal
+windows, restores both on exit, and stops without staging anything if Word is running, because Word's start
+window lists recent files. The staged Chrome runs in a throwaway profile in a temporary folder, so it has no
+account, bookmarks or history; the staged Terminal window is titled `calmtile` and closed by its id. The script
+asks the window server before each staged window and each capture, and stops if a window it did not stage is
+still on screen, since a prompt shows the user and machine name and a leftover window takes a tile, or if a
+window's title contains your user name. Word can
+still show the account it is signed in to, and the launcher lists the apps you have installed. Look at both
+pictures before committing them: no chat, mail, account, user name, private app or file name belongs in them.
 
 ## What has been verified live
 
@@ -105,7 +110,8 @@ On macOS 26.5, one 1440 × 900 display, menu bar and Dock hidden:
 - Real desktops: `⌘1→2→3→1` through the Dock shortcut switches desktops; after each switch the window
   server shows exactly one Space and keeps it; every window stays on its own desktop at its size, no window
   is re-homed, no focus pulls macOS back. Creating a missing desktop with `⌘4`/`⌘5`. Terminal's 724 px
-  snapped width is trimmed to 716 px beside a 720 px neighbour.
+  snapped width is trimmed to 716 px, and its neighbours take what it leaves: in a screenshot of Word, Chrome
+  and Terminal the windows meet with no strip and no overlap, Terminal reaching both screen edges.
 - Window inspection of Calendar, VLC, Terminal, Dashlane, Notes, Mail, Finder, Safari, Preview, Teams, Zoom
   and VS Code.
 - Spotlight preference write and restore (checked with `defaults`).
