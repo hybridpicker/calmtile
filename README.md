@@ -103,8 +103,8 @@ accept a one-person project.
 
 ## Known limits
 
-- Windows are moved after they open (there is no compositor), so a new window is drawn at its own size first.
-  Measured for Terminal: 0.24 to 0.5 s, including macOS's opening animation.
+- Windows are moved after they open (there is no compositor), so an app draws a new window at its own size first.
+  Opened with a calmtile key, Terminal is at its tile 33 ms later, during macOS's opening animation (measured).
 - A window whose minimum size cannot sit beside its neighbours floats, after calmtile has tried flipping
   splits to make room (desktops mode; parked mode moves it to the next workspace). Four large windows on one
   desktop of a 1440 pt wide display are about the limit.

@@ -82,7 +82,7 @@ Default bindings. Every one of them can be changed or removed in the config (sec
 | Keys | Action |
 |---|---|
 | `⌘Return`, `⌃⌥Return` | a new Terminal window on this workspace |
-| `⇧⌘Return` | Google Chrome (a new window when Chrome has none here) |
+| `⇧⌘Return` | a new Google Chrome window on this workspace, every time |
 | `⌘Space` | the launcher restricted to applications (section 5) |
 | `⌃⌥Space` | the full launcher: windows, apps, actions, themes |
 | `⌃⌥⇧Space` | next theme |
@@ -147,9 +147,10 @@ Themes colour the border and the launcher: catppuccin (default), tokyo-night, gr
 everforest, kanagawa, catppuccin-latte. Pick one in the launcher (`Theme: …`) or cycle with `⌃⌥⇧Space`;
 the choice is written to `~/.config/calmtile/theme` and wins over `"theme"` in the config.
 
-**The border** outlines the focused window. It flashes for `borderFlash` seconds (0.6) when the focus moves
-to another window and stays on during a mouse-modifier drag; `"borderFlash": 0` keeps it on all the time,
-`"borderWidth": 0` turns it off. With gaps smaller than the border it is drawn inside the window edge.
+**The border** flashes for `borderFlash` seconds (0.6) around the window a focus key (`⌘←` and so on) moves to.
+Nothing else shows it: not a click, a new window or a desktop switch. `"borderFlash": 0` keeps it on the focused
+window all the time, `"borderWidth": 0` turns it off. With gaps smaller than the border it is drawn inside the
+window edge.
 
 ## 6. Scratchpad
 
@@ -212,7 +213,7 @@ reload, in an alert and in the log (`config: …`); `--print-config` writes the 
 | `theme` | `"catppuccin"` | default theme |
 | `borderColor` | theme accent | `"#rrggbb"` |
 | `borderWidth`, `borderRadius` | 3, 12 | border width and corner radius in points; width 0 = no border |
-| `borderFlash` | 0.6 | seconds the border shows after the focus moves; 0 = always on |
+| `borderFlash` | 0.6 | seconds the border shows after a focus key; 0 = always on |
 | `mouseModifier` | `"cmd-alt"` | modifier for mouse move and resize, `""` = off |
 | `scratchpadApp` | `"Terminal"` | app opened by `⌃⌥Q` on an empty scratchpad |
 | `exitFullscreen` | true | a window that enters macOS's own fullscreen (the green button) leaves it again and is tiled |
@@ -233,7 +234,12 @@ ANSI positions, so a binding means the same key on every layout. A bare key with
 Actions: `workspace N`, `move-to-workspace N`, `focus <left|right|up|down>`, `swap <dir>`, `resize <dir>`,
 `resize-grow`, `resize-shrink`, `toggle-float`, `toggle-fullscreen`, `toggle-split`, `close`,
 `back-and-forth`, `move-workspace-to-monitor`, `scratchpad`, `move-to-scratchpad`, `launcher`,
-`app-launcher`, `theme <name>`, `theme-next`, `reload`, `pause`, `open <App name>`.
+`app-launcher`, `theme <name>`, `theme-next`, `reload`, `pause`, `open <App name>`, `new-window <App name>`.
+
+`new-window` opens a new window of the app on the current workspace on every press and never switches to
+another desktop. A running app is not activated for it: calmtile presses the app's menu item on `⌘N`, which
+in some apps is not a window at all (a new message, a new playlist). `open` goes to a window the app already
+has on this workspace and only asks for a new one when it has none here. Terminal always gets a new window.
 
 A list given in the config, and `floatTitles`, replaces its default instead of adding to it, so repeat the
 default entries you want to keep (above all the password manager in `passthroughApps`). `bindings` is merged
@@ -291,8 +297,9 @@ Accessibility moves (look for `set ->` codes other than 0 in the debug log).
 the next time.
 
 **Windows flash at their own size before they are tiled.** Expected to a small degree: the app draws its
-first frame before calmtile can move it. New windows are placed from the creation notification to keep it
-short; apps that restore their last frame open in place.
+first frame before calmtile can move it, and there is no way to keep it from being drawn. A window opened
+with a calmtile key is sent to its tile as soon as it exists, so you see at most the start of macOS's
+opening animation; a window opened any other way takes a little longer.
 
 **The focus border is drawn around nothing.** It follows the focused window; if that window is on another
 desktop (desktops mode) it hides. Report it if it stays.

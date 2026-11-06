@@ -595,6 +595,29 @@ do {
     check(best < 0.05, "200 windows in and out with plans take under 50 ms")
 }
 
+// nextTile names the tile the next window gets and leaves the layout as it was
+do {
+    let e = makeEngine()
+    check(e.nextTile() == CGRect(x: 8, y: 8, width: 1904, height: 1064), "next tile on an empty workspace is all of it")
+    e.windowAppeared(1, floating: false)
+    e.windowAppeared(2, floating: false)
+    let before = e.plan()
+    let next = e.nextTile()
+    check(e.plan() == before, "asking for the next tile changes nothing")
+    e.windowAppeared(3, floating: false)
+    check(next == frame(e.plan()[3]), "the next window opens where nextTile said")
+
+    let full = makeEngine()
+    full.windowAppeared(1, floating: false)
+    full.toggleFullscreen()
+    check(full.nextTile() == nil, "no next tile under a window in fullscreen")
+
+    let parked = makeEngine()
+    parked.minTile = CGSize(width: 2000, height: 2000)
+    parked.windowAppeared(1, floating: false)
+    check(parked.nextTile() == nil, "no next tile when the window would overflow to another workspace")
+}
+
 if failures == 0 {
     print("OK - \(checks) checks passed")
 } else {

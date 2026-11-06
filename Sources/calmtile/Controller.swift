@@ -31,7 +31,7 @@ final class Controller {
     private var pendingWorkspace: Int?
     /// Secure Keyboard Entry is on somewhere: no hotkey can arrive (shown in the menu bar, logged once).
     private var secureInput = false
-    /// Window the outline was last flashed for; with `borderFlash` it hides itself after that time.
+    /// Window the outline is showing for; with `borderFlash` it hides itself after that time.
     private var borderShownFor: WindowID?
     private var borderTimer: Timer?
     /// When the current desktop last changed (desktops mode): the Accessibility window list lags behind for a moment.
@@ -126,6 +126,13 @@ final class Controller {
                                                object: nil, queue: .main) { [weak self] _ in self?.monitorsDirty = true }
         // A desktop switch (ours, a swipe, Mission Control): the outline belongs to the desktop just left, so it goes
         // at once instead of lingering until the next tick; the newly focused window flashes afterwards.
+        // A starting app draws its first window long before the next look at it would find it.
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didLaunchApplicationNotification,
+                                                          object: nil, queue: .main) { [weak self] note in
+            guard let self = self, let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                  app.processIdentifier != self.myPid, !self.config.ignoreApps.contains(app.bundleIdentifier ?? "") else { return }
+            self.expectWindow(of: app.processIdentifier, for: 10)
+        }
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
                                                           object: nil, queue: .main) { [weak self] _ in
             self?.hideBorder()
@@ -213,7 +220,7 @@ final class Controller {
         var live = Set<pid_t>()
         for app in Windows.regularApps() where app.processIdentifier != myPid {
             live.insert(app.processIdentifier)
-            observe(pid: app.processIdentifier)
+            if opening[app.processIdentifier] == nil { observe(pid: app.processIdentifier) }
         }
         for pid in Array(observers.keys) where !live.contains(pid) {
             if let o = observers[pid] { CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(o), .commonModes) }
@@ -291,6 +298,14 @@ final class Controller {
         appearedAt[w.id] = frame
         engine.windowAppeared(w.id, floating: float, frame: float ? frame : nil, workspace: desktop,
                               fixedSize: fixed && !float ? frame?.size : nil)
+        if let t = pendingScratch {
+            if Date().timeIntervalSince(t) > 5 {
+                pendingScratch = nil
+            } else if NSRunningApplication(processIdentifier: w.pid)?.localizedName == config.scratchpadApp {
+                engine.moveToScratchpad(w.id, show: true)
+                pendingScratch = nil
+            }
+        }
         return float
     }
 
@@ -299,16 +314,85 @@ final class Controller {
     /// The tick afterwards finds it known and only confirms the placement.
     private func windowCreated(_ element: AXUIElement) {
         guard !paused, !overview, !creatingDesktop else { return }
-        guard let w = Windows.standardWindow(element, ignoring: config.ignoreApps) else {
+        var pid: pid_t = 0
+        AXUIElementGetPid(element, &pid)
+        guard Windows.answers(element) else { windowCreatedBusy(element, pid: pid); return }
+        guard let w = Windows.openedWindow(element, ignoring: config.ignoreApps) else {
             if Log.debug { Log.write("created element not managed (yet): \(Windows.describe(element))") }
             return
         }
         guard known[w.id] == nil else { return }
+        arrived(w)
+    }
+
+    /// The app that just created a window cannot say yet what it is (Terminal, measured). When the window was asked
+    /// for by a key it is the window asked for: it gets its tile now, unseen, and is taken over once the app answers.
+    /// Any other window is left alone until then, as it may be a dialog.
+    private func windowCreatedBusy(_ element: AXUIElement, pid: pid_t) {
+        guard var o = opening[pid] else { expectWindow(of: pid, for: 1); return }
+        guard o.asked, !o.placed, pendingScratch == nil, let tile = engine.nextTile(),
+              let app = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier,
+              !config.floatApps.contains(app) else { return }
+        o.placed = true
+        opening[pid] = o
+        Windows.sendFrame(element, tile)
+        if Log.debug { Log.write("created window of \(app), which does not answer yet: sent its tile \(tile)") }
+    }
+
+    /// A new window, known now: into the engine, onto its tile, and focused when it was asked for by a key.
+    private func arrived(_ w: AXWin) {
         let desktop: Int? = config.useSpaces ? (Spaces.number(ofWindow: w.id) ?? engine.currentWorkspace) : nil
         let float = appear(w, on: desktop)
         known[w.id] = w
         if Log.debug { Log.write("created win \(w.id) \(w.bundleID) float=\(float): placed at once") }
         applyPlan()
+        if opening.removeValue(forKey: w.pid)?.asked == true {
+            lastAction = CACurrentMediaTime()
+            focusEngineChoice()
+        }
+        updateBorder()
+    }
+
+    // MARK: - Windows being opened
+
+    /// An app about to show a window: it was asked to by a key (`asked`), it just launched, or it created one but does
+    /// not answer yet. An app answers late around that moment, and a call that runs into the usual timeout makes calmtile
+    /// leave it alone for a while, which kept a new Terminal at its own frame for 600 ms and a starting Font Book for
+    /// 820 ms (measured). So until the window is there nothing else asks that app: no listing, no focus read, no
+    /// notification registration. Instead the window server is watched every 20 ms and the app is asked with a short
+    /// timeout as soon as it shows a new window.
+    private struct Opening {
+        var until: CFTimeInterval
+        var asked: Bool
+        var placed = false   // its tile was sent to the window already
+    }
+    private var opening = [pid_t: Opening]()
+    private var openingTimer: Timer?
+
+    private func expectWindow(of pid: pid_t, for seconds: TimeInterval, asked: Bool = false) {
+        opening[pid] = Opening(until: CACurrentMediaTime() + seconds, asked: asked || opening[pid]?.asked == true)
+        guard openingTimer == nil else { return }
+        let t = Timer(timeInterval: 0.02, repeats: true) { [weak self] _ in self?.watchOpening() }
+        RunLoop.main.add(t, forMode: .common)
+        openingTimer = t
+    }
+
+    private func watchOpening() {
+        let now = CACurrentMediaTime()
+        opening = opening.filter { $0.value.until > now }
+        if opening.isEmpty {
+            openingTimer?.invalidate()
+            openingTimer = nil
+            return
+        }
+        guard !paused, !overview, !creatingDesktop, !removingDesktop, !screenLockedOrSaver else { return }
+        let shown = Windows.onscreen().byPid
+        for pid in Array(opening.keys) {
+            let fresh = Set((shown[pid] ?? []).filter { known[$0] == nil })
+            guard !fresh.isEmpty, let app = NSRunningApplication(processIdentifier: pid), app.activationPolicy == .regular,
+                  let windows = Windows.openedWindows(fresh, pid: pid, bundleID: app.bundleIdentifier ?? "?") else { continue }
+            for w in windows { arrived(w) }
+        }
     }
 
     /// Known windows whose element reported its own destruction since the last tick.
@@ -432,6 +516,7 @@ final class Controller {
         let changed = changedApps
         changedApps.removeAll()
         let all = Date() < listAllUntil
+        let waiting = Set(opening.keys)
         let front = NSWorkspace.shared.frontmostApplication.map {
             Windows.AppRef(pid: $0.processIdentifier, bundleID: $0.bundleIdentifier ?? "?")
         }
@@ -440,8 +525,8 @@ final class Controller {
         Profile.suspendTick()
         listQueue.async { [weak self] in
             let t0 = CACurrentMediaTime()
-            let listing = Windows.list(apps: apps, changed: changed, all: all)
-            let focused = front.flatMap { Windows.focusedWindowID(of: $0) }
+            let listing = Windows.list(apps: apps, changed: changed, all: all, waiting: waiting)
+            let focused = front.flatMap { waiting.contains($0.pid) ? nil : Windows.focusedWindowID(of: $0) }
             let dt = CACurrentMediaTime() - t0
             DispatchQueue.main.async {
                 self?.finishTick(listing, focused: focused, notified: !changed.isEmpty, listTime: dt)
@@ -494,17 +579,7 @@ final class Controller {
                 if settled, reportedDesktop[w.id] == d { relocateKnown(w.id, to: d, from: home) }
             }
             reportedDesktop[w.id] = desktop
-            if known[w.id] == nil {
-                appear(w, on: desktop)
-                if let t = pendingScratch {
-                    if Date().timeIntervalSince(t) > 5 {
-                        pendingScratch = nil
-                    } else if NSRunningApplication(processIdentifier: w.pid)?.localizedName == config.scratchpadApp {
-                        engine.moveToScratchpad(w.id, show: true)
-                        pendingScratch = nil
-                    }
-                }
-            }
+            if known[w.id] == nil { appear(w, on: desktop) }
             if Log.debug, known[w.id] == nil {
                 Log.write("new win \(w.id) \(w.bundleID) resizable=\(w.resizable) float=\(engine.isFloating(w.id)) frame=\(Windows.frame(of: w.element).map { "\($0)" } ?? "?")")
             }
@@ -690,11 +765,13 @@ final class Controller {
         }
     }
 
-    /// Outline the focused window, unless it is parked, fullscreen-native, or gone. With `borderFlash` the outline
-    /// only flashes when the focus moves to another window (and stays on while a mouse drag is in progress).
+    /// Outline the focused window, unless it is parked, fullscreen-native, or gone. With `borderFlash` only while a
+    /// focus key's flash lasts (`flashBorder`), and only around the window it was for; otherwise all the time.
     private func updateBorder() {
         guard let id = engine.focused, let w = known[id] else { hideBorder(); return }
+        if config.borderFlash > 0, borderShownFor != id { hideBorder(); return }
         if case .hidden? = applied[id] { hideBorder(); return }
+        if nativeDrag == id { hideBorder(); return }   // a tick behind the window, and it has no tile right now
         if config.useSpaces {
             // Desktops mode: the window's frame can still be read while it sits on another desktop; no outline then.
             // While the Dock animates a switch the window server still reports the old desktop, so the new window's
@@ -702,23 +779,28 @@ final class Controller {
             if let n = Spaces.number(ofWindow: id), n != engine.currentWorkspace { hideBorder(); return }
             if Spaces.activeNumber() != engine.currentWorkspace { hideBorder(); return }
         }
-        guard let f = (drag == nil ? currentFrame(id, w) : Windows.frame(of: w.element)) else { hideBorder(); return }
-        if config.borderFlash > 0 {
-            if id == borderShownFor && drag == nil {
-                if border.isVisible { border.show(around: f) }   // follow the window while the flash lasts
-                return
-            }
-            borderShownFor = id
-            borderTimer?.invalidate()
-            let t = Timer(timeInterval: config.borderFlash, repeats: false) { [weak self] _ in self?.border.hide() }
-            RunLoop.main.add(t, forMode: .common)
-            borderTimer = t
-            if Log.debug { Log.write("border flash \(id)") }
+        guard let f = (drag == nil ? currentFrame(id, w) : Windows.frame(of: w.element)) else {
+            // An app that does not answer for a moment says nothing about its window: no flicker for that.
+            if borderShownFor != id { hideBorder() }
+            return
         }
+        borderShownFor = id
         border.show(around: f)
     }
 
-    /// Hide the outline; the focused window flashes again when it next qualifies.
+    /// A focus key moved the focus: the outline shows where it went, for `borderFlash` seconds from the last key.
+    private func flashBorder() {
+        guard config.borderFlash > 0, let id = engine.focused else { updateBorder(); return }
+        borderShownFor = id
+        borderTimer?.invalidate()
+        let t = Timer(timeInterval: config.borderFlash, repeats: false) { [weak self] _ in self?.hideBorder() }
+        RunLoop.main.add(t, forMode: .common)
+        borderTimer = t
+        if Log.debug { Log.write("border flash \(id)") }
+        updateBorder()
+    }
+
+    /// Hide the outline.
     private func hideBorder() {
         borderShownFor = nil
         borderTimer?.invalidate()
@@ -849,29 +931,51 @@ final class Controller {
         Log.write("theme \(t.name)")
     }
 
-    /// `open -a` on a running app only activates it; its windows may all sit on other workspaces
-    /// (parked off screen), so nothing would appear here. In that case ask the app for a new window.
-    /// Returns true when handled.
-    private func openInCurrentWorkspace(_ name: String) -> Bool {
-        guard name != "Terminal",   // Terminal gets a fresh window from `open` already
-              let running = NSWorkspace.shared.runningApplications.first(where: {
-                  $0.activationPolicy == .regular && !$0.isTerminated && ($0.localizedName == name || $0.bundleIdentifier == name)
-              }) else { return false }
-        let here = engine.windows(in: engine.currentWorkspace)
-        if here.contains(where: { known[$0]?.pid == running.processIdentifier }) { return false }
+    private func runningApp(_ name: String) -> NSRunningApplication? {
+        return NSWorkspace.shared.runningApplications.first {
+            $0.activationPolicy == .regular && !$0.isTerminated && ($0.localizedName == name || $0.bundleIdentifier == name)
+        }
+    }
+
+    /// `open <App>`: to a window of the app on this workspace, otherwise a new one here. Activating a running app could
+    /// switch to the desktop of its windows, also when one of them is here but another one was used last.
+    private func openApp(_ name: String) {
+        guard name != "Terminal", let running = runningApp(name) else { openNewWindow(name); return }
+        let here = engine.windows(in: engine.currentWorkspace).filter { known[$0]?.pid == running.processIdentifier }
+        guard let id = here.first(where: { $0 == engine.focused }) ?? here.first else { openNewWindow(name); return }
+        engine.setFocused(id)
+        focusEngineChoice()
+        updateBorder()
+    }
+
+    /// `new-window <App>`: a new window on this workspace, every time, without going near the app's other windows.
+    /// Not activated until the window is there (`arrived`), since that could switch to the desktop of those.
+    private func openNewWindow(_ name: String) {
+        guard let running = runningApp(name) else { launch(["-a", name] + (name == "Terminal" ? [NSHomeDirectory()] : []), name); return }
         let pid = running.processIdentifier
-        running.activate(options: [])   // `.activateIgnoringOtherApps` has no effect since macOS 14 (deprecated)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            // Cmd+N (key code 45) straight to the app: File > New Window in Chrome, Safari, Finder, ...
-            let src = CGEventSource(stateID: .hidSystemState)
-            for down in [true, false] {
-                let e = CGEvent(keyboardEventSource: src, virtualKey: 45, keyDown: down)
-                e?.flags = .maskCommand
-                e?.postToPid(pid)
+        expectWindow(of: pid, for: 3, asked: true)
+        if name == "Terminal" {   // Terminal gets a new window when it is handed a folder
+            launch(["-g", "-a", name, NSHomeDirectory()], name)
+            return
+        }
+        DispatchQueue.global(qos: .userInteractive).async { [weak self] in
+            if Windows.pressNewWindow(pid: pid) { return }
+            DispatchQueue.main.async {
+                Log.write("new window of \(name): no menu item on ⌘N, activating it instead")
+                self?.launch(["-a", name], name)
             }
         }
-        Log.write("open \(name): no window on workspace \(engine.currentWorkspace), requesting a new one")
-        return true
+    }
+
+    private func launch(_ arguments: [String], _ name: String) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        p.arguments = arguments
+        // A binding with a misspelt app name did nothing and said nothing: `open` fails with a status instead.
+        p.terminationHandler = { proc in
+            if proc.terminationStatus != 0 { Log.write("open \(name): no application of that name (open exited with \(proc.terminationStatus))") }
+        }
+        do { try p.run() } catch { Log.write("open \(name): could not run /usr/bin/open") }
     }
 
     // MARK: - Launcher
@@ -1147,26 +1251,32 @@ final class Controller {
             // No neighbour that way: hand the key back (e.g. ⌘← still moves the text cursor).
             guard engine.focus(d) else { return false }
             focusEngineChoice()
-            updateBorder()
+            flashBorder()
         case .swap(let d):
             engine.swap(d)
             applyPlan()
+            updateBorder()
         case .resize(let d):
             engine.resize(d)
             applyPlan()
+            updateBorder()
         case .resizeSmart(let grow):
             engine.resizeSmart(grow: grow)
             applyPlan()
+            updateBorder()
         case .toggleFloat:
             engine.toggleFloating()
             applyPlan()
+            updateBorder()
         case .toggleFullscreen:
             engine.toggleFullscreen()
             applyPlan()
             focusEngineChoice()
+            updateBorder()
         case .toggleSplit:
             engine.toggleSplit()
             applyPlan()
+            updateBorder()
         case .close:
             if let id = engine.focused, let w = known[id] { Windows.close(w) }
         case .moveWorkspaceToMonitor:
@@ -1179,23 +1289,16 @@ final class Controller {
         case .reload:
             reload()
         case .open(let app):
-            if openInCurrentWorkspace(app) { break }
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-            // Terminal only gets a new window when it is handed a folder.
-            p.arguments = app == "Terminal" ? ["-a", app, NSHomeDirectory()] : ["-a", app]
-            // A binding with a misspelt app name did nothing and said nothing: `open` fails with a status instead.
-            p.terminationHandler = { proc in
-                if proc.terminationStatus != 0 { Log.write("open \(app): no application of that name (open exited with \(proc.terminationStatus))") }
-            }
-            do { try p.run() } catch { Log.write("open \(app): could not run /usr/bin/open") }
+            openApp(app)
+        case .newWindow(let app):
+            openNewWindow(app)
         case .scratchpad:
             if engine.toggleScratchpad() {
                 applyPlan()
                 focusEngineChoice()
             } else {
                 pendingScratch = Date()
-                return perform(.open(config.scratchpadApp))
+                return perform(.newWindow(config.scratchpadApp))
             }
         case .moveToScratchpad:
             engine.moveFocusedToScratchpad()

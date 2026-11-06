@@ -21,7 +21,8 @@ final class BorderOverlay {
         window.hasShadow = false
         window.ignoresMouseEvents = true
         window.level = .floating
-        window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+        // Transient, not stationary: an outline that stays on must not hang in the air over Mission Control.
+        window.collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle]
         let view = NSView()
         view.wantsLayer = true
         shape.fillColor = nil

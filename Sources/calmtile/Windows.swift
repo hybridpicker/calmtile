@@ -224,13 +224,15 @@ enum Windows {
 
     /// The listing itself; safe to run off the main thread, but on one thread at a time (its memory of the last
     /// answers is not shared).
-    static func list(apps: [AppRef], changed: Set<pid_t>, all: Bool) -> Listing {
+    /// `waiting`: apps opening a window right now, which are not asked (see `Controller.opening`).
+    static func list(apps: [AppRef], changed: Set<pid_t>, all: Bool, waiting: Set<pid_t> = []) -> Listing {
         var out = [AXWin]()
         let (onscreen, frames) = Windows.onscreen()
         let now = CACurrentMediaTime()
         for app in apps {
             let pid = app.pid
             let shown = onscreen[pid] ?? []
+            if waiting.contains(pid) { out += lastListed[pid] ?? []; continue }
             if !changed.contains(pid), let last = lastListed[pid], listedOnscreen[pid] == shown,
                !(all && !(shown.isEmpty && last.isEmpty)),
                now - (listedAt[pid] ?? 0) < (shown.isEmpty && last.isEmpty ? 10 : 3) {
@@ -288,7 +290,8 @@ enum Windows {
         var wid = CGWindowID(0)
         guard call(w, { _AXUIElementGetWindow(w, &wid) }) == .success, wid != 0 else { return nil }
         var settable = DarwinBoolean(false)
-        _ = call(w) { AXUIElementIsAttributeSettable(w, kAXSizeAttribute as CFString, &settable) }
+        // No answer says nothing about the window: taken for "cannot be resized" it would float for good.
+        guard call(w, { AXUIElementIsAttributeSettable(w, kAXSizeAttribute as CFString, &settable) }) != .cannotComplete else { return nil }
         // Transient popups and system alerts claim to be standard windows but have no window
         // buttons and cannot be resized: leave them completely alone (never tile, park or move).
         if !settable.boolValue, (attr(w, kAXCloseButtonAttribute) as AXUIElement?) == nil,
@@ -296,10 +299,84 @@ enum Windows {
         return AXWin(id: wid, element: w, pid: pid, bundleID: bundleID, resizable: settable.boolValue)
     }
 
-    /// Neither a close nor a minimize button: a panel shown as a window of its own (two round trips).
+    /// Neither a close nor a minimize button: a panel shown as a window of its own (two round trips). An app too busy
+    /// to answer has not said so.
     static func hasNoWindowButtons(_ el: AXUIElement) -> Bool {
-        return (attr(el, kAXCloseButtonAttribute) as AXUIElement?) == nil
-            && (attr(el, kAXMinimizeButtonAttribute) as AXUIElement?) == nil
+        for name in [kAXCloseButtonAttribute, kAXMinimizeButtonAttribute] {
+            var ref: CFTypeRef?
+            let err = call(el) { AXUIElementCopyAttributeValue(el, name as CFString, &ref) }
+            if err == .cannotComplete || (err == .success && ref != nil) { return false }
+        }
+        return true
+    }
+
+    // MARK: Windows being opened
+
+    /// Longest wait for one answer from an app that is opening a window. Measured with Terminal: it does not answer
+    /// for about 200 ms after the creation notification, until just before it draws the window. Too short to count
+    /// as a stall (`call`), so asking every few milliseconds does not make it leave the app alone.
+    private static let openingTimeout: Float = 0.02
+
+    private static func opening<T>(_ el: AXUIElement, _ work: () -> T) -> T {
+        AXUIElementSetMessagingTimeout(el, openingTimeout)
+        defer { AXUIElementSetMessagingTimeout(el, 0) }   // 0: back to the default of `setDefaultTimeout`
+        return work()
+    }
+
+    /// False while the element's app is too busy to answer.
+    static func answers(_ el: AXUIElement) -> Bool {
+        return opening(el) {
+            var ref: CFTypeRef?
+            return call(el) { AXUIElementCopyAttributeValue(el, kAXRoleAttribute as CFString, &ref) } != .cannotComplete
+        }
+    }
+
+    /// `standardWindow` under the short timeout.
+    static func openedWindow(_ el: AXUIElement, ignoring ignored: [String]) -> AXWin? {
+        return opening(el) { standardWindow(el, ignoring: ignored) }
+    }
+
+    /// The managed windows among `ids` of an app that is opening one; nil while it is too busy to answer.
+    static func openedWindows(_ ids: Set<WindowID>, pid: pid_t, bundleID: String) -> [AXWin]? {
+        let ax = AXUIElementCreateApplication(pid)
+        enableAccessibility(ax, pid: pid)
+        guard let wins: [AXUIElement] = opening(ax, { attr(ax, kAXWindowsAttribute) }) else { return nil }
+        return wins.compactMap { w -> AXWin? in
+            opening(w) {
+                var wid = CGWindowID(0)
+                guard call(w, { _AXUIElementGetWindow(w, &wid) }) == .success, ids.contains(wid) else { return nil }
+                return classify(w, pid: pid, bundleID: bundleID)
+            }
+        }
+    }
+
+    /// Give a window its frame while its app is too busy to answer. The requests time out here but still reach the app,
+    /// which carries them out when it gets to them, about when it draws the window (measured with Terminal: at its
+    /// tile within 50 ms of the first frame, during macOS's opening animation, against 600 ms when waiting for an answer).
+    static func sendFrame(_ el: AXUIElement, _ r: CGRect) {
+        opening(el) { setFrame(el, r) }
+    }
+
+    /// Press the menu item on ⌘N (File > New Window in Chrome, Safari, Finder, ...) without activating the app. Activating
+    /// it first made macOS switch to the desktop of its windows, and a ⌘N key event sent to an inactive Chrome does
+    /// nothing (measured). False when the app has no such item.
+    static func pressNewWindow(pid: pid_t) -> Bool {
+        let app = AXUIElementCreateApplication(pid)
+        enableAccessibility(app, pid: pid)
+        guard let bar: AXUIElement = attr(app, kAXMenuBarAttribute),
+              let tops: [AXUIElement] = attr(bar, kAXChildrenAttribute) else { return false }
+        for top in tops.dropFirst().prefix(3) {   // past the Apple menu: the app's, File and the next one
+            guard let menus: [AXUIElement] = attr(top, kAXChildrenAttribute), let menu = menus.first,
+                  let items: [AXUIElement] = attr(menu, kAXChildrenAttribute) else { continue }
+            for item in items {
+                let key: String? = attr(item, kAXMenuItemCmdCharAttribute)
+                let mods: Int? = attr(item, kAXMenuItemCmdModifiersAttribute)   // 0: ⌘ alone
+                if key == "N", mods == 0 {
+                    return call(item) { AXUIElementPerformAction(item, kAXPressAction as CFString) } == .success
+                }
+            }
+        }
+        return false
     }
 
     /// A window element straight from an Accessibility notification, if it is one calmtile manages (regular app,

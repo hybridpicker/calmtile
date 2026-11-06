@@ -104,6 +104,16 @@ public final class Engine {
         return ws.tree.frames(in: rect(of: ws), gap: gap)
     }
 
+    /// Where the next tiled window would go on the current workspace, without adding one; nil when it would not
+    /// tile there (no room in parked mode, or a window in fullscreen covers the workspace).
+    public func nextTile() -> CGRect? {
+        guard let ws = workspaces[currentWorkspace], ws.fullscreen == nil, !allowOverflow || fits(into: ws) else { return nil }
+        let probe = WindowID.max
+        insertTiled(probe, into: ws)
+        defer { ws.tree.remove(probe) }
+        return ws.tree.frames(in: rect(of: ws), gap: gap)[probe]
+    }
+
     // MARK: - Events from the platform
 
     public func setMonitors(_ new: [Monitor]) {

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- The focus border flashes only when a focus key (`⌘←` and so on) moves the focus, not on every focus change;
+  `"borderFlash": 0` keeps it on all the time.
+- New windows reach their tile right away: Terminal 33 ms after its first frame instead of 600 ms, Chrome before it
+  is visible, a starting app about 150 ms after its first frame instead of about 800 ms.
+- New action `new-window <App>`, the default on `⇧⌘Return`: a new window on this workspace on every press.
+- `open` and `new-window` no longer switch to the desktop of an app's other windows.
+- An app too busy to answer no longer makes a new window float for good.
+
 ## 0.1.0 – 2026-11-06
 
 The first version. Built and tested on macOS 26 with one display; see [docs/development.md](docs/development.md)

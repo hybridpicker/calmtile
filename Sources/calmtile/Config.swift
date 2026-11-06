@@ -43,6 +43,7 @@ enum Action {
     case reload
     case togglePause
     case open(String)
+    case newWindow(String)
     case launcher
     case appLauncher
     case scratchpad
@@ -77,6 +78,7 @@ enum Action {
         case "theme": return arg.isEmpty ? nil : .theme(arg)
         case "theme-next": return .themeNext
         case "open": return arg.isEmpty ? nil : .open(arg)
+        case "new-window": return arg.isEmpty ? nil : .newWindow(arg)
         default: return nil
         }
     }
@@ -157,7 +159,8 @@ struct Config {
     /// Outline around the focused window; borderWidth 0 turns it off.
     var borderWidth: CGFloat = 3
     var borderRadius: CGFloat = 12
-    /// Seconds the outline flashes when the focus moves to another window; 0 keeps it on all the time.
+    /// Seconds the outline shows when a focus key (⌘← and so on) moves the focus; nothing else shows it.
+    /// 0: it stays on the focused window all the time instead.
     var borderFlash: Double = 0.6
     /// nil: use the theme's accent colour.
     var borderColor: String?
@@ -220,7 +223,7 @@ struct Config {
         b["ctrl-alt-r"] = "reload"
         b["ctrl-alt-p"] = "pause"
         b["cmd-return"] = "open Terminal"
-        b["cmd-shift-return"] = "open Google Chrome"
+        b["cmd-shift-return"] = "new-window Google Chrome"
         b["ctrl-alt-return"] = "open Terminal"
         b["ctrl-alt-space"] = "launcher"
         b["cmd-space"] = "app-launcher"   // own Spotlight: applications only (takes ⌘Space from Spotlight)

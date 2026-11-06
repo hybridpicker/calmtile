@@ -158,9 +158,18 @@ On 4 Nov 2026 (same setup, a test desktop, actions through the command file):
 - A config with a misspelt key or a wrong type: reported at launch in the log (`config: …`). The alert uses the
   same call as on reload; nobody looked at it on screen in this run.
 - `scripts/matrix.sh` with 0, 1, 2 and 5 windows: no problem line.
-- A new window is drawn at its own size before it is placed: measured from the window server every 10 ms,
-  a new Terminal shows for 0.24-0.5 s at its own frame (including macOS's 0.23 s opening animation) and is
-  then placed by the tick; the creation notification comes while Terminal is still too busy to answer.
+- A new window is drawn at its own size before it is placed. Measured from the window server every 3 ms on
+  6 Nov 2026: a new Terminal stood at its own frame for about 600 ms before the change (`open Terminal`, Terminal
+  active), and reaches the tile's position 33 ms after its first frame now, during macOS's opening animation, with
+  the neighbour placed in the same moment. A new Chrome window (`new-window`, 1440 x 900 by itself) is at its tile
+  before it turns visible (alpha 0). A cold launch took 820 ms from the first frame to the tile (Font Book, before),
+  now 150 ms (Dictionary; not the same app, since Font Book by then restored its tile from its own saved frame).
+- `new-window Google Chrome` and `open Terminal` from a desktop where the app has no window: the new window opens on
+  that desktop and it stays the active one; two presses give two windows; the scratchpad still catches its window;
+  a misspelt app name is logged.
+- The border: a `focus` action shows it for 0.6 s; another one within that time moves it without a gap. It did not
+  show for a new window, for closing one or for a desktop switch. A real click and `"borderFlash": 0` were not run on
+  this build. With the border on, it shrinks with the desktop in Mission Control (1 x 1 while open) and comes back.
 
 On 5 Nov 2026 (test desktop, TextEdit, native fullscreen entered with `⌃⌘F`): with `exitFullscreen` on, the window's fullscreen Space appeared and was gone again about a second later, the log says `fullscreen left: com.apple.TextEdit`, and the view was back on the test desktop. The exception list (`fullscreenApps`) and `exitFullscreen: false` were not exercised.
 

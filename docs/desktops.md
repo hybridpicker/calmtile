@@ -75,9 +75,14 @@ and, when one of them was focused, pull macOS straight back to it.
 ## Tiling on a desktop
 
 - A new window is tiled from the "window created" notification, with the element the notification
-  carries, instead of on the next tick: the frame is set while the window is still appearing. That cannot
-  remove the flicker entirely, since the app draws its first frame itself; apps that restore their last
-  frame open at their tile anyway.
+  carries, instead of on the next tick. An app that is too busy to answer (Terminal, about 200 ms) is not
+  asked again the usual way: a window asked for by a key gets its tile unanswered, the app carries that out
+  when it gets to it, and the window server is watched every 20 ms until the app answers. The same watch runs
+  for 10 s after an app launches. That cannot remove the flicker entirely, since the app draws its first
+  frame itself; apps that restore their last frame open at their tile anyway.
+- `new-window` and `open` never activate a running app before its new window exists: activating it makes
+  macOS switch to the desktop of its windows, and the new window then opened there. The ⌘N menu item is pressed
+  through Accessibility instead; a ⌘N key event sent to an inactive Chrome does nothing (measured).
 - Windows always tile on their desktop, however small the tiles get (Hyprland): calmtile cannot move windows
   between Spaces (the private call has no effect on macOS 26.5, verified), so `minTileWidth`/`minTileHeight`
   only apply without `useSpaces`. Only a window whose own minimum size cannot sit beside its neighbours
