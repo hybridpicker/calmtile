@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 – unreleased
+## 0.1.0 – 2026-11-06
 
 The first version. Built and tested on macOS 26 with one display; see [docs/development.md](docs/development.md)
 for what has been verified live and what has not (`⌘⌥N` only through the action, not the key combination).
@@ -31,7 +31,7 @@ for what has been verified live and what has not (`⌘⌥N` only through the act
 
 **Window rules**
 - A window that enters macOS's own fullscreen is taken out of it and tiled (`exitFullscreen`, exceptions in
-  `fullscreenApps`). Not measured live yet.
+  `fullscreenApps`). Measured once on a test desktop; `exitFullscreen: false` and `fullscreenApps` not yet.
 - Only standard windows are managed; dialogs, sheets, popovers, panels without window buttons and system
   prompts float or are left alone. Per-app `floatApps`, `floatTitles`, `ignoreApps`, `passthroughApps`
   (a password manager by default).
