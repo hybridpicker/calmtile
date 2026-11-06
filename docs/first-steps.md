@@ -38,13 +38,13 @@ If the alert comes back, the permission did not apply: check that the entry in t
 ## 3. Watch two windows tile (1 minute)
 
 Press `⌘Return`. A Terminal window opens and fills the screen minus the gaps. Press `⌘Return` again: the
-first window moves to the left half, the new one takes the right half, with a coloured outline around the
-focused one that fades after a moment.
+first window moves to the left half, the new one takes the right half. The coloured outline appears only when a focus key moves the focus (step 5),
+not for a new window.
 
 Open a third app of your choice. It splits the focused window: if that window was wider than tall, side by
 side; if taller, stacked. Close one window (`⌃⌥W`): the window it was split from takes the space back.
 
-If a window appears and stays at its own size without an outline: it is not a standard window (a dialog or
+If a window appears and stays at its own size: it is not a standard window (a dialog or
 a panel) or its app refuses to be resized; see the manual, section 7. If nothing moves at all: tiling is
 paused (`▦ ⏸`, press `⌃⌥P`) or the permission is missing.
 
@@ -64,7 +64,7 @@ windows out while it is open). If you would rather have real macOS desktops per 
 
 ## 5. Move the focus without the mouse (1 minute)
 
-With two or three windows on a workspace press `⌘←`, `⌘→`, `⌘↑`, `⌘↓`. The outline jumps to the neighbour in
+With two or three windows on a workspace press `⌘←`, `⌘→`, `⌘↑`, `⌘↓`. The outline flashes around the neighbour in
 that direction. `⌃⌥⇧→` swaps the focused window with its right neighbour; `⌃⌥⌘→` moves the divider to the
 right; `⌃⌥S` turns a side-by-side split into a stacked one and back.
 
