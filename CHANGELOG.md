@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- New `"disableFourFingerGestures": true`: the trackpad's four-finger gestures are off while calmtile runs and come back
+  on quit or pause (backup in `~/.config/calmtile/gestures-backup.plist`). Off by default.
+- New `"backdrop": true`: a theme-coloured layer under the tiled windows (only the area they cover, only while the
+  desktop has some), so the rounded window corners macOS draws show a dark seam instead of the wallpaper. Off by default.
 - A video in fullscreen stays in fullscreen: browsers and video players are now in `fullscreenApps` by default.
   calmtile took them out of it like any other window, so YouTube left fullscreen right after entering it.
 - The focus border flashes only when a focus key (`⌘←` and so on) moves the focus, not on every focus change;

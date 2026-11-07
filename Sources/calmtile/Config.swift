@@ -159,6 +159,9 @@ struct Config {
     /// Outline around the focused window; borderWidth 0 turns it off.
     var borderWidth: CGFloat = 3
     var borderRadius: CGFloat = 12
+    /// A layer in the theme's background colour under all windows: macOS's rounded window corners then show a dark
+    /// seam instead of the wallpaper.
+    var backdrop = false
     /// Seconds the outline shows when a focus key (⌘← and so on) moves the focus; nothing else shows it.
     /// 0: it stays on the focused window all the time instead.
     var borderFlash: Double = 0.6
@@ -192,6 +195,8 @@ struct Config {
     var minTileHeight: CGFloat = 280
     /// Spotlight lists applications only while calmtile runs (original categories restored on quit/pause).
     var spotlightAppsOnly = false
+    /// The trackpad's four-finger gestures are off while calmtile runs (original values restored on quit/pause).
+    var disableFourFingerGestures = false
     var bindings: [String: String] = Config.defaultBindings
 
     static var defaultBindings: [String: String] = {
@@ -254,7 +259,7 @@ struct Config {
         let list: ((Any) -> Bool, String) = ({ $0 is [String] }, "a list of strings")
         var t = [String: ((Any) -> Bool, String)]()
         for k in ["gap", "outerGap", "mainWorkspaces", "minTileWidth", "minTileHeight", "borderWidth", "borderRadius", "borderFlash"] { t[k] = number }
-        for k in ["useSpaces", "removeEmptyDesktops", "spotlightAppsOnly", "exitFullscreen"] { t[k] = flag }
+        for k in ["useSpaces", "removeEmptyDesktops", "spotlightAppsOnly", "disableFourFingerGestures", "exitFullscreen", "backdrop"] { t[k] = flag }
         for k in ["borderColor", "theme", "scratchpadApp", "mouseModifier"] { t[k] = text }
         for k in ["floatApps", "tileFixedApps", "ignoreApps", "passthroughApps", "fullscreenApps"] { t[k] = list }
         t["floatTitles"] = ({ $0 is [String: [String]] }, "an object of lists of strings")
@@ -281,6 +286,7 @@ struct Config {
             if let v = obj["minTileWidth"] as? Double { cfg.minTileWidth = CGFloat(v) }
             if let v = obj["minTileHeight"] as? Double { cfg.minTileHeight = CGFloat(v) }
             if let v = obj["useSpaces"] as? Bool { cfg.useSpaces = v }
+            if let v = obj["backdrop"] as? Bool { cfg.backdrop = v }
             if let v = obj["removeEmptyDesktops"] as? Bool { cfg.removeEmptyDesktops = v }
             if let v = obj["gap"] as? Double { cfg.gap = CGFloat(v) }
             if let v = obj["outerGap"] as? Double { cfg.outerGap = CGFloat(v) }
@@ -298,6 +304,7 @@ struct Config {
                 if !v.isEmpty && parseMods(v) == nil { problems.append("unknown mouseModifier: \(v)") } else { cfg.mouseModifier = v }
             }
             if let v = obj["spotlightAppsOnly"] as? Bool { cfg.spotlightAppsOnly = v }
+            if let v = obj["disableFourFingerGestures"] as? Bool { cfg.disableFourFingerGestures = v }
             if let v = obj["exitFullscreen"] as? Bool { cfg.exitFullscreen = v }
             if let v = obj["fullscreenApps"] as? [String] { cfg.fullscreenApps = v }
             if let v = obj["mainWorkspaces"] as? Int { cfg.mainWorkspaces = v }
@@ -331,8 +338,8 @@ struct Config {
         var obj: [String: Any] = [
             "mouseModifier": mouseModifier, "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces, "useSpaces": useSpaces, "removeEmptyDesktops": removeEmptyDesktops,
             "minTileWidth": Double(minTileWidth), "minTileHeight": Double(minTileHeight),
-            "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "borderFlash": borderFlash, "theme": theme, "scratchpadApp": scratchpadApp,
-            "spotlightAppsOnly": spotlightAppsOnly, "exitFullscreen": exitFullscreen, "fullscreenApps": fullscreenApps, "floatApps": floatApps, "tileFixedApps": tileFixedApps, "floatTitles": floatTitles, "ignoreApps": ignoreApps, "passthroughApps": passthroughApps, "bindings": bindings,
+            "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "borderFlash": borderFlash, "backdrop": backdrop, "theme": theme, "scratchpadApp": scratchpadApp,
+            "spotlightAppsOnly": spotlightAppsOnly, "disableFourFingerGestures": disableFourFingerGestures, "exitFullscreen": exitFullscreen, "fullscreenApps": fullscreenApps, "floatApps": floatApps, "tileFixedApps": tileFixedApps, "floatTitles": floatTitles, "ignoreApps": ignoreApps, "passthroughApps": passthroughApps, "bindings": bindings,
         ]
         if let c = borderColor { obj["borderColor"] = c }
         let data = (try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])) ?? Data()

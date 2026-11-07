@@ -223,6 +223,8 @@ reload, in an alert and in the log (`config: …`); `--print-config` writes the 
 | `borderColor` | theme accent | `"#rrggbb"` |
 | `borderWidth`, `borderRadius` | 3, 12 | border width and corner radius in points; width 0 = no border |
 | `borderFlash` | 0.6 | seconds the border shows after a focus key; 0 = always on |
+| `backdrop` | false | a layer in the theme's background colour under the tiled windows, only while the desktop has some: macOS's rounded window corners then show a dark seam, not the wallpaper (the radius itself cannot be changed) |
+| `disableFourFingerGestures` | false | the trackpad's four-finger gestures (swipe between desktops, Mission Control, App Exposé, pinch) are off while calmtile runs; three-finger gestures stay. A system setting: the original values are saved in `~/.config/calmtile/gestures-backup.plist` and put back on quit or pause (`calmtile --restore-gestures` does it by hand) |
 | `mouseModifier` | `"cmd-alt"` | modifier for mouse move and resize, `""` = off |
 | `scratchpadApp` | `"Terminal"` | app opened by `⌃⌥Q` on an empty scratchpad |
 | `exitFullscreen` | true | a window that enters macOS's own fullscreen (the green button) leaves it again and is tiled |

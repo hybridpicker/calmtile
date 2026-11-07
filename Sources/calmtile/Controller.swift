@@ -7,6 +7,7 @@ final class Controller {
     private let engine: Engine
     private let hotkeys = HotkeyTap()
     private let border = BorderOverlay()
+    private let backdrop = BackdropOverlay()
     private let launcher = Launcher()
     private var theme = Theme.all[0]
     private var known = [WindowID: AXWin]()
@@ -107,6 +108,7 @@ final class Controller {
         }
         setUpMenu()
         updateSpotlight()
+        updateGestures()
         installTerminationHandlers()
         launcher.provider = { [weak self] appsOnly in self?.launcherItems(appsOnly: appsOnly) ?? [] }
         Apps.refresh()   // warm the application list before the first ⌘Space
@@ -200,6 +202,7 @@ final class Controller {
         applyConfig()
         spotlightOn = config.spotlightAppsOnly
         updateSpotlight()
+        updateGestures()
         monitorsDirty = true
         applied = [:]
         reportConfigProblems(problems)
@@ -635,6 +638,7 @@ final class Controller {
         // 4. apply what changed
         timed("placing windows", limit: 1.0) { Profile.phase("place") { applyPlan() } }
         Profile.phase("border") { updateBorder() }
+        updateBackdrop()
         updateStatus()
         // Nothing happened: no notification, the same windows, nothing placed, no button held. After a few seconds
         // of that, tick once a second until something does.
@@ -762,6 +766,16 @@ final class Controller {
             applied[id] = nil
             retries[id] = 0
             Log.write("title-bar drag released")
+        }
+    }
+
+    /// The layer under the tiles (`backdrop`): only while this desktop has tiled windows, and as large as they are.
+    private func updateBackdrop() {
+        let frames = Array(engine.tiledFrames().values)
+        if config.backdrop, let first = frames.first, !(config.useSpaces && Spaces.activeNumber() != engine.currentWorkspace) {
+            backdrop.show(over: frames.dropFirst().reduce(first) { $0.union($1) })
+        } else {
+            backdrop.hide()
         }
     }
 
@@ -926,6 +940,8 @@ final class Controller {
         theme = saved.flatMap { Theme.named($0) } ?? Theme.named(config.theme) ?? Theme.all[0]
         border.color = NSColor(hex: config.borderColor ?? theme.accent) ?? .systemBlue
         launcher.theme = theme
+        backdrop.color = NSColor(hex: theme.background) ?? .black
+        updateBackdrop()
     }
 
     private func setTheme(_ name: String) {
@@ -1425,6 +1441,7 @@ final class Controller {
     private func togglePaused() {
         paused.toggle()
         updateSpotlight()
+        updateGestures()
         updateStatus()
     }
 
@@ -1433,6 +1450,11 @@ final class Controller {
     /// Spotlight is restricted only while tiling is active and the mode is on.
     private func updateSpotlight() {
         if spotlightOn && !paused { SpotlightMode.enableAppsOnly() } else { SpotlightMode.restore() }
+    }
+
+    /// Four-finger gestures are off only while tiling is active and `disableFourFingerGestures` is on.
+    private func updateGestures() {
+        if config.disableFourFingerGestures && !paused { FourFingerGestures.disable() } else { FourFingerGestures.restore() }
     }
 
     fileprivate func menuToggleSpotlight() {
@@ -1446,12 +1468,13 @@ final class Controller {
         for sig in [SIGTERM, SIGINT, SIGHUP] {
             signal(sig, SIG_IGN)
             let src = DispatchSource.makeSignalSource(signal: sig, queue: .main)
-            src.setEventHandler { SpotlightMode.restore(); exit(0) }
+            src.setEventHandler { SpotlightMode.restore(); FourFingerGestures.restore(); exit(0) }
             src.resume()
             signalSources.append(src)
         }
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
             SpotlightMode.restore()
+            FourFingerGestures.restore()
         }
     }
 
