@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- The bar no longer slides out with the desktop being left (the strip was black for the length of the switch): it
+  lives in a layer of the window server that desktop switches do not move, as SketchyBar's does, and is taken away
+  while a full-screen app's Space is shown.
+- After a desktop switch, windows are no longer placed again when only the window server's snapshot, taken while the
+  windows still slide, disagrees: Accessibility decides. A Terminal jumped by a row twice on every switch.
+- Desktops mode: the backdrop goes away at the start of a desktop switch and comes back after it, instead of showing
+  as a flash (white with `"backdropColor": "#ffffff"`) over a desktop without windows.
+- A Terminal in a tile whose height is no whole number of rows (874 pt below the bar) no longer jumps up and down
+  by a row on every tick and after each desktop switch: a window up to one large cell (32 pt) smaller than its tile
+  counts as snapped, as the layout already assumed.
 - New `"bar": true`: a fixed bar along the top of the main display as in Omarchy, black with white text
   (`barBackground`, `barForeground`, `barHeight`): workspaces 1–5 on the left (click to switch), day and time in the
   middle, battery on the right. The tiles start below it. It covers the menu bar that macOS slides in at the top edge

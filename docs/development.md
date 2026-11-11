@@ -178,7 +178,18 @@ On 10 Nov 2026 (one display, desktops mode, menu bar hidden), measured from the 
   window below it starts at y = 26. With Mission Control open (`open -a "Mission Control"`, its windows on layers
   18 and 20) the bar is gone, closed again it is back at the same frame.
 - `"desktops": 5`: 63 bindings instead of 71 (`⌘6…9` and `⌘⌥6…9` not taken).
-- Not checked: that the bar no longer blinks during a desktop switch, a click on a workspace number, the battery
+- Terminal below the bar (tile 874 pt high, rows of 19 pt): before the fix the debug log shows each of two
+  Terminal windows placed again on every tick, 881 then trimmed to 862 pt, six times after the start. The fix
+  is not yet checked live: at the next start the Terminals were on another desktop. Switching back to them
+  then showed both placed twice again (881, 862): the window server's snapshot during the slide read
+  (3, 28, 1430, 858) for a window Accessibility had at (0, 26, 1436, 862). Fixed by asking Accessibility when the
+  two disagree; not yet checked live either (the screen was locked).
+- The bar during a desktop switch, from the window server every 3 ms: as a window on every desktop
+  (`canJoinAllSpaces`, also with `.stationary`) it slid out with the desktop being left (x from 0 to -1504 in
+  0.4 s) and was back at 0 afterwards, the strip black meanwhile. Moved into a window-server layer of its own
+  (`SLSSpaceCreate`, `SLSSpaceAddWindowsAndRemoveFromSpaces`) it stays: confirmed by eye by the owner. The bar
+  over a full-screen app's Space (hidden by calmtile) was not checked.
+- Not checked: a click on a workspace number, the battery
   text, the menu bar staying behind the bar when the pointer touches the top edge.
 
 On 5 Nov 2026 (test desktop, TextEdit, native fullscreen entered with `⌃⌘F`): with `exitFullscreen` on, the window's fullscreen Space appeared and was gone again about a second later, the log says `fullscreen left: com.apple.TextEdit`, and the view was back on the test desktop. The exception list (`fullscreenApps`) and `exitFullscreen: false` were not exercised.

@@ -475,11 +475,16 @@ enum Windows {
             && abs(a.width - b.width) <= d && abs(a.height - b.height) <= d
     }
 
-    /// True when a window sits at the tile's corner and is only a few pixels off in size, which is what snapping to
-    /// a grid does. A snapped window does not move by itself, so a different position still has to be placed.
+    /// True when a window sits at the tile's corner and is off in size by less than one grid cell, which is what
+    /// snapping to a grid does: up to 8 px larger (the overshoot `trimOvershoot` takes back), or up to one large cell
+    /// (32 px, as `Engine.noteFit`) smaller. A Terminal row is 19 px: in the 874 px tile below the bar it took 881 and,
+    /// trimmed, 862, and with the old 8 px limit it was placed again on every tick (881, 862, 881, ...), six times
+    /// and again after each desktop switch, the text jumping up and down as if scrolled (measured 11 Nov 2026).
+    /// A snapped window does not move by itself, so a different position still has to be placed.
     static func snapped(_ a: CGRect, into want: CGRect) -> Bool {
+        let dw = want.width - a.width, dh = want.height - a.height
         return abs(a.minX - want.minX) <= 1 && abs(a.minY - want.minY) <= 1
-            && abs(a.width - want.width) <= 8 && abs(a.height - want.height) <= 8
+            && dw >= -8 && dw <= 32 && dh >= -8 && dh <= 32
     }
 
     static func setFrame(_ el: AXUIElement, _ r: CGRect) {

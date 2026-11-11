@@ -170,6 +170,13 @@ enum Spaces {
         return number(of: s.active, in: l)
     }
 
+    /// A full-screen app's Space is active (macOS's own fullscreen, a video in a browser), not a normal desktop.
+    static func fullscreenSpaceActive() -> Bool {
+        let s = snapshot()
+        guard let l = s.current else { return false }
+        return !l.spaces.contains(s.active)
+    }
+
     /// Desktops the window server currently shows ("current" set). After a switch it must hold exactly one per
     /// display; two mean the desktop just left is still being drawn.
     static func shownSpaces() -> [UInt64] {

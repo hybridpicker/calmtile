@@ -1,6 +1,47 @@
 import AppKit
 import IOKit.ps
 
+/// A layer of the window server's own that no desktop switch moves, as SketchyBar and JankyBorders use: a window
+/// on every desktop (`canJoinAllSpaces`) slides out with the desktop being left and a copy slides in with the next
+/// one, even when stationary (measured on macOS 26: x from 0 to -1504 in 0.4 s, the strip black meanwhile). A window
+/// moved into this layer stays where it is. Private SkyLight calls, looked up at run time: without them the bar
+/// keeps the old behaviour.
+private enum FixedLayer {
+    private typealias MainConnection = @convention(c) () -> Int32
+    private typealias SpaceCreate = @convention(c) (Int32, Int32, Int32) -> UInt64
+    private typealias SetLevel = @convention(c) (Int32, UInt64, Int32) -> Int32
+    private typealias ShowSpaces = @convention(c) (Int32, CFArray) -> Int32
+    private typealias AddWindows = @convention(c) (Int32, UInt64, CFArray, Int32) -> Int32
+
+    private static let skyLight = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY)
+    private static func symbol<T>(_ name: String, as: T.Type) -> T? {
+        guard let lib = skyLight, let p = dlsym(lib, name) else { return nil }
+        return unsafeBitCast(p, to: T.self)
+    }
+    private static let addWindows = symbol("SLSSpaceAddWindowsAndRemoveFromSpaces", as: AddWindows.self)
+
+    /// The layer, created once; nil when a call is missing.
+    private static let space: (cid: Int32, sid: UInt64)? = {
+        guard let main = symbol("SLSMainConnectionID", as: MainConnection.self),
+              let create = symbol("SLSSpaceCreate", as: SpaceCreate.self),
+              let level = symbol("SLSSpaceSetAbsoluteLevel", as: SetLevel.self),
+              let show = symbol("SLSShowSpaces", as: ShowSpaces.self), addWindows != nil else { return nil }
+        let cid = main()
+        let sid = create(cid, 1, 0)
+        guard sid != 0 else { return nil }
+        _ = level(cid, sid, 0)
+        _ = show(cid, [NSNumber(value: sid)] as CFArray)
+        return (cid, sid)
+    }()
+
+    /// Moves the window into the layer; false when that is not possible here.
+    @discardableResult
+    static func hold(_ window: NSWindow) -> Bool {
+        guard let s = space, let add = addWindows, window.windowNumber > 0 else { return false }
+        return add(s.cid, s.sid, [NSNumber(value: window.windowNumber)] as CFArray, 0x7) == 0
+    }
+}
+
 /// A fixed bar along the top of the main display (Omarchy's Waybar): the workspaces on the left, day and time in the
 /// middle, the battery on the right. The tiles start below it (`Screens.monitors(barHeight:)`). It is on every
 /// desktop but not over native fullscreen apps, and goes away while Mission Control is open. A click on a workspace number goes
@@ -64,7 +105,7 @@ final class TopBar {
         if let since = overviewSince, Date().timeIntervalSince(since) > 1.5, !Windows.overviewOpen() { overviewSince = nil }
         if overviewSince != nil { if panel.isVisible { panel.orderOut(nil) }; return }
         if panel.frame != r { panel.setFrame(r, display: true) }
-        if !panel.isVisible { panel.orderFrontRegardless() }
+        if !panel.isVisible { order() }
         if clockTimer == nil {
             refreshClock()
             let t = Timer(timeInterval: 5, repeats: true) { [weak self] _ in self?.refreshClock() }
@@ -72,6 +113,16 @@ final class TopBar {
             clockTimer = t
         }
     }
+
+    /// Ordering a window in puts it on the active desktop again, so it goes back into the fixed layer every time.
+    private func order() {
+        panel.orderFrontRegardless()
+        if !FixedLayer.hold(panel), !loggedNoLayer {
+            loggedNoLayer = true
+            Log.write("bar: the fixed layer is not available, the bar slides with the desktops")
+        }
+    }
+    private var loggedNoLayer = false
 
     func hide() {
         wanted = nil
@@ -122,7 +173,7 @@ final class TopBar {
             overviewSince = nil
             if let r = wanted {
                 if panel.frame != r { panel.setFrame(r, display: true) }
-                panel.orderFrontRegardless()
+                order()
             }
         }
     }

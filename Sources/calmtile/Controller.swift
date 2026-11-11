@@ -140,6 +140,7 @@ final class Controller {
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
                                                           object: nil, queue: .main) { [weak self] _ in
             self?.hideBorder()
+            self?.updateBar()   // a full-screen app's Space: the bar goes at once
             self?.listAllUntil = Date().addingTimeInterval(1.5)
             self?.requestTick()
         }
@@ -780,7 +781,11 @@ final class Controller {
 
     /// The bar (`bar`): which workspaces exist, which one is shown, which have windows.
     private func updateBar() {
-        guard config.bar, let frame = Screens.barFrame(height: config.barHeight) else { bar.hide(); return }
+        // In the fixed layer the bar would also cover an app in macOS's own fullscreen (a video), whose Space it is
+        // not part of: it is taken away there.
+        guard config.bar, !Spaces.fullscreenSpaceActive(), let frame = Screens.barFrame(height: config.barHeight) else {
+            bar.hide(); return
+        }
         bar.show(at: frame)
         bar.update(TopBar.State(count: config.workspaceCount, current: engine.currentWorkspace,
                                 occupied: Set((1...9).filter { !engine.windows(in: $0).isEmpty })))
@@ -850,6 +855,16 @@ final class Controller {
             }
             if let d = drag, d.id == id, !d.resize || d.floating { continue }   // the user is placing it by hand
             if nativeDrag == id { continue }
+            // Where the window is, as far as this placement is concerned: the window server's snapshot first (cheap),
+            // and when that disagrees, what Accessibility says. The snapshot can be taken while a desktop switch still
+            // slides the windows: Terminal's read (3, 28, 1430, 858) against its real (0, 26, 1436, 862), and every
+            // window was placed again after each switch, twice (measured 11 Nov 2026): a Terminal jumped by a row
+            // (881, then trimmed to 862) and the backdrop flashed in the strip under it.
+            func fulfils(_ actual: CGRect, _ want: CGRect) -> Bool {
+                return Windows.framesMatch(actual, want, within: 0.5)
+                    || (engine.snapsToGrid(id)
+                        && settled[id].map { Windows.framesMatch(actual, $0) && Windows.snapped($0, into: want) } ?? false)
+            }
             if applied[id] != placement {
                 retries[id] = 0
                 // A new plan the window already fulfils: every window gets one after a desktop switch (which forgets
@@ -857,20 +872,25 @@ final class Controller {
                 // window right when the next key may come (measured: every window on every switch). Recorded instead;
                 // a window that snapped a few pixels inside the same tile counts as fulfilling it, as above. Any other
                 // window has to be placed: it may be the neighbour that takes those few pixels.
-                if case .frame(let want) = placement, let actual = currentFrame(id, w),
-                   Windows.framesMatch(actual, want, within: 0.5)
-                    || (engine.snapsToGrid(id)
-                        && settled[id].map { Windows.framesMatch(actual, $0) && Windows.snapped($0, into: want) } ?? false) {
-                    applied[id] = placement
-                    if settled[id] == nil { settled[id] = actual }
-                    continue
+                if case .frame(let want) = placement, var actual = currentFrame(id, w) {
+                    if !fulfils(actual, want), serverFrames[id] != nil, let ax = Windows.frame(of: w.element) { actual = ax }
+                    if fulfils(actual, want) {
+                        applied[id] = placement
+                        if settled[id] == nil { settled[id] = actual }
+                        continue
+                    }
                 }
             } else {
                 // Same plan as before: only act when the app moved or resized the window itself
                 // (a new window opening, an app restoring its own frame). Give up after a few tries
                 // for apps whose minimum size cannot fit the tile.
                 guard case .frame(let want) = placement, !engine.isFloating(id),
-                      let actual = currentFrame(id, w), !Windows.framesMatch(actual, want) else { continue }
+                      var actual = currentFrame(id, w), !Windows.framesMatch(actual, want) else { continue }
+                if serverFrames[id] != nil, !(settled[id].map { Windows.framesMatch(actual, $0) } ?? false),
+                   let ax = Windows.frame(of: w.element) {
+                    if Windows.framesMatch(ax, want) { continue }
+                    actual = ax
+                }
                 // A window tiled at its own size changed that size by itself: give it a tile of the new size instead of
                 // trying to resize it, which it refuses. Its size is read from the app, which is where it was taken.
                 if let fixed = engine.fixedSize(of: id), let now = Windows.frame(of: w.element)?.size,
@@ -1249,6 +1269,9 @@ final class Controller {
         let left = engine.currentWorkspace
         engine.switchWorkspace(n)
         updateBar()
+        // The backdrop is one layer on every desktop and does not slide with them: left in place during the switch it
+        // showed as a white flash over a desktop without windows. The tick after the switch shows it again.
+        backdrop.hide()
         if left != n { removeIfEmpty(left) }
         switchedAt = Date()
         listAllUntil = switchedAt.addingTimeInterval(1.5)

@@ -133,7 +133,9 @@ the system ("Montag 19:23"). Right: the battery in percent, `+` while it charges
 It shows no window titles.
 
 - The tiles start below the bar; a second display is not affected.
-- It stays put during a desktop switch, on every desktop, but not over an app in macOS's own fullscreen.
+- It stays put during a desktop switch, on every desktop, but not over an app in macOS's own fullscreen. It sits in
+  a layer of the window server that desktop switches do not move (a private call, as SketchyBar uses); where that
+  call is missing it slides with the desktops and the log says so.
 - It goes away while Mission Control or App Exposé is open (the Dock announces both) and comes back after.
 - It lies above the menu bar. With the menu bar set to hide, the menu bar macOS slides in when the pointer
   touches the top edge stays behind the bar, and clicks up there reach the bar. The Apple menu, the status
