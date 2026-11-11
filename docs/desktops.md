@@ -15,6 +15,8 @@ position's number), like the system's `⌃N` shortcuts.
 
 ## A missing workspace is created when you go there
 
+Only up to `desktops` (5 by default, at most 9): above it `⌘N` and `⌘⌥N` are not taken and reach the app.
+
 Hyprland semantics: `⌘N` on a desktop that does not exist opens Mission Control for about a second, presses
 its "add desktop" button and clicks the new desktop, which gets number N whatever its position (`⌘5` with
 desktops 1–3 creates only 5). macOS has no API for this short of disabling SIP; the Dock's Spaces bar is

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- New `"bar": true`: a fixed bar along the top of the main display as in Omarchy, black with white text
+  (`barBackground`, `barForeground`, `barHeight`): workspaces 1–5 on the left (click to switch), day and time in the
+  middle, battery on the right. The tiles start below it. It covers the menu bar that macOS slides in at the top edge
+  when the menu bar is set to hide, and the menu bar itself when it is set to always show; with the latter the desktop
+  icons start below the bar. The launcher has "Quit calmtile" for that reason.
+  It stays put during a desktop switch and goes away while Mission Control or App Exposé is open.
+- Desktops mode has five workspaces by default (`"desktops": 5`, 1 to 9): `⌘6`…`⌘9` and `⌘⌥6`…`⌘⌥9` no longer create
+  a desktop and reach the app instead (a browser's sixth tab), and the launcher lists only 1–5.
+- A new window that replaces one just closed (Terminal) no longer shows up for a moment as a third tile, half as high,
+  beside the other window: windows of the same app that are already closed are dropped first.
+- New `"backdropColor": "#rrggbb"` for the backdrop (default: the theme's background).
 - New `"disableFourFingerGestures": true`: the trackpad's four-finger gestures are off while calmtile runs and come back
   on quit or pause (backup in `~/.config/calmtile/gestures-backup.plist`). Off by default.
 - New `"backdrop": true`: a theme-coloured layer under the tiled windows (only the area they cover, only while the

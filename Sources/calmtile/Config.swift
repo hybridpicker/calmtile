@@ -162,6 +162,14 @@ struct Config {
     /// A layer in the theme's background colour under all windows: macOS's rounded window corners then show a dark
     /// seam instead of the wallpaper.
     var backdrop = false
+    /// nil: use the theme's background colour.
+    var backdropColor: String?
+    /// A fixed bar along the top of the main display (Omarchy's Waybar): workspaces, day and time, battery.
+    /// The tiles start below it.
+    var bar = false
+    var barBackground = "#000000"
+    var barForeground = "#ffffff"
+    var barHeight: CGFloat = 26
     /// Seconds the outline shows when a focus key (⌘← and so on) moves the focus; nothing else shows it.
     /// 0: it stays on the focused window all the time instead.
     var borderFlash: Double = 0.6
@@ -177,6 +185,11 @@ struct Config {
     /// Desktops mode: a desktop left without any window is removed (Hyprland: an empty workspace disappears),
     /// through Mission Control, which shows for about a second. `⌘N` creates it again when needed.
     var removeEmptyDesktops = false
+    /// Desktops mode: only workspaces 1...desktops exist. `⌘N` and `⌘⌥N` above it are not taken, so the key reaches
+    /// the app (⌘6 picks a browser's sixth tab), and no desktop beyond it is created. 1 to 9.
+    var desktops = 5
+    /// The workspaces the keys and the launcher offer: `desktops` in desktops mode, otherwise all nine.
+    var workspaceCount: Int { return useSpaces ? desktops : 9 }
     /// A managed window that enters macOS's own fullscreen is taken out of it again (and tiled), except for the apps
     /// in `fullscreenApps`. Off: native fullscreen windows are left alone.
     var exitFullscreen = true
@@ -258,9 +271,9 @@ struct Config {
         let text: ((Any) -> Bool, String) = ({ $0 is String }, "a string")
         let list: ((Any) -> Bool, String) = ({ $0 is [String] }, "a list of strings")
         var t = [String: ((Any) -> Bool, String)]()
-        for k in ["gap", "outerGap", "mainWorkspaces", "minTileWidth", "minTileHeight", "borderWidth", "borderRadius", "borderFlash"] { t[k] = number }
-        for k in ["useSpaces", "removeEmptyDesktops", "spotlightAppsOnly", "disableFourFingerGestures", "exitFullscreen", "backdrop"] { t[k] = flag }
-        for k in ["borderColor", "theme", "scratchpadApp", "mouseModifier"] { t[k] = text }
+        for k in ["gap", "outerGap", "mainWorkspaces", "desktops", "minTileWidth", "minTileHeight", "borderWidth", "borderRadius", "borderFlash", "barHeight"] { t[k] = number }
+        for k in ["useSpaces", "removeEmptyDesktops", "spotlightAppsOnly", "disableFourFingerGestures", "exitFullscreen", "backdrop", "bar"] { t[k] = flag }
+        for k in ["borderColor", "backdropColor", "barBackground", "barForeground", "theme", "scratchpadApp", "mouseModifier"] { t[k] = text }
         for k in ["floatApps", "tileFixedApps", "ignoreApps", "passthroughApps", "fullscreenApps"] { t[k] = list }
         t["floatTitles"] = ({ $0 is [String: [String]] }, "an object of lists of strings")
         t["bindings"] = ({ $0 is [String: String] }, "an object of strings")
@@ -287,6 +300,14 @@ struct Config {
             if let v = obj["minTileHeight"] as? Double { cfg.minTileHeight = CGFloat(v) }
             if let v = obj["useSpaces"] as? Bool { cfg.useSpaces = v }
             if let v = obj["backdrop"] as? Bool { cfg.backdrop = v }
+            if let v = obj["bar"] as? Bool { cfg.bar = v }
+            for (key, path) in [("barBackground", \Config.barBackground), ("barForeground", \Config.barForeground)] {
+                guard let v = obj[key] as? String else { continue }
+                if NSColor(hex: v) == nil { problems.append("\(key) must look like #rrggbb: \(v)") } else { cfg[keyPath: path] = v }
+            }
+            if let v = obj["barHeight"] as? Double {
+                if (16...60).contains(v) { cfg.barHeight = CGFloat(v) } else { problems.append("barHeight must be 16 to 60: \(v)") }
+            }
             if let v = obj["removeEmptyDesktops"] as? Bool { cfg.removeEmptyDesktops = v }
             if let v = obj["gap"] as? Double { cfg.gap = CGFloat(v) }
             if let v = obj["outerGap"] as? Double { cfg.outerGap = CGFloat(v) }
@@ -295,6 +316,9 @@ struct Config {
             if let v = obj["borderFlash"] as? Double { cfg.borderFlash = max(0, v) }
             if let v = obj["borderColor"] as? String {
                 if NSColor(hex: v) == nil { problems.append("borderColor must look like #rrggbb: \(v)") } else { cfg.borderColor = v }
+            }
+            if let v = obj["backdropColor"] as? String {
+                if NSColor(hex: v) == nil { problems.append("backdropColor must look like #rrggbb: \(v)") } else { cfg.backdropColor = v }
             }
             if let v = obj["scratchpadApp"] as? String, !v.isEmpty { cfg.scratchpadApp = v }
             if let v = obj["theme"] as? String {
@@ -308,6 +332,9 @@ struct Config {
             if let v = obj["exitFullscreen"] as? Bool { cfg.exitFullscreen = v }
             if let v = obj["fullscreenApps"] as? [String] { cfg.fullscreenApps = v }
             if let v = obj["mainWorkspaces"] as? Int { cfg.mainWorkspaces = v }
+            if let v = obj["desktops"] as? Int {
+                if (1...9).contains(v) { cfg.desktops = v } else { problems.append("desktops must be 1 to 9: \(v)") }
+            }
             if let v = obj["floatApps"] as? [String] { cfg.floatApps = v }
             if let v = obj["tileFixedApps"] as? [String] { cfg.tileFixedApps = v }
             if let v = obj["floatTitles"] as? [String: [String]] { cfg.floatTitles = v }
@@ -329,16 +356,21 @@ struct Config {
     func table() -> [KeyCombo: Action] {
         var t = [KeyCombo: Action]()
         for (k, a) in bindings {
-            if let c = parseCombo(k), let act = Action.parse(a) { t[c] = act }
+            guard let c = parseCombo(k), let act = Action.parse(a) else { continue }
+            switch act {
+            case .workspace(let n), .moveToWorkspace(let n): if n > workspaceCount { continue }
+            default: break
+            }
+            t[c] = act
         }
         return t
     }
 
     func json() -> String {
         var obj: [String: Any] = [
-            "mouseModifier": mouseModifier, "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces, "useSpaces": useSpaces, "removeEmptyDesktops": removeEmptyDesktops,
+            "mouseModifier": mouseModifier, "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces, "useSpaces": useSpaces, "removeEmptyDesktops": removeEmptyDesktops, "desktops": desktops,
             "minTileWidth": Double(minTileWidth), "minTileHeight": Double(minTileHeight),
-            "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "borderFlash": borderFlash, "backdrop": backdrop, "theme": theme, "scratchpadApp": scratchpadApp,
+            "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "borderFlash": borderFlash, "backdrop": backdrop, "bar": bar, "barBackground": barBackground, "barForeground": barForeground, "barHeight": Double(barHeight), "theme": theme, "scratchpadApp": scratchpadApp,
             "spotlightAppsOnly": spotlightAppsOnly, "disableFourFingerGestures": disableFourFingerGestures, "exitFullscreen": exitFullscreen, "fullscreenApps": fullscreenApps, "floatApps": floatApps, "tileFixedApps": tileFixedApps, "floatTitles": floatTitles, "ignoreApps": ignoreApps, "passthroughApps": passthroughApps, "bindings": bindings,
         ]
         if let c = borderColor { obj["borderColor"] = c }

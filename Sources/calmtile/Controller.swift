@@ -8,6 +8,7 @@ final class Controller {
     private let hotkeys = HotkeyTap()
     private let border = BorderOverlay()
     private let backdrop = BackdropOverlay()
+    private let bar = TopBar()
     private let launcher = Launcher()
     private var theme = Theme.all[0]
     private var known = [WindowID: AXWin]()
@@ -94,7 +95,7 @@ final class Controller {
         config = cfg
         startProblems = problems
         spotlightOn = cfg.spotlightAppsOnly
-        engine = Engine(monitors: Screens.monitors())
+        engine = Engine(monitors: Screens.monitors(barHeight: cfg.bar ? cfg.barHeight : 0))
         applyConfig()
     }
 
@@ -113,6 +114,7 @@ final class Controller {
         launcher.provider = { [weak self] appsOnly in self?.launcherItems(appsOnly: appsOnly) ?? [] }
         Apps.refresh()   // warm the application list before the first ⌘Space
         launcher.onClose = { [weak self] in self?.focusEngineChoice() }
+        bar.onWorkspace = { [weak self] n in self?.goTo(n) }
         hotkeys.handler = { [weak self] action, late in self?.handle(action, late: late) ?? false }
         hotkeys.mouseHandler = { [weak self] type, p, flags in self?.handleMouse(type, p, flags) ?? false }
         hotkeys.onClick = { [weak self] in
@@ -291,6 +293,12 @@ final class Controller {
     /// (cannot be resized, app in `tileFixedApps`), or tiled.
     @discardableResult
     private func appear(_ w: AXWin, on desktop: Int?) -> Bool {
+        // A window of the same app that is already closed still has its tile until the next listing. A new window
+        // (Terminal replacing the one just closed) was then split off as a third tile, half as high, for a tenth of a
+        // second, and jumped back when the old one was dropped (measured: 720 x 450 beside the other window).
+        for (id, old) in known where id != w.id && old.pid == w.pid && Windows.isGone(old.element) {
+            forget(id)
+        }
         let fixed = !w.resizable && config.tileFixedApps.contains(w.bundleID)
         // A resizable standard window without close and minimize buttons is a panel in a window of its own, such as
         // the open panel TextEdit shows at launch (880 x 448, no buttons, measured): tiled, its minimum width pushed
@@ -488,7 +496,7 @@ final class Controller {
         defer { Spaces.endTick() }
         // The usable area also changes when the menu bar or Dock hide/show setting is switched, which
         // sends no notification, so compare on every tick (cheap) instead of waiting for an event.
-        let monitors = Screens.monitors()
+        let monitors = Screens.monitors(barHeight: config.bar ? config.barHeight : 0)
         if monitorsDirty || monitors != engine.monitors {
             engine.setMonitors(monitors)
             monitorsDirty = false
@@ -639,6 +647,7 @@ final class Controller {
         timed("placing windows", limit: 1.0) { Profile.phase("place") { applyPlan() } }
         Profile.phase("border") { updateBorder() }
         updateBackdrop()
+        updateBar()
         updateStatus()
         // Nothing happened: no notification, the same windows, nothing placed, no button held. After a few seconds
         // of that, tick once a second until something does.
@@ -767,6 +776,14 @@ final class Controller {
             retries[id] = 0
             Log.write("title-bar drag released")
         }
+    }
+
+    /// The bar (`bar`): which workspaces exist, which one is shown, which have windows.
+    private func updateBar() {
+        guard config.bar, let frame = Screens.barFrame(height: config.barHeight) else { bar.hide(); return }
+        bar.show(at: frame)
+        bar.update(TopBar.State(count: config.workspaceCount, current: engine.currentWorkspace,
+                                occupied: Set((1...9).filter { !engine.windows(in: $0).isEmpty })))
     }
 
     /// The layer under the tiles (`backdrop`): only while this desktop has tiled windows, and as large as they are.
@@ -940,8 +957,11 @@ final class Controller {
         theme = saved.flatMap { Theme.named($0) } ?? Theme.named(config.theme) ?? Theme.all[0]
         border.color = NSColor(hex: config.borderColor ?? theme.accent) ?? .systemBlue
         launcher.theme = theme
-        backdrop.color = NSColor(hex: theme.background) ?? .black
+        backdrop.color = NSColor(hex: config.backdropColor ?? theme.background) ?? .black
         updateBackdrop()
+        bar.configure(background: NSColor(hex: config.barBackground) ?? .black,
+                      foreground: NSColor(hex: config.barForeground) ?? .white, height: config.barHeight)
+        updateBar()
     }
 
     private func setTheme(_ name: String) {
@@ -1034,8 +1054,10 @@ final class Controller {
         act("Close window", .close)
         act("Reload config", .reload)
         act("Pause / resume tiling", .togglePause)
+        // The bar covers the menu bar that slides in at the top edge, and with it calmtile's own menu.
+        out.append(LauncherItem(kind: .action, title: "Quit calmtile", detail: "action") { NSApp.terminate(nil) })
         act("Next theme", .themeNext)
-        for n in 1...9 {
+        for n in 1...config.workspaceCount {
             act("Go to workspace \(n)", .workspace(n))
             act("Move window to workspace \(n)", .moveToWorkspace(n))
         }
@@ -1162,7 +1184,7 @@ final class Controller {
     /// has no effect on macOS 26.
     private func moveFocusedToDesktop(_ n: Int) {
         let from = engine.currentWorkspace
-        guard n != from, let id = engine.focused, let w = known[id], let f = Windows.frame(of: w.element) else { return }
+        guard n <= config.workspaceCount, n != from, let id = engine.focused, let w = known[id], let f = Windows.frame(of: w.element) else { return }
         // The system shortcut counts desktops by their position in the Dock's order, not by workspace number.
         guard let position = Spaces.position(of: n), position <= 9 else {
             Log.write("move to desktop \(n): it does not exist yet (go there with the workspace key first)")
@@ -1195,6 +1217,7 @@ final class Controller {
     /// Switch workspace; with `useSpaces` that is the Nth macOS desktop, created on the spot when it does not
     /// exist yet (Hyprland semantics: a workspace exists as soon as you go there).
     private func goTo(_ n: Int) {
+        guard n <= config.workspaceCount else { return }   // `desktops`: no desktop beyond the limit is created
         if removingDesktop { pendingWorkspace = n; return }   // runs when the removal is done
         hideBorder()   // the outline marks a window of the workspace being left
         if config.useSpaces {
@@ -1219,11 +1242,13 @@ final class Controller {
         applyPlan()
         focusEngineChoice()
         updateBorder()
+        updateBar()
     }
 
     private func desktopSwitched(to n: Int, after delay: TimeInterval) {
         let left = engine.currentWorkspace
         engine.switchWorkspace(n)
+        updateBar()
         if left != n { removeIfEmpty(left) }
         switchedAt = Date()
         listAllUntil = switchedAt.addingTimeInterval(1.5)

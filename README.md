@@ -35,7 +35,9 @@ A personal daily driver, young, with rough edges:
 - **Dwindle tiling.** A new window splits the focused one along its longer side. Gaps, a border on the
   focused window, eight themes.
 - **Nine workspaces.** Either *parked* (default: other workspaces are moved off screen, no macOS desktops
-  involved) or real macOS desktops with `"useSpaces": true` ([how](docs/desktops.md)).
+  involved) or real macOS desktops with `"useSpaces": true` ([how](docs/desktops.md)), five of them by default.
+- **A bar at the top** (`"bar": true`), as in Omarchy: workspaces, day and time, battery. The tiles start
+  below it, and it covers the menu bar macOS slides in at the top edge.
 - **Keyboard focus, swap and resize**, and `⌘⌥` + mouse drag to move or resize.
 - **Launchers.** `⌘Space` lists applications only; `⌃⌥Space` lists windows, applications, actions and themes.
 - **Scratchpad** and a drop-down terminal.

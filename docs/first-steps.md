@@ -101,7 +101,8 @@ Create `~/.config/calmtile/config.json`:
 
 Press `⌃⌥R`. The gaps change at once; the border and the launcher take the theme (`⌃⌥⇧Space` cycles the
 others). Add an app to `passthroughApps` when it needs `⌘1…9` for itself, such as a terminal with tabs; while
-it is frontmost calmtile intercepts nothing. `scratchpadApp`, `bindings` and the rest are in the manual.
+it is frontmost calmtile intercepts nothing. `"bar": true` adds a bar along the top as in Omarchy (black,
+workspaces, time, battery). `scratchpadApp`, `bindings` and the rest are in the manual.
 
 If an alert lists problems ("unknown key", "must be a number", "unknown key combination", "unknown
 action"), the config has a typo and those entries were ignored; `⌃⌥R` again after fixing it. The same lines
@@ -110,7 +111,7 @@ are in the log.
 ## 8. Optional: real macOS desktops
 
 Add `"useSpaces": true` to the config and press `⌃⌥R`. For numbers that match the order of the desktops, switch off "Automatically rearrange Spaces based on most recent use" first ([desktops.md](desktops.md#the-slide-animation-and-its-direction)). From now on `⌘N` switches to the Nth desktop, creating
-it if needed, and every desktop keeps its own tiling; swipes and Mission Control keep working. Try `⌘3` with
+it if needed (up to five, `desktops`; `⌘6…9` stay with the app), and every desktop keeps its own tiling; swipes and Mission Control keep working. Try `⌘3` with
 only two desktops: Mission Control opens for a second, a desktop appears, and you are on it.
 
 What changes: windows cannot be moved between desktops by calmtile directly (`⌘⌥N` drags the window with

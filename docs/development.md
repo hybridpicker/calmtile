@@ -172,6 +172,15 @@ On 4 Nov 2026 (same setup, a test desktop, actions through the command file):
   show for a new window, for closing one or for a desktop switch. A real click and `"borderFlash": 0` were not run on
   this build. With the border on, it shrinks with the desktop in Mission Control (1 x 1 while open) and comes back.
 
+On 10 Nov 2026 (one display, desktops mode, menu bar hidden), measured from the window server:
+
+- `"bar": true`: the bar is a window on layer 26 (menu bar 24, status items 25) at 0, 0, 1440 x 26; the tiled
+  window below it starts at y = 26. With Mission Control open (`open -a "Mission Control"`, its windows on layers
+  18 and 20) the bar is gone, closed again it is back at the same frame.
+- `"desktops": 5`: 63 bindings instead of 71 (`⌘6…9` and `⌘⌥6…9` not taken).
+- Not checked: that the bar no longer blinks during a desktop switch, a click on a workspace number, the battery
+  text, the menu bar staying behind the bar when the pointer touches the top edge.
+
 On 5 Nov 2026 (test desktop, TextEdit, native fullscreen entered with `⌃⌘F`): with `exitFullscreen` on, the window's fullscreen Space appeared and was gone again about a second later, the log says `fullscreen left: com.apple.TextEdit`, and the view was back on the test desktop. The exception list (`fullscreenApps`) and `exitFullscreen: false` were not exercised.
 
 On 6 Nov 2026 (the owner by hand, installed build, de-AT): a YouTube video in Chrome goes into fullscreen and calmtile leaves it there, which is the `fullscreenApps` exception, and the launcher shows application names in German. Only Chrome was tried from the list.

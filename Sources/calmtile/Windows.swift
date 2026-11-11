@@ -17,15 +17,31 @@ struct AXWin {
 enum Screens {
     /// Monitors in Accessibility coordinates (origin top-left of the main display, y down),
     /// usable area only (below the menu bar, beside the Dock). Main display first, then left to right.
-    static func monitors() -> [Monitor] {
+    /// `barHeight`: the top of the main display is left to calmtile's bar (`barFrame`).
+    static func monitors(barHeight: CGFloat = 0) -> [Monitor] {
         let all = NSScreen.screens
         guard let main = all.first else { return [] }
         let mainHeight = main.frame.height
+        let barBottom = barHeight > 0 ? barFrame(height: barHeight)?.maxY ?? 0 : 0
         let ordered = [main] + all.dropFirst().sorted { $0.frame.minX < $1.frame.minX }
         return ordered.enumerated().map { (i, s) in
             let v = s.visibleFrame
-            return Monitor(id: i, frame: Monitor.aligned(CGRect(x: v.minX, y: mainHeight - v.maxY, width: v.width, height: v.height)))
+            let y = mainHeight - v.maxY
+            let top = i == 0 ? max(0, barBottom - y) : 0
+            return Monitor(id: i, frame: Monitor.aligned(CGRect(x: v.minX, y: y + top, width: v.width,
+                                                                height: v.height - top)))
         }
+    }
+
+    /// Where the bar goes: the top edge of the main display, over the menu bar. With the menu bar set to always
+    /// show, the bar is at least as high as the menu bar and covers it; macOS still keeps that strip out of the
+    /// usable area, so Finder starts the desktop icons below it. (With the bar below a shown menu bar, or over a
+    /// hidden one, the first row of icons lay under the bar: Finder places them from the top of the usable area
+    /// and nothing tells it to leave room for another window.)
+    static func barFrame(height: CGFloat) -> CGRect? {
+        guard let main = NSScreen.screens.first else { return nil }
+        let menuBar = main.frame.maxY - main.visibleFrame.maxY
+        return CGRect(x: main.frame.minX, y: 0, width: main.frame.width, height: max(height, menuBar))
     }
 }
 

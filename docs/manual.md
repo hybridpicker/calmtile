@@ -12,7 +12,10 @@ your attention on the work in them.
 - **Dwindle layout.** The first window fills the workspace. Each new window splits the focused window along
   its longer side: side by side when it is wider than tall, stacked when it is taller than wide. Closing a
   window hands its space to the sibling it was split from. That is Hyprland's default layout.
-- **Workspaces.** Nine of them, `⌘1…9`. A window belongs to exactly one workspace (or to the scratchpad).
+- **Workspaces.** Nine of them, `⌘1…9`; five in desktops mode (`desktops`), where `⌘6…9` are left to the app.
+  A window belongs to exactly one workspace (or to the scratchpad).
+- **A bar at the top** (`"bar": true`), as in Omarchy: workspaces, day and time, battery, black with white text.
+  The tiles start below it (section 4).
 - **Two ways to run workspaces.** By default all workspaces share one macOS desktop and the windows of
   inactive workspaces are parked just off the bottom-right corner (one pixel stays visible). With
   `"useSpaces": true` every workspace is a real macOS desktop instead; see [desktops.md](desktops.md).
@@ -50,7 +53,7 @@ Default bindings. Every one of them can be changed or removed in the config (sec
 
 | Keys | Action | Example |
 |---|---|---|
-| `⌘1…9` | go to workspace N | `⌘2` shows workspace 2; in desktops mode a missing desktop is created |
+| `⌘1…9` | go to workspace N | `⌘2` shows workspace 2; in desktops mode a missing desktop is created, up to `desktops` (5) |
 | `⌘⌥1…9` | send the focused window to workspace N | `⌘⌥3` moves the window away; you stay where you are |
 | `⌥Tab`, `⌃⌥Tab` | back to the previous workspace | press twice to return |
 | `⌥⇧Tab` | move the current workspace to the next display | parked mode only |
@@ -118,9 +121,30 @@ to its layout position so the overview is readable, and parked again afterwards.
 
 **Desktops mode (`"useSpaces": true`).** Workspace N is a macOS desktop; `⌘N` switches desktops through the
 Dock, a missing desktop is created on the spot, numbers stay with their desktops even when macOS reorders
-them, and windows always tile where they are; with `removeEmptyDesktops` a desktop you leave empty goes
+them, and windows always tile where they are; there are five (`desktops`), so `⌘6`…`⌘9` reach the app; with `removeEmptyDesktops` a desktop you leave empty goes
 away. [desktops.md](desktops.md) has the mechanics and the limits
 (no second display for workspaces 6–9, `⌘⌥N` drags the window with the system shortcut).
+
+**The bar (`"bar": true`).** A strip along the top of the main display, `barHeight` (26) points high, in
+`barBackground` and `barForeground` (black and white, whatever the theme). Left: workspaces 1–5 in desktops
+mode, 1–9 otherwise; the current one is bold and underlined, those with windows are bright, empty ones dim. A
+click on a number goes there and leaves the focus on the window below. Middle: day and time in the language of
+the system ("Montag 19:23"). Right: the battery in percent, `+` while it charges; nothing on a Mac without one.
+It shows no window titles.
+
+- The tiles start below the bar; a second display is not affected.
+- It stays put during a desktop switch, on every desktop, but not over an app in macOS's own fullscreen.
+- It goes away while Mission Control or App Exposé is open (the Dock announces both) and comes back after.
+- It lies above the menu bar. With the menu bar set to hide, the menu bar macOS slides in when the pointer
+  touches the top edge stays behind the bar, and clicks up there reach the bar. The Apple menu, the status
+  items and calmtile's own menu are then out of reach by mouse: the launcher (`⌘Space`) has calmtile's
+  actions, **Quit calmtile** among them. With the menu bar always shown the bar covers it as well, at least as
+  high as the menu bar.
+- Desktop icons: Finder starts its first row of icons at the top of the area macOS leaves free, and
+  nothing can tell it to leave room for the bar. With the menu bar set to hide, that row lies partly under
+  the bar. Set System Settings → Menu Bar → "Automatically hide and show the menu bar" to **Never**: the bar
+  then covers the menu bar and the icons start below it. Nothing else changes, the menu bar was out of reach
+  under the bar already.
 
 **Where a new window goes.** On the current workspace, split from the focused window. In parked mode a
 window that would push a tile below `minTileWidth` × `minTileHeight` (420 × 280 px) opens on the next
@@ -138,7 +162,7 @@ matches, applications you start more often from the launcher come first (counted
 every installed application (`/Applications`, `/System/Applications`, their `Utilities`,
 `/System/Library/CoreServices`, `~/Applications`; a running app is activated, its windows stay where they
 are, so pick the window entry to jump there), and calmtile actions: workspaces, move to workspace, float, fullscreen, flip split, close, scratchpad,
-reload, pause, themes. `↑↓` or `Tab` select, `Return` runs, `Esc` or a click elsewhere closes.
+reload, pause, themes, quit. `↑↓` or `Tab` select, `Return` runs, `Esc` or a click elsewhere closes.
 
 Applications appear in the language of your system settings, as far as the app has a translation of its name
 ("Kalender" on a German Mac); otherwise under their file name. The file name finds them too, so `cal` still
@@ -217,6 +241,7 @@ reload, in an alert and in the log (`config: …`); `--print-config` writes the 
 | `outerGap` | 6 | pixels between the layout and the screen edge |
 | `mainWorkspaces` | 5 | workspaces 1…N on the main display, the rest on a second one (parked mode) |
 | `useSpaces` | false | workspaces are real macOS desktops |
+| `desktops` | 5 | desktops mode: only workspaces 1…N (1–9); `⌘6`…`⌘9` and `⌘⌥6`…`⌘⌥9` above it are left to the app, and no desktop beyond N is created |
 | `removeEmptyDesktops` | false | desktops mode: a desktop left without windows is removed (Mission Control shows for a second) |
 | `minTileWidth`, `minTileHeight` | 420, 280 | smallest tile in parked mode; 0 turns the rule off |
 | `theme` | `"catppuccin"` | default theme |
@@ -225,6 +250,10 @@ reload, in an alert and in the log (`config: …`); `--print-config` writes the 
 | `borderFlash` | 0.6 | seconds the border shows after a focus key; 0 = always on |
 | `backdrop` | false | a layer in the theme's background colour under the tiled windows, only while the desktop has some: macOS's rounded window corners then show a dark seam, not the wallpaper (the radius itself cannot be changed) |
 | `disableFourFingerGestures` | false | the trackpad's four-finger gestures (swipe between desktops, Mission Control, App Exposé, pinch) are off while calmtile runs; three-finger gestures stay. A system setting: the original values are saved in `~/.config/calmtile/gestures-backup.plist` and put back on quit or pause (`calmtile --restore-gestures` does it by hand) |
+| `bar` | false | a fixed bar along the top of the main display, as in Omarchy: workspaces on the left (current one bold and underlined, ones with windows bright, empty ones dim; a click goes there), day and time in the middle, battery on the right. The tiles start below it. Not over native fullscreen apps, hidden in Mission Control. With the menu bar set to hide, the bar covers the menu bar macOS slides in at the top edge, so the Apple menu and the status items (calmtile's too) are no longer reachable there: use the launcher (`⌘Space`) for calmtile's actions, "Quit calmtile" among them |
+| `barBackground`, `barForeground` | `"#000000"`, `"#ffffff"` | the bar's colours (Omarchy's black with white text, whatever the theme) |
+| `barHeight` | 26 | the bar's height in points (16–60); the text scales with it |
+| `backdropColor` | theme background | `"#rrggbb"` for the backdrop; the colour of your windows' title bars (e.g. `"#ffffff"`) makes the rounded corners hard to see |
 | `mouseModifier` | `"cmd-alt"` | modifier for mouse move and resize, `""` = off |
 | `scratchpadApp` | `"Terminal"` | app opened by `⌃⌥Q` on an empty scratchpad |
 | `exitFullscreen` | true | a window that enters macOS's own fullscreen (the green button) leaves it again and is tiled |
@@ -292,6 +321,11 @@ does the job without touching the system.
   Run one.
 - Tiling is paused (`▦ ⏸`): `⌃⌥P` resumes.
 - In desktops mode a desktop is being created: the switch follows within a second.
+- `⌘6…9` in desktops mode: above `desktops` (5) the keys are left to the app on purpose.
+
+**The Apple menu or calmtile's menu cannot be reached.** The bar covers the hidden menu bar (section 4).
+Use the launcher for calmtile's actions, or set `"bar": false` and press `⌃⌥R`. The `🔒` and `▦ ⏸` signs above
+are in that menu bar too.
 
 **A window stays smaller or larger than its tile.** Larger: the app's minimum size, see section 7; the
 neighbours should have made room, and in parked mode the window moves to a workspace with room. A few
@@ -329,7 +363,7 @@ line every 20 ticks (see docs/development.md).
 ## 11. Undo everything
 
 - **Pause:** `⌃⌥P` or the menu item. Windows stay where they are; nothing is intercepted except `⌃⌥P`.
-- **Quit:** the menu item **Quit calmtile** (`⌘Q` in the menu). The Spotlight setting is restored if it was
+- **Quit:** the menu item **Quit calmtile** (`⌘Q` in the menu), or the action of that name in the launcher. The Spotlight setting is restored if it was
   changed. Parked windows stay parked at the corner until you move them; the easiest way is to start
   calmtile again and press `⌘1…9`, or to drag them back.
 - **Login item:** the menu item **Start at login** (`calmtile --uninstall-login`).
