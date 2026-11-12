@@ -33,6 +33,12 @@ enum Screens {
         }
     }
 
+    /// Right and bottom edge of the main display (the whole screen, not the usable area), in Accessibility coordinates.
+    static func physicalEdges() -> (right: CGFloat, bottom: CGFloat) {
+        guard let main = NSScreen.screens.first else { return (0, 0) }
+        return (main.frame.maxX, main.frame.height)
+    }
+
     /// Where the bar goes: the top edge of the main display, over the menu bar. With the menu bar set to always
     /// show, the bar is at least as high as the menu bar and covers it; macOS still keeps that strip out of the
     /// usable area, so Finder starts the desktop icons below it. (With the bar below a shown menu bar, or over a
@@ -504,7 +510,12 @@ enum Windows {
     static func trimOvershoot(_ el: AXUIElement, to want: CGRect) {
         guard let got = frame(of: el) else { return }
         let dw = got.width - want.width, dh = got.height - want.height
-        let trimW = dw > 0 && dw <= 8, trimH = dh > 0 && dh <= 8
+        // At the bottom or right edge of the screen the overshoot is left alone: it only reaches below the screen,
+        // where nobody sees it, and trimming it took the window a whole row (12 px) short of the edge (Terminal in
+        // the 874 px tile: 881 asked 874, 862 after the trim, a strip of backdrop along the bottom).
+        let edges = Screens.physicalEdges()
+        let trimW = dw > 0 && dw <= 8 && want.maxX < edges.right - 1
+        let trimH = dh > 0 && dh <= 8 && want.maxY < edges.bottom - 1
         guard trimW || trimH else { return }
         var size = CGSize(width: trimW ? want.width - dw : want.width, height: trimH ? want.height - dh : want.height)
         guard let sv = AXValueCreate(.cgSize, &size) else { return }

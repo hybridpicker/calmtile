@@ -502,6 +502,7 @@ final class Controller {
             engine.setMonitors(monitors)
             monitorsDirty = false
             applied = [:]
+            updateBar()   // the menu bar setting changed: the bar must cover the new menu bar height
         }
         if paused { hideBorder(); updateStatus(); return }
         if overview || creatingDesktop || removingDesktop { return }

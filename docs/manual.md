@@ -141,7 +141,8 @@ It shows no window titles.
   touches the top edge stays behind the bar, and clicks up there reach the bar. The Apple menu, the status
   items and calmtile's own menu are then out of reach by mouse: the launcher (`⌘Space`) has calmtile's
   actions, **Quit calmtile** among them. With the menu bar always shown the bar covers it as well, at least as
-  high as the menu bar.
+  high as the menu bar. That is the recommended setting (System Settings > Control Centre > "Automatically hide
+  and show the menu bar": Never): nothing flickers up there when the pointer reaches the top edge.
 - Desktop icons: Finder starts its first row of icons at the top of the area macOS leaves free, and
   nothing can tell it to leave room for the bar. With the menu bar set to hide, that row lies partly under
   the bar. Set System Settings → Menu Bar → "Automatically hide and show the menu bar" to **Never**: the bar
