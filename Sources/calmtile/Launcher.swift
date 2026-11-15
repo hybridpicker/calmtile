@@ -136,6 +136,8 @@ final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
     private var shown = [LauncherItem]()
     private var selected = 0
     private var closing = false
+    /// In the theme's colour: the system's placeholder grey is near black in light mode, unreadable on the dark panel.
+    private var placeholder = "" { didSet { applyPlaceholder() } }
 
     private let width: CGFloat = 640
     private let rowHeight: CGFloat = 36
@@ -163,7 +165,7 @@ final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
         field.drawsBackground = false
         field.focusRingType = .none
         field.font = NSFont.systemFont(ofSize: 22)
-        field.placeholderString = "Search windows, apps, actions\u{2026}"
+        placeholder = "Search windows, apps, actions\u{2026}"
         field.delegate = self
         content.addSubview(field)
 
@@ -189,7 +191,15 @@ final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
         panel.contentView?.layer?.backgroundColor = color(theme.background).cgColor
         panel.contentView?.layer?.borderColor = color(theme.accent).cgColor
         field.textColor = color(theme.foreground)
+        applyPlaceholder()
         redraw()
+    }
+
+    private func applyPlaceholder() {
+        field.placeholderAttributedString = NSAttributedString(string: placeholder, attributes: [
+            .font: field.font ?? NSFont.systemFont(ofSize: 22),
+            .foregroundColor: color(theme.foreground, alpha: 0.45),
+        ])
     }
 
     /// `appsOnly`: a Spotlight replacement that lists installed and running applications and nothing else.
@@ -197,7 +207,7 @@ final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
         let t0 = CACurrentMediaTime()
         shownAt = t0
         items = (provider?(appsOnly) ?? []).filter { !appsOnly || $0.kind == .app }
-        field.placeholderString = appsOnly ? "Applications\u{2026}" : "Search windows, apps, actions\u{2026}"
+        placeholder = appsOnly ? "Applications\u{2026}" : "Search windows, apps, actions\u{2026}"
         field.stringValue = ""
         selected = 0
         closing = false

@@ -174,8 +174,12 @@ leads to Kalender. If a system helper has the same translated name as an app, on
 as `Calendar`.
 
 `⌘Space` opens the same launcher with applications only. calmtile sees the key before Spotlight, so
-Spotlight does not open while calmtile runs; nothing in the system is changed. To keep Spotlight, remove
-the binding: `"bindings": {"cmd-space": ""}`.
+Spotlight does not open while calmtile runs. While an app holds secure keyboard entry (Chrome, Word and
+Finder do for a few seconds at a time) no key reaches calmtile's key tap, so calmtile also registers the
+launcher keys as system hotkeys, which still arrive then, and switches Spotlight's own `⌘Space` off in
+the window server while it runs (nothing is written to the preferences; quitting or pausing calmtile, or
+`calmtile --restore-spotlight` after a crash, turns it back on, and so does logging out). To keep
+Spotlight, remove the binding: `"bindings": {"cmd-space": ""}`.
 
 Themes colour the border and the launcher: catppuccin (default), tokyo-night, gruvbox, nord, rose-pine,
 everforest, kanagawa, catppuccin-latte. Pick one in the launcher (`Theme: …`) or cycle with `⌃⌥⇧Space`;

@@ -79,3 +79,47 @@ enum SpotlightMode {
         return dict["orderedItems"]
     }
 }
+
+/// Spotlight's own ⌘Space. calmtile's key tap normally takes the key first, but while an app has Secure Keyboard
+/// Entry on (Chrome, Word and Finder switch it on for a few seconds at a time, password fields for longer) no tap
+/// receives keys and the window server hands ⌘Space to Spotlight instead. So the shortcut is switched off while
+/// calmtile owns ⌘Space and back on when it stops. This is window server state only (not written to the
+/// preferences, back after a logout); a marker file remembers that calmtile switched it off, so a start after a
+/// crash still turns it back on when asked.
+enum SpotlightShortcut {
+    private typealias SetEnabled = @convention(c) (Int32, Bool) -> Int32
+    private typealias IsEnabled = @convention(c) (Int32) -> Bool
+    /// "Show Spotlight search" in com.apple.symbolichotkeys.
+    private static let showSpotlight: Int32 = 64
+
+    private static let skyLight = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY)
+    private static func symbol<T>(_ name: String, as: T.Type) -> T? {
+        guard let lib = skyLight, let p = dlsym(lib, name) else { return nil }
+        return unsafeBitCast(p, to: T.self)
+    }
+    private static let setEnabled = symbol("SLSSetSymbolicHotKeyEnabled", as: SetEnabled.self)
+    private static let isEnabled = symbol("SLSIsSymbolicHotKeyEnabled", as: IsEnabled.self)
+
+    private static var markerPath: String {
+        return NSString(string: "~/.config/calmtile/spotlight-shortcut-off").expandingTildeInPath
+    }
+    private static var switchedOff: Bool { return FileManager.default.fileExists(atPath: markerPath) }
+
+    /// Idempotent. Leaves a shortcut alone that the user had switched off already.
+    static func disable() {
+        guard !switchedOff, let set = setEnabled, let get = isEnabled, get(showSpotlight) else { return }
+        guard set(showSpotlight, false) == 0 else { Log.write("spotlight shortcut: cannot switch off"); return }
+        try? FileManager.default.createDirectory(atPath: (markerPath as NSString).deletingLastPathComponent,
+                                                 withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: markerPath, contents: Data())
+        Log.write("spotlight shortcut: off while calmtile owns cmd-space")
+    }
+
+    /// Only undoes what `disable` did.
+    static func restore() {
+        guard switchedOff else { return }
+        if let set = setEnabled { _ = set(showSpotlight, true) }
+        try? FileManager.default.removeItem(atPath: markerPath)
+        Log.write("spotlight shortcut: on again")
+    }
+}

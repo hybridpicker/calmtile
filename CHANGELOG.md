@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- The launcher's placeholder ("Applications…") is drawn in the theme's text colour, dimmed, instead of the
+  system's placeholder grey, which in light mode was near black on the dark panel.
+- `⌘Space` no longer opens Spotlight now and then instead of the launcher (Spotlight's panel then covered the bar
+  together with the black-on-blue system menu bar): that happened whenever an app held secure keyboard entry, which
+  Chrome, Word and Finder switch on for a few seconds at a time and which keeps every key from the tap. The launcher
+  keys are now also system hotkeys, which still arrive then, and Spotlight's own `⌘Space` is off in the window server
+  while calmtile owns the key (back on when calmtile quits or is paused).
 - The bar no longer slides out with the desktop being left (the strip was black for the length of the switch): it
   lives in a layer of the window server that desktop switches do not move, as SketchyBar's does, and is taken away
   while a full-screen app's Space is shown.

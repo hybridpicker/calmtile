@@ -130,7 +130,7 @@ every window. What calmtile does with them, so that you can check it in the code
 
 - **Keys.** The tap (`Sources/calmtile/Hotkeys.swift`) reads the key code and the modifiers of each event and
   compares them with the binding table. Nothing is stored. While a password manager or any app in
-  `passthroughApps` is frontmost, no key is touched, and while secure keyboard entry is on, macOS delivers no keys to the tap at all.
+  `passthroughApps` is frontmost, no key is touched, and while secure keyboard entry is on, macOS delivers no keys to the tap at all (only the two launcher keys still arrive then, as system hotkeys).
 - **Window titles** are read for the launcher list and the title rules only. They are never written to the
   log or to a file.
 - **Log.** `~/Library/Logs/calmtile.log` holds window counts, action names, permission state and bundle ids.

@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import Carbon
 
 /// Global key interception. A matching key is swallowed (the focused app never sees it);
 /// `handler` returns false to let the event through (pause mode, passthrough apps, no neighbour to focus).
@@ -182,5 +183,65 @@ private extension Action {
     var swallowedWhenLate: Bool {
         if case .focus = self { return false }
         return true
+    }
+}
+
+/// The launcher keys once more as system hotkeys. Secure Keyboard Entry stops the key tap from seeing any key, but
+/// hotkeys registered this way still arrive, so ⌘Space opens calmtile's launcher in a password field too. Only the
+/// launcher keys: a hotkey registered here always takes the key from the apps, which the other bindings must not
+/// (passthrough apps, ⌘← without a neighbour). Normally the tap swallows the key first and this never fires;
+/// `Controller.handle` ignores a second launcher key within a moment anyway.
+final class SecureInputHotkeys {
+    /// On the main thread.
+    var handler: ((Action) -> Void)?
+    private var refs = [EventHotKeyRef]()
+    private var actions = [UInt32: Action]()
+    private var installed = false
+
+    func set(_ bindings: [KeyCombo: Action]) {
+        for r in refs { UnregisterEventHotKey(r) }
+        refs = []
+        actions = [:]
+        guard !bindings.isEmpty else { return }
+        install()
+        var next: UInt32 = 1
+        for (combo, action) in bindings {
+            var ref: EventHotKeyRef?
+            let id = EventHotKeyID(signature: 0x63616C6D, id: next)   // 'calm'
+            let status = RegisterEventHotKey(UInt32(combo.keyCode), SecureInputHotkeys.carbonMods(combo.mods), id,
+                                             GetApplicationEventTarget(), 0, &ref)
+            if status == noErr, let ref = ref {
+                refs.append(ref)
+                actions[next] = action
+            } else {
+                Log.write("secure-input hotkey for \(action) not registered (\(status))")
+            }
+            next += 1
+        }
+    }
+
+    private static func carbonMods(_ m: Mods) -> UInt32 {
+        var out = 0
+        if m.contains(.cmd) { out |= cmdKey }
+        if m.contains(.alt) { out |= optionKey }
+        if m.contains(.ctrl) { out |= controlKey }
+        if m.contains(.shift) { out |= shiftKey }
+        return UInt32(out)
+    }
+
+    private func install() {
+        guard !installed else { return }
+        installed = true
+        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        InstallEventHandler(GetApplicationEventTarget(), { _, event, user in
+            guard let event = event, let user = user else { return OSStatus(eventNotHandledErr) }
+            var id = EventHotKeyID()
+            let status = GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
+                                           nil, MemoryLayout<EventHotKeyID>.size, nil, &id)
+            guard status == noErr else { return status }
+            let me = Unmanaged<SecureInputHotkeys>.fromOpaque(user).takeUnretainedValue()
+            if let action = me.actions[id.id] { me.handler?(action) }
+            return noErr
+        }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), nil)
     }
 }

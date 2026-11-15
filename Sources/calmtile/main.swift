@@ -75,6 +75,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--probe-hotkey-switch"), i + 1 
 
 if CommandLine.arguments.contains("--restore-spotlight") {
     SpotlightMode.restore()
+    SpotlightShortcut.restore()
     exit(0)
 }
 

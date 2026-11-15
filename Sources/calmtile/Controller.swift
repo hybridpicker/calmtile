@@ -6,6 +6,9 @@ final class Controller {
     private var config: Config
     private let engine: Engine
     private let hotkeys = HotkeyTap()
+    private let secureKeys = SecureInputHotkeys()
+    /// When a launcher key was last acted on: the tap and `secureKeys` can both deliver the same press.
+    private var lastLauncherKey: CFTimeInterval = 0
     private let border = BorderOverlay()
     private let backdrop = BackdropOverlay()
     private let bar = TopBar()
@@ -116,6 +119,7 @@ final class Controller {
         launcher.onClose = { [weak self] in self?.focusEngineChoice() }
         bar.onWorkspace = { [weak self] n in self?.goTo(n) }
         hotkeys.handler = { [weak self] action, late in self?.handle(action, late: late) ?? false }
+        secureKeys.handler = { [weak self] action in _ = self?.handle(action) }
         hotkeys.mouseHandler = { [weak self] type, p, flags in self?.handleMouse(type, p, flags) ?? false }
         hotkeys.onClick = { [weak self] in
             self?.lastAction = CACurrentMediaTime()
@@ -192,6 +196,7 @@ final class Controller {
         engine.allowOverflow = !config.useSpaces
         Windows.fullscreenExempt = config.exitFullscreen ? Set(config.fullscreenApps) : nil
         hotkeys.table = config.table()
+        updateLauncherKeys()
         hotkeys.mouseModifier = parseMods(config.mouseModifier)
         border.width = config.borderWidth
         border.inside = config.gap < config.borderWidth
@@ -1185,6 +1190,13 @@ final class Controller {
            config.passthroughApps.contains(front) {
             return false
         }
+        switch action {
+        case .launcher, .appLauncher:
+            let now = CACurrentMediaTime()
+            if now - lastLauncherKey < 0.3 { return true }   // the same press, delivered a second time
+            lastLauncherKey = now
+        default: break
+        }
         if launcher.isVisible {
             // Only the launcher key itself works while it is open (it closes the panel).
             if case .launcher = action { launcher.hide(); return true }
@@ -1489,6 +1501,7 @@ final class Controller {
 
     private func togglePaused() {
         paused.toggle()
+        updateLauncherKeys()
         updateSpotlight()
         updateGestures()
         updateStatus()
@@ -1499,6 +1512,19 @@ final class Controller {
     /// Spotlight is restricted only while tiling is active and the mode is on.
     private func updateSpotlight() {
         if spotlightOn && !paused { SpotlightMode.enableAppsOnly() } else { SpotlightMode.restore() }
+    }
+
+    /// The launcher keys also as system hotkeys (they then work during Secure Keyboard Entry), and Spotlight's own
+    /// ⌘Space off while calmtile owns that key. Both undone while paused.
+    private func updateLauncherKeys() {
+        let keys = paused ? [:] : config.table().filter {
+            switch $0.value {
+            case .launcher, .appLauncher: return true
+            default: return false
+            }
+        }
+        if keys[KeyCombo(keyCode: 49, mods: .cmd)] != nil { SpotlightShortcut.disable() } else { SpotlightShortcut.restore() }
+        secureKeys.set(keys)
     }
 
     /// Four-finger gestures are off only while tiling is active and `disableFourFingerGestures` is on.
@@ -1517,12 +1543,13 @@ final class Controller {
         for sig in [SIGTERM, SIGINT, SIGHUP] {
             signal(sig, SIG_IGN)
             let src = DispatchSource.makeSignalSource(signal: sig, queue: .main)
-            src.setEventHandler { SpotlightMode.restore(); FourFingerGestures.restore(); exit(0) }
+            src.setEventHandler { SpotlightMode.restore(); SpotlightShortcut.restore(); FourFingerGestures.restore(); exit(0) }
             src.resume()
             signalSources.append(src)
         }
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
             SpotlightMode.restore()
+            SpotlightShortcut.restore()
             FourFingerGestures.restore()
         }
     }
