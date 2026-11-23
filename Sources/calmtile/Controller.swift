@@ -13,6 +13,7 @@ final class Controller {
     private let backdrop = BackdropOverlay()
     private let bar = TopBar()
     private let menuBarStrip = MenuBarStrip()
+    private let statusBlock = StatusBlock()
     private let launcher = Launcher()
     private var theme = Theme.all[0]
     private var known = [WindowID: AXWin]()
@@ -511,6 +512,7 @@ final class Controller {
             updateBar()   // the menu bar setting changed: the bar must cover the new menu bar height
             updateMenuBarStrip()
         }
+        updateStatusBlock()
         if paused { hideBorder(); updateStatus(); return }
         if overview || creatingDesktop || removingDesktop { return }
         // Locked screen / screen saver: apps expose no windows, which would empty the layout.
@@ -787,13 +789,22 @@ final class Controller {
         }
     }
 
-    /// The bar (`bar`): which workspaces exist, which one is shown, which have windows.
     /// The solid colour behind the menu bar (`menuBarBackground`); the bar, when on, covers that strip itself.
     private func updateMenuBarStrip() {
         let color = config.menuBarBackground.flatMap { NSColor(hex: $0) }
         if let color { menuBarStrip.color = color }
         menuBarStrip.update(enabled: color != nil && !config.bar)
+        statusBlock.color = color ?? .black
     }
+
+    /// calmtile's status block over the menu bar's status items (`menuBarStatus`). Not over a fullscreen app's
+    /// Space or Mission Control, where the menu bar is not shown in its place.
+    private func updateStatusBlock() {
+        guard config.menuBarStatus, !config.bar, !overview, !Spaces.fullscreenSpaceActive() else { statusBlock.hide(); return }
+        statusBlock.show(workspace: statusItem?.button?.title ?? "\u{25A6} \(engine.currentWorkspace)")
+    }
+
+    /// The bar (`bar`): which workspaces exist, which one is shown, which have windows.
 
     private func updateBar() {
         // In the fixed layer the bar would also cover an app in macOS's own fullscreen (a video), whose Space it is

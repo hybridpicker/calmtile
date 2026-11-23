@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- New `"menuBarStatus": true`: calmtile's own status block over the menu bar's status items (workspace, battery,
+  day and time), so the Control Center icon, which macOS 26 does not let you remove, is gone without leaving a gap.
+  The app menus on the left stay reachable.
 - New `"menuBarBackground": "#rrggbb"`: a solid colour behind the menu bar instead of the wallpaper showing
   through it (macOS 26 dropped the menu bar's own background). For use with `bar` off, which leaves the app menus
   reachable.

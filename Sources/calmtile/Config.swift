@@ -166,6 +166,8 @@ struct Config {
     var backdropColor: String?
     /// "#rrggbb": a solid colour behind the menu bar instead of the wallpaper showing through. nil: off.
     var menuBarBackground: String?
+    /// calmtile's own status block (workspace, battery, day and time) over the menu bar's status items.
+    var menuBarStatus = false
     /// A fixed bar along the top of the main display (Omarchy's Waybar): workspaces, day and time, battery.
     /// The tiles start below it.
     var bar = false
@@ -274,7 +276,7 @@ struct Config {
         let list: ((Any) -> Bool, String) = ({ $0 is [String] }, "a list of strings")
         var t = [String: ((Any) -> Bool, String)]()
         for k in ["gap", "outerGap", "mainWorkspaces", "desktops", "minTileWidth", "minTileHeight", "borderWidth", "borderRadius", "borderFlash", "barHeight"] { t[k] = number }
-        for k in ["useSpaces", "removeEmptyDesktops", "spotlightAppsOnly", "disableFourFingerGestures", "exitFullscreen", "backdrop", "bar"] { t[k] = flag }
+        for k in ["useSpaces", "removeEmptyDesktops", "spotlightAppsOnly", "disableFourFingerGestures", "exitFullscreen", "backdrop", "bar", "menuBarStatus"] { t[k] = flag }
         for k in ["borderColor", "backdropColor", "menuBarBackground", "barBackground", "barForeground", "theme", "scratchpadApp", "mouseModifier"] { t[k] = text }
         for k in ["floatApps", "tileFixedApps", "ignoreApps", "passthroughApps", "fullscreenApps"] { t[k] = list }
         t["floatTitles"] = ({ $0 is [String: [String]] }, "an object of lists of strings")
@@ -303,6 +305,7 @@ struct Config {
             if let v = obj["useSpaces"] as? Bool { cfg.useSpaces = v }
             if let v = obj["backdrop"] as? Bool { cfg.backdrop = v }
             if let v = obj["bar"] as? Bool { cfg.bar = v }
+            if let v = obj["menuBarStatus"] as? Bool { cfg.menuBarStatus = v }
             for (key, path) in [("barBackground", \Config.barBackground), ("barForeground", \Config.barForeground)] {
                 guard let v = obj[key] as? String else { continue }
                 if NSColor(hex: v) == nil { problems.append("\(key) must look like #rrggbb: \(v)") } else { cfg[keyPath: path] = v }
@@ -375,7 +378,7 @@ struct Config {
         var obj: [String: Any] = [
             "mouseModifier": mouseModifier, "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces, "useSpaces": useSpaces, "removeEmptyDesktops": removeEmptyDesktops, "desktops": desktops,
             "minTileWidth": Double(minTileWidth), "minTileHeight": Double(minTileHeight),
-            "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "borderFlash": borderFlash, "backdrop": backdrop, "bar": bar, "barBackground": barBackground, "barForeground": barForeground, "barHeight": Double(barHeight), "theme": theme, "scratchpadApp": scratchpadApp,
+            "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "borderFlash": borderFlash, "backdrop": backdrop, "bar": bar, "menuBarStatus": menuBarStatus, "barBackground": barBackground, "barForeground": barForeground, "barHeight": Double(barHeight), "theme": theme, "scratchpadApp": scratchpadApp,
             "spotlightAppsOnly": spotlightAppsOnly, "disableFourFingerGestures": disableFourFingerGestures, "exitFullscreen": exitFullscreen, "fullscreenApps": fullscreenApps, "floatApps": floatApps, "tileFixedApps": tileFixedApps, "floatTitles": floatTitles, "ignoreApps": ignoreApps, "passthroughApps": passthroughApps, "bindings": bindings,
         ]
         if let c = borderColor { obj["borderColor"] = c }

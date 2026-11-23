@@ -262,6 +262,7 @@ reload, in an alert and in the log (`config: …`); `--print-config` writes the 
 | `barHeight` | 26 | the bar's height in points (16–60); the text scales with it |
 | `backdropColor` | theme background | `"#rrggbb"` for the backdrop; the colour of your windows' title bars (e.g. `"#ffffff"`) makes the rounded corners hard to see |
 | `menuBarBackground` | off | `"#rrggbb"`: a solid colour behind the menu bar of the main display. Since macOS 26 the menu bar has no background and the wallpaper shows through it; with `"#000000"` it sits on calm black. Only while the menu bar is shown and `bar` is off (the bar covers that strip itself) |
+| `menuBarStatus` | false | calmtile draws its own status block over the right end of the menu bar: workspace (`▦ 1`), battery, day and time, evenly spaced, on the `menuBarBackground` colour (black without one). It covers every status item, the Control Center icon among them, which macOS 26 does not let you remove. Click-through: a click reaches the status item underneath, so where calmtile's `▦` sits roughly its menu opens; the others are hidden. Not with `bar` on, over a fullscreen app or in Mission Control |
 | `mouseModifier` | `"cmd-alt"` | modifier for mouse move and resize, `""` = off |
 | `scratchpadApp` | `"Terminal"` | app opened by `⌃⌥Q` on an empty scratchpad |
 | `exitFullscreen` | true | a window that enters macOS's own fullscreen (the green button) leaves it again and is tiled |
