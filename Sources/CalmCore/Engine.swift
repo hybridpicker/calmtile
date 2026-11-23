@@ -34,6 +34,9 @@ public final class Engine {
         var floating = [WindowID]()
         var fullscreen: WindowID?
         var lastFocused: WindowID?
+        /// Free (Omarchy's floating workspace): every window floats where it is and calmtile leaves it alone. The
+        /// tree is kept, so switching back restores the layout.
+        var free = false
 
         init(number: Int, monitor: Int) {
             self.number = number
@@ -90,8 +93,10 @@ public final class Engine {
     public func isFloating(_ id: WindowID) -> Bool {
         if home[id] == 0 { return true }
         guard let n = home[id], let ws = workspaces[n] else { return false }
-        return ws.floating.contains(id)
+        return ws.free || ws.floating.contains(id)
     }
+    /// Workspace `n` is free: its windows float and are not arranged.
+    public func isFree(_ n: Int) -> Bool { return workspaces[n]?.free ?? false }
     public var currentFullscreen: WindowID? { return workspaces[currentWorkspace]?.fullscreen }
     public func visibleWorkspace(on monitor: Int) -> Int? { return visible[monitor] }
     public var windowCount: Int { return home.count }
@@ -102,14 +107,14 @@ public final class Engine {
 
     /// Tiled frames of the current workspace (what directional focus navigates).
     public func tiledFrames() -> [WindowID: CGRect] {
-        guard let ws = workspaces[currentWorkspace] else { return [:] }
+        guard let ws = workspaces[currentWorkspace], !ws.free else { return [:] }
         return ws.tree.frames(in: rect(of: ws), gap: gap)
     }
 
     /// Where the next tiled window would go on the current workspace, without adding one; nil when it would not
     /// tile there (no room in parked mode, or a window in fullscreen covers the workspace).
     public func nextTile() -> CGRect? {
-        guard let ws = workspaces[currentWorkspace], ws.fullscreen == nil, !allowOverflow || fits(into: ws) else { return nil }
+        guard let ws = workspaces[currentWorkspace], !ws.free, ws.fullscreen == nil, !allowOverflow || fits(into: ws) else { return nil }
         let probe = WindowID.max
         insertTiled(probe, into: ws)
         defer { ws.tree.remove(probe) }
@@ -530,7 +535,7 @@ public final class Engine {
     }
 
     public func toggleFloating() {
-        guard let id = focused, let ws = workspaces[currentWorkspace] else { return }
+        guard let id = focused, let ws = workspaces[currentWorkspace], !ws.free else { return }
         if let i = ws.floating.firstIndex(of: id) {
             ws.floating.remove(at: i)
             floatedForRoom.remove(id)
@@ -544,8 +549,24 @@ public final class Engine {
         }
     }
 
+    /// The current workspace becomes free (every window floats where it is now) or is arranged again. Windows that
+    /// opened while it was free join the layout then; windows floated on their own before stay floating.
+    public func toggleWorkspaceFree() {
+        guard let ws = workspaces[currentWorkspace] else { return }
+        if ws.free {
+            ws.free = false
+            for id in ws.tree.windows { floatFrames[id] = nil }
+        } else {
+            // Where each window is now, so it stays there (and comes back there after a workspace switch).
+            for (id, f) in ws.tree.frames(in: rect(of: ws), gap: gap) { floatFrames[id] = f }
+            if let fs = ws.fullscreen { floatFrames[fs] = monitors[ws.monitor].frame }
+            ws.fullscreen = nil
+            ws.free = true
+        }
+    }
+
     public func toggleFullscreen() {
-        guard let id = focused, let ws = workspaces[currentWorkspace] else { return }
+        guard let id = focused, let ws = workspaces[currentWorkspace], !ws.free else { return }
         ws.fullscreen = (ws.fullscreen == id) ? nil : id
     }
 
@@ -560,8 +581,9 @@ public final class Engine {
                 for id in ws.all { out[id] = .hidden(monitor: ws.monitor) }
                 continue
             }
-            for (id, f) in ws.tree.frames(in: rect(of: ws), gap: gap) { out[id] = .frame(f) }
-            for id in ws.floating {
+            if !ws.free { for (id, f) in ws.tree.frames(in: rect(of: ws), gap: gap) { out[id] = .frame(f) } }
+            // On a free workspace every window floats; one without a known frame (opened meanwhile) is left alone.
+            for id in ws.free ? ws.all : ws.floating {
                 guard var f = floatFrames[id] else { continue }
                 let area = monitors[ws.monitor].frame
                 if !f.intersects(area) {   // its monitor was unplugged: bring it back into view
@@ -586,8 +608,8 @@ public final class Engine {
     public func overviewPlan() -> [WindowID: CGRect] {
         var out = [WindowID: CGRect]()
         for ws in workspaces.values {
-            for (id, f) in ws.tree.frames(in: rect(of: ws), gap: gap) { out[id] = f }
-            for id in ws.floating { if let f = floatFrames[id] { out[id] = f } }
+            if !ws.free { for (id, f) in ws.tree.frames(in: rect(of: ws), gap: gap) { out[id] = f } }
+            for id in ws.free ? ws.all : ws.floating { if let f = floatFrames[id] { out[id] = f } }
         }
         return out
     }

@@ -112,7 +112,7 @@ private final class StatusBlockView: NSView {
     private static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale.current
-        f.setLocalizedDateFormatFromTemplate("EEEdMMM")   // "Mo. 23. Nov." as macOS's own menu bar clock
+        f.setLocalizedDateFormatFromTemplate("dMMM")   // "23. Nov.", without the weekday
         return f
     }()
     private static let timeFormatter: DateFormatter = {

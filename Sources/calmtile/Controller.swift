@@ -648,7 +648,13 @@ final class Controller {
         // 3. floating windows keep wherever the user put them
         Profile.phase("float") {
             for (id, w) in known where engine.isFloating(id) {
-                if case .frame? = applied[id], let f = currentFrame(id, w) { engine.noteFloatFrame(id, f) }
+                // Also a window calmtile never placed on the shown free workspace (it opened there): its place is
+                // kept for when the workspace comes back after a switch. A parked window is never noted.
+                let untouchedFree = applied[id] == nil && engine.workspaceOf(id) == engine.currentWorkspace
+                    && engine.isFree(engine.currentWorkspace)
+                var placed = false
+                if case .frame? = applied[id] { placed = true }
+                if placed || untouchedFree, let f = currentFrame(id, w) { engine.noteFloatFrame(id, f) }
             }
             trackNativeDrag()
             floatByTitle()
@@ -1373,6 +1379,13 @@ final class Controller {
             engine.toggleFloating()
             applyPlan()
             updateBorder()
+        case .toggleWorkspaceFree:
+            engine.toggleWorkspaceFree()
+            Log.write("workspace \(engine.currentWorkspace) \(engine.isFree(engine.currentWorkspace) ? "free" : "arranged")")
+            applyPlan()
+            updateBackdrop()
+            updateBorder()
+            updateStatus()
         case .toggleFullscreen:
             engine.toggleFullscreen()
             applyPlan()
@@ -1591,7 +1604,9 @@ final class Controller {
     }
 
     private func updateStatus() {
-        var title = paused ? "\u{25A6} \u{23F8}" : "\u{25A6} \(engine.currentWorkspace)"
+        // □ instead of ▦ (no grid) while the current workspace is free.
+        var title = paused ? "\u{25A6} \u{23F8}"
+            : "\(engine.isFree(engine.currentWorkspace) ? "\u{25A1}" : "\u{25A6}") \(engine.currentWorkspace)"
         if secureInput { title += " \u{1F512}" }
         if statusItem?.button?.title != title { statusItem?.button?.title = title }
     }

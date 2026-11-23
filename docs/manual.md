@@ -92,6 +92,7 @@ Default bindings. Every one of them can be changed or removed in the config (sec
 | `⌃⌥⇧Space` | next theme |
 | `⌃⌥R` | reload the config |
 | `⌃⌥P` | pause tiling (windows are left alone) and resume |
+| `⌃⌘L` | free this workspace and arrange it again, as Omarchy's floating workspace (`Super+L`): every window floats where it is, new ones open where the app puts them, the other workspaces stay arranged and every key keeps working. Arranged again, the old layout comes back and windows opened meanwhile join it. The status shows `□ 1` instead of `▦ 1` |
 
 ### Mouse
 
@@ -262,7 +263,7 @@ reload, in an alert and in the log (`config: …`); `--print-config` writes the 
 | `barHeight` | 26 | the bar's height in points (16–60); the text scales with it |
 | `backdropColor` | theme background | `"#rrggbb"` for the backdrop; the colour of your windows' title bars (e.g. `"#ffffff"`) makes the rounded corners hard to see |
 | `menuBarBackground` | off | `"#rrggbb"`: a solid colour behind the menu bar of the main display. Since macOS 26 the menu bar has no background and the wallpaper shows through it; with `"#000000"` it sits on calm black. Only while the menu bar is shown and `bar` is off (the bar covers that strip itself) |
-| `menuBarStatus` | false | calmtile draws its own status block over the right end of the menu bar: workspace (`▦ 1`), battery, day and time, evenly spaced, on the `menuBarBackground` colour (black without one). It covers every status item, the Control Center icon among them, which macOS 26 does not let you remove. Click-through: a click reaches the status item underneath, so where calmtile's `▦` sits roughly its menu opens; the others are hidden. Not with `bar` on, over a fullscreen app or in Mission Control |
+| `menuBarStatus` | false | calmtile draws its own status block over the right end of the menu bar: workspace (`▦ 1`), battery, date and time, evenly spaced, on the `menuBarBackground` colour (black without one). It covers every status item, the Control Center icon among them, which macOS 26 does not let you remove. Click-through: a click reaches the status item underneath, so where calmtile's `▦` sits roughly its menu opens; the others are hidden. Not with `bar` on, over a fullscreen app or in Mission Control |
 | `mouseModifier` | `"cmd-alt"` | modifier for mouse move and resize, `""` = off |
 | `scratchpadApp` | `"Terminal"` | app opened by `⌃⌥Q` on an empty scratchpad |
 | `exitFullscreen` | true | a window that enters macOS's own fullscreen (the green button) leaves it again and is tiled |
@@ -281,8 +282,8 @@ equal comma period slash semicolon quote backslash backtick leftbracket rightbra
 ANSI positions, so a binding means the same key on every layout. A bare key without modifier is never bound.
 
 Actions: `workspace N`, `move-to-workspace N`, `focus <left|right|up|down>`, `swap <dir>`, `resize <dir>`,
-`resize-grow`, `resize-shrink`, `toggle-float`, `toggle-fullscreen`, `toggle-split`, `close`,
-`back-and-forth`, `move-workspace-to-monitor`, `scratchpad`, `move-to-scratchpad`, `launcher`,
+`resize-grow`, `resize-shrink`, `toggle-float`, `toggle-workspace-float`, `toggle-fullscreen`, `toggle-split`,
+`close`, `back-and-forth`, `move-workspace-to-monitor`, `scratchpad`, `move-to-scratchpad`, `launcher`,
 `app-launcher`, `theme <name>`, `theme-next`, `reload`, `pause`, `open <App name>`, `new-window <App name>`.
 
 `new-window` opens a new window of the app on the current workspace on every press and never switches to

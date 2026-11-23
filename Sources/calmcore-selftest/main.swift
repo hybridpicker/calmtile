@@ -149,6 +149,32 @@ do {
     check(!e.isFloating(2) && frame(e.plan()[2])!.width < 1904, "2 tiled again")
 }
 
+// 9b. a free workspace: windows float where they are, new ones are left alone, the layout comes back
+do {
+    let e = makeEngine()
+    e.windowAppeared(1, floating: false)
+    e.windowAppeared(2, floating: false)
+    let tiled = e.plan()
+    e.toggleWorkspaceFree()
+    check(e.isFree(1) && e.isFloating(1) && e.isFloating(2), "free workspace: every window floats")
+    check(frame(e.plan()[1]) == frame(tiled[1]) && frame(e.plan()[2]) == frame(tiled[2]), "free: windows stay where they were")
+    check(e.tiledFrames().isEmpty && e.nextTile() == nil, "free: nothing tiled")
+    let moved = CGRect(x: 300, y: 200, width: 700, height: 500)
+    e.noteFloatFrame(1, moved)
+    check(frame(e.plan()[1]) == moved, "free: a moved window keeps its place")
+    e.windowAppeared(3, floating: false)
+    check(e.plan()[3] == nil, "free: a new window is left where the app put it")
+    e.switchWorkspace(2)
+    check(!e.isFree(2), "the free mode belongs to one workspace")
+    e.switchWorkspace(1)
+    check(frame(e.plan()[1]) == moved, "free: the place survives a workspace switch")
+    e.toggleWorkspaceFree()
+    let back = e.plan()
+    check(!e.isFree(1) && !e.isFloating(1), "arranged again")
+    check(frame(back[1]) != moved && frame(back[3]) != nil, "arranged: the old window and the new one tile")
+    check(e.tiledFrames().count == 3, "arranged: three tiles")
+}
+
 // 10. two monitors: workspaces 6-9 live on the second one, both visible at once
 do {
     let second = CGRect(x: 1920, y: 0, width: 1440, height: 900)

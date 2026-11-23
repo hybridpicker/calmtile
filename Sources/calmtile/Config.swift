@@ -35,6 +35,7 @@ enum Action {
     case resize(Direction)
     case resizeSmart(grow: Bool)
     case toggleFloat
+    case toggleWorkspaceFree
     case toggleFullscreen
     case toggleSplit
     case close
@@ -64,6 +65,7 @@ enum Action {
         case "resize-grow": return .resizeSmart(grow: true)
         case "resize-shrink": return .resizeSmart(grow: false)
         case "toggle-float": return .toggleFloat
+        case "toggle-workspace-float": return .toggleWorkspaceFree
         case "toggle-fullscreen": return .toggleFullscreen
         case "toggle-split": return .toggleSplit
         case "close": return .close
@@ -248,6 +250,7 @@ struct Config {
         b["alt-equal"] = "resize-grow"
         b["ctrl-alt-f"] = "toggle-fullscreen"
         b["ctrl-alt-t"] = "toggle-float"
+        b["ctrl-cmd-l"] = "toggle-workspace-float"   // Omarchy 4.5: Super+L, a floating workspace
         b["ctrl-alt-s"] = "toggle-split"
         b["ctrl-alt-w"] = "close"
         b["ctrl-alt-tab"] = "back-and-forth"
