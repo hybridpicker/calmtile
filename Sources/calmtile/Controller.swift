@@ -12,6 +12,7 @@ final class Controller {
     private let border = BorderOverlay()
     private let backdrop = BackdropOverlay()
     private let bar = TopBar()
+    private let menuBarStrip = MenuBarStrip()
     private let launcher = Launcher()
     private var theme = Theme.all[0]
     private var known = [WindowID: AXWin]()
@@ -508,6 +509,7 @@ final class Controller {
             monitorsDirty = false
             applied = [:]
             updateBar()   // the menu bar setting changed: the bar must cover the new menu bar height
+            updateMenuBarStrip()
         }
         if paused { hideBorder(); updateStatus(); return }
         if overview || creatingDesktop || removingDesktop { return }
@@ -786,6 +788,13 @@ final class Controller {
     }
 
     /// The bar (`bar`): which workspaces exist, which one is shown, which have windows.
+    /// The solid colour behind the menu bar (`menuBarBackground`); the bar, when on, covers that strip itself.
+    private func updateMenuBarStrip() {
+        let color = config.menuBarBackground.flatMap { NSColor(hex: $0) }
+        if let color { menuBarStrip.color = color }
+        menuBarStrip.update(enabled: color != nil && !config.bar)
+    }
+
     private func updateBar() {
         // In the fixed layer the bar would also cover an app in macOS's own fullscreen (a video), whose Space it is
         // not part of: it is taken away there.
@@ -985,6 +994,7 @@ final class Controller {
         launcher.theme = theme
         backdrop.color = NSColor(hex: config.backdropColor ?? theme.background) ?? .black
         updateBackdrop()
+        updateMenuBarStrip()
         bar.configure(background: NSColor(hex: config.barBackground) ?? .black,
                       foreground: NSColor(hex: config.barForeground) ?? .white, height: config.barHeight)
         updateBar()

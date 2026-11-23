@@ -34,3 +34,40 @@ final class BackdropOverlay {
         if window.isVisible { window.orderOut(nil) }
     }
 }
+
+/// A solid colour behind the menu bar of the main display (`menuBarBackground`). Since macOS 26 the menu bar has no
+/// background of its own and shows the wallpaper through it; this layer, on the desktop's level, sits under the menu
+/// bar so it reads on one calm colour instead. Click-through; gone while the menu bar is set to hide.
+final class MenuBarStrip {
+    private let window: NSWindow
+    private var lastFrame: NSRect?
+    var color = NSColor.black { didSet { window.backgroundColor = color } }
+
+    init() {
+        window = NSWindow(contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.isOpaque = true
+        window.hasShadow = false
+        window.ignoresMouseEvents = true
+        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+        window.backgroundColor = color
+    }
+
+    /// Covers the strip the menu bar keeps out of the main display's usable area; hides when there is none.
+    func update(enabled: Bool) {
+        guard enabled, let main = NSScreen.screens.first else { hide(); return }
+        let height = main.frame.maxY - main.visibleFrame.maxY
+        guard height > 0 else { hide(); return }
+        let frame = NSRect(x: main.frame.minX, y: main.frame.maxY - height, width: main.frame.width, height: height)
+        if frame == lastFrame, window.isVisible { return }
+        lastFrame = frame
+        window.setFrame(frame, display: false)
+        window.orderFrontRegardless()
+    }
+
+    func hide() {
+        lastFrame = nil
+        if window.isVisible { window.orderOut(nil) }
+    }
+}

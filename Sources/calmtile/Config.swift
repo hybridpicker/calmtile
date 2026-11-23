@@ -164,6 +164,8 @@ struct Config {
     var backdrop = false
     /// nil: use the theme's background colour.
     var backdropColor: String?
+    /// "#rrggbb": a solid colour behind the menu bar instead of the wallpaper showing through. nil: off.
+    var menuBarBackground: String?
     /// A fixed bar along the top of the main display (Omarchy's Waybar): workspaces, day and time, battery.
     /// The tiles start below it.
     var bar = false
@@ -273,7 +275,7 @@ struct Config {
         var t = [String: ((Any) -> Bool, String)]()
         for k in ["gap", "outerGap", "mainWorkspaces", "desktops", "minTileWidth", "minTileHeight", "borderWidth", "borderRadius", "borderFlash", "barHeight"] { t[k] = number }
         for k in ["useSpaces", "removeEmptyDesktops", "spotlightAppsOnly", "disableFourFingerGestures", "exitFullscreen", "backdrop", "bar"] { t[k] = flag }
-        for k in ["borderColor", "backdropColor", "barBackground", "barForeground", "theme", "scratchpadApp", "mouseModifier"] { t[k] = text }
+        for k in ["borderColor", "backdropColor", "menuBarBackground", "barBackground", "barForeground", "theme", "scratchpadApp", "mouseModifier"] { t[k] = text }
         for k in ["floatApps", "tileFixedApps", "ignoreApps", "passthroughApps", "fullscreenApps"] { t[k] = list }
         t["floatTitles"] = ({ $0 is [String: [String]] }, "an object of lists of strings")
         t["bindings"] = ({ $0 is [String: String] }, "an object of strings")
@@ -319,6 +321,9 @@ struct Config {
             }
             if let v = obj["backdropColor"] as? String {
                 if NSColor(hex: v) == nil { problems.append("backdropColor must look like #rrggbb: \(v)") } else { cfg.backdropColor = v }
+            }
+            if let v = obj["menuBarBackground"] as? String {
+                if NSColor(hex: v) == nil { problems.append("menuBarBackground must look like #rrggbb: \(v)") } else { cfg.menuBarBackground = v }
             }
             if let v = obj["scratchpadApp"] as? String, !v.isEmpty { cfg.scratchpadApp = v }
             if let v = obj["theme"] as? String {
@@ -374,6 +379,7 @@ struct Config {
             "spotlightAppsOnly": spotlightAppsOnly, "disableFourFingerGestures": disableFourFingerGestures, "exitFullscreen": exitFullscreen, "fullscreenApps": fullscreenApps, "floatApps": floatApps, "tileFixedApps": tileFixedApps, "floatTitles": floatTitles, "ignoreApps": ignoreApps, "passthroughApps": passthroughApps, "bindings": bindings,
         ]
         if let c = borderColor { obj["borderColor"] = c }
+        if let c = menuBarBackground { obj["menuBarBackground"] = c }
         let data = (try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys])) ?? Data()
         return String(data: data, encoding: .utf8) ?? "{}"
     }

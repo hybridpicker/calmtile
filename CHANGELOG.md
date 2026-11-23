@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- New `"menuBarBackground": "#rrggbb"`: a solid colour behind the menu bar instead of the wallpaper showing
+  through it (macOS 26 dropped the menu bar's own background). For use with `bar` off, which leaves the app menus
+  reachable.
 - The launcher's placeholder ("Applications…") is drawn in the theme's text colour, dimmed, instead of the
   system's placeholder grey, which in light mode was near black on the dark panel.
 - `⌘Space` no longer opens Spotlight now and then instead of the launcher (Spotlight's panel then covered the bar
