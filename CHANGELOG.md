@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- New `"cornerMasks": <radius>`: corners in the backdrop's colour laid over every tile's corners, for apps that
+  paint their own corner (a GTK 4 window kept a light patch next to its rounded corner that the backdrop beneath
+  cannot reach). Corners under another window are left alone.
+- Without a `backdropColor` of its own, the backdrop under the windows (the filled corners) now takes the
+  `menuBarBackground` colour, so it always matches the strip behind the menu bar.
 - Every hotkey except the launcher key stopped working (`⌘1`, `⌘Return` did nothing) after a launcher that
   macOS never let take the keyboard, seen right after an app's secure keyboard entry ended: it never lost the
   key window either, so it counted as open. Such a launcher now closes itself, and any hotkey closes it too.

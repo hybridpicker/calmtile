@@ -11,6 +11,7 @@ final class Controller {
     private var lastLauncherKey: CFTimeInterval = 0
     private let border = BorderOverlay()
     private let backdrop = BackdropOverlay()
+    private let cornerMasks = CornerMasks()
     private let bar = TopBar()
     private let menuBarStrip = MenuBarStrip()
     private let statusBlock = StatusBlock()
@@ -825,12 +826,50 @@ final class Controller {
 
     /// The layer under the tiles (`backdrop`): only while this desktop has tiled windows, and as large as they are.
     private func updateBackdrop() {
-        let frames = Array(engine.tiledFrames().values)
+        let tiles = engine.tiledFrames()
+        let frames = Array(tiles.values)
         if config.backdrop, let first = frames.first, !(config.useSpaces && Spaces.activeNumber() != engine.currentWorkspace) {
             backdrop.show(over: frames.dropFirst().reduce(first) { $0.union($1) })
+            updateCornerMasks(tiles)
         } else {
             backdrop.hide()
+            cornerMasks.hide()
         }
+    }
+
+    /// `cornerMasks`: the backdrop's colour over each tile's corners. Not while a window is pulled (the masks would
+    /// stay behind), over calmtile's fullscreen window, or while paused (no tick moves them then). A corner that
+    /// another window lies over is skipped: the mask sits above normal windows and would cut into that one.
+    private func updateCornerMasks(_ tiles: [WindowID: CGRect]) {
+        let r = config.cornerMasks
+        guard r > 0, !paused, engine.currentFullscreen == nil, drag == nil, nativeDrag == nil,
+              NSEvent.pressedMouseButtons == 0 else { cornerMasks.hide(); return }
+        let me = Int(getpid())
+        var out = [(point: CGPoint, corner: CornerMasks.Corner)]()
+        for (id, f) in tiles.sorted(by: { $0.key < $1.key }) {
+            // Windows in front of this tile, up to the masks' own level (anything higher is drawn over them anyway).
+            var over = [CGRect]()
+            if let list = CGWindowListCopyWindowInfo([.optionOnScreenAboveWindow, .excludeDesktopElements], CGWindowID(id)) as? [[String: Any]] {
+                for w in list where (w["kCGWindowOwnerPID"] as? Int) != me && ((w["kCGWindowLayer"] as? Int) ?? 0) <= 1
+                    && ((w["kCGWindowAlpha"] as? Double) ?? 1) > 0 {
+                    if let b = w["kCGWindowBounds"] as? NSDictionary, let rect = CGRect(dictionaryRepresentation: b) { over.append(rect) }
+                }
+            }
+            let corners: [(CGPoint, CornerMasks.Corner, CGRect)] = [
+                (CGPoint(x: f.minX, y: f.minY), .topLeft, CGRect(x: f.minX, y: f.minY, width: r, height: r)),
+                (CGPoint(x: f.maxX, y: f.minY), .topRight, CGRect(x: f.maxX - r, y: f.minY, width: r, height: r)),
+                (CGPoint(x: f.minX, y: f.maxY), .bottomLeft, CGRect(x: f.minX, y: f.maxY - r, width: r, height: r)),
+                (CGPoint(x: f.maxX, y: f.maxY), .bottomRight, CGRect(x: f.maxX - r, y: f.maxY - r, width: r, height: r)),
+            ]
+            for (p, c, square) in corners {
+                let covered = over.contains { o in
+                    let i = o.intersection(square)
+                    return !i.isNull && i.width > 0.5 && i.height > 0.5
+                }
+                if !covered { out.append((p, c)) }
+            }
+        }
+        cornerMasks.show(out, radius: r)
     }
 
     /// Outline the focused window, unless it is parked, fullscreen-native, or gone. With `borderFlash` only while a
@@ -1009,7 +1048,9 @@ final class Controller {
         theme = saved.flatMap { Theme.named($0) } ?? Theme.named(config.theme) ?? Theme.all[0]
         border.color = NSColor(hex: config.borderColor ?? theme.accent) ?? .systemBlue
         launcher.theme = theme
-        backdrop.color = NSColor(hex: config.backdropColor ?? theme.background) ?? .black
+        // Without a colour of its own the backdrop takes the menu bar's, so the filled corners match the strip above.
+        backdrop.color = NSColor(hex: config.backdropColor ?? config.menuBarBackground ?? theme.background) ?? .black
+        cornerMasks.color = backdrop.color
         updateBackdrop()
         updateMenuBarStrip()
         bar.configure(background: NSColor(hex: config.barBackground) ?? .black,
@@ -1317,6 +1358,7 @@ final class Controller {
         // The backdrop is one layer on every desktop and does not slide with them: left in place during the switch it
         // showed as a white flash over a desktop without windows. The tick after the switch shows it again.
         backdrop.hide()
+        cornerMasks.hide()
         if left != n { removeIfEmpty(left) }
         switchedAt = Date()
         listAllUntil = switchedAt.addingTimeInterval(1.5)
@@ -1540,6 +1582,7 @@ final class Controller {
 
     private func togglePaused() {
         paused.toggle()
+        updateBackdrop()   // the corner masks go while paused: no tick moves them along with the windows
         updateLauncherKeys()
         updateSpotlight()
         updateGestures()

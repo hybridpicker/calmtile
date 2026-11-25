@@ -164,8 +164,11 @@ struct Config {
     /// A layer in the theme's background colour under all windows: macOS's rounded window corners then show a dark
     /// seam instead of the wallpaper.
     var backdrop = false
-    /// nil: use the theme's background colour.
+    /// nil: `menuBarBackground` when set, otherwise the theme's background colour.
     var backdropColor: String?
+    /// Radius in points of the black corners laid over each tile's corners (for apps that paint their own corner
+    /// instead of leaving it see-through); 0: off. Only with `backdrop`.
+    var cornerMasks: CGFloat = 0
     /// "#rrggbb": a solid colour behind the menu bar instead of the wallpaper showing through. nil: off.
     var menuBarBackground: String?
     /// calmtile's own status block (workspace, battery, day and time) over the menu bar's status items.
@@ -278,7 +281,7 @@ struct Config {
         let text: ((Any) -> Bool, String) = ({ $0 is String }, "a string")
         let list: ((Any) -> Bool, String) = ({ $0 is [String] }, "a list of strings")
         var t = [String: ((Any) -> Bool, String)]()
-        for k in ["gap", "outerGap", "mainWorkspaces", "desktops", "minTileWidth", "minTileHeight", "borderWidth", "borderRadius", "borderFlash", "barHeight"] { t[k] = number }
+        for k in ["gap", "outerGap", "mainWorkspaces", "desktops", "minTileWidth", "minTileHeight", "borderWidth", "borderRadius", "borderFlash", "barHeight", "cornerMasks"] { t[k] = number }
         for k in ["useSpaces", "removeEmptyDesktops", "spotlightAppsOnly", "disableFourFingerGestures", "exitFullscreen", "backdrop", "bar", "menuBarStatus"] { t[k] = flag }
         for k in ["borderColor", "backdropColor", "menuBarBackground", "barBackground", "barForeground", "theme", "scratchpadApp", "mouseModifier"] { t[k] = text }
         for k in ["floatApps", "tileFixedApps", "ignoreApps", "passthroughApps", "fullscreenApps"] { t[k] = list }
@@ -312,6 +315,9 @@ struct Config {
             for (key, path) in [("barBackground", \Config.barBackground), ("barForeground", \Config.barForeground)] {
                 guard let v = obj[key] as? String else { continue }
                 if NSColor(hex: v) == nil { problems.append("\(key) must look like #rrggbb: \(v)") } else { cfg[keyPath: path] = v }
+            }
+            if let v = obj["cornerMasks"] as? Double {
+                if (0...40).contains(v) { cfg.cornerMasks = CGFloat(v) } else { problems.append("cornerMasks must be 0 to 40: \(v)") }
             }
             if let v = obj["barHeight"] as? Double {
                 if (16...60).contains(v) { cfg.barHeight = CGFloat(v) } else { problems.append("barHeight must be 16 to 60: \(v)") }
@@ -381,7 +387,7 @@ struct Config {
         var obj: [String: Any] = [
             "mouseModifier": mouseModifier, "gap": Double(gap), "outerGap": Double(outerGap), "mainWorkspaces": mainWorkspaces, "useSpaces": useSpaces, "removeEmptyDesktops": removeEmptyDesktops, "desktops": desktops,
             "minTileWidth": Double(minTileWidth), "minTileHeight": Double(minTileHeight),
-            "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "borderFlash": borderFlash, "backdrop": backdrop, "bar": bar, "menuBarStatus": menuBarStatus, "barBackground": barBackground, "barForeground": barForeground, "barHeight": Double(barHeight), "theme": theme, "scratchpadApp": scratchpadApp,
+            "borderWidth": Double(borderWidth), "borderRadius": Double(borderRadius), "borderFlash": borderFlash, "backdrop": backdrop, "cornerMasks": Double(cornerMasks), "bar": bar, "menuBarStatus": menuBarStatus, "barBackground": barBackground, "barForeground": barForeground, "barHeight": Double(barHeight), "theme": theme, "scratchpadApp": scratchpadApp,
             "spotlightAppsOnly": spotlightAppsOnly, "disableFourFingerGestures": disableFourFingerGestures, "exitFullscreen": exitFullscreen, "fullscreenApps": fullscreenApps, "floatApps": floatApps, "tileFixedApps": tileFixedApps, "floatTitles": floatTitles, "ignoreApps": ignoreApps, "passthroughApps": passthroughApps, "bindings": bindings,
         ]
         if let c = borderColor { obj["borderColor"] = c }
