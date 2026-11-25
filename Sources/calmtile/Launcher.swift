@@ -127,6 +127,9 @@ final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
     var onClose: (() -> Void)?
     var theme = Theme.all[0] { didSet { applyTheme() } }
     var isVisible: Bool { return panel.isVisible }
+    /// On screen and receiving the typing. A panel that never became key gets no resign-key either, so it would
+    /// otherwise count as open until the launcher key is pressed again (and block every other hotkey meanwhile).
+    var isTyping: Bool { return panel.isVisible && panel.isKeyWindow }
 
     private let panel: LauncherPanel
     private let field = NSTextField()
@@ -226,6 +229,12 @@ final class Launcher: NSObject, NSTextFieldDelegate, NSWindowDelegate {
             NSApp.activate(ignoringOtherApps: true)
             self.panel.makeKeyAndOrderFront(nil)
             Log.write("launcher: activation retried (app active=\(NSApp.isActive))")
+            // Still refused a moment later (seen right after Secure Keyboard Entry ended): the panel cannot be typed
+            // into, and since it never became key it would never be told it lost that either. Close it.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                guard let self = self, self.panel.isVisible, !self.panel.isKeyWindow else { return }
+                self.hide(reason: "never became key, app active=\(NSApp.isActive)")
+            }
         }
         Log.write("launcher shown: items=\(items.count) key=\(panel.isKeyWindow) appActive=\(NSApp.isActive) in \(Int((CACurrentMediaTime() - t0) * 1000)) ms")
     }

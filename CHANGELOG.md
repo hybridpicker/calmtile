@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Every hotkey except the launcher key stopped working (`⌘1`, `⌘Return` did nothing) after a launcher that
+  macOS never let take the keyboard, seen right after an app's secure keyboard entry ended: it never lost the
+  key window either, so it counted as open. Such a launcher now closes itself, and any hotkey closes it too.
 - New `toggle-workspace-float` (`⌃⌘L`), Omarchy's floating workspace: every window of the current workspace floats
   where it is and calmtile leaves it alone, while the other workspaces stay arranged. Pressed again, the layout
   comes back. The status shows `□` instead of `▦` meanwhile.

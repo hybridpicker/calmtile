@@ -1224,6 +1224,11 @@ final class Controller {
             lastLauncherKey = now
         default: break
         }
+        if launcher.isVisible, !launcher.isTyping {
+            // Left on screen without the keyboard: keys go to the app behind it, so the user is working there.
+            // Closed, and the key does what it always does (the launcher key opens it afresh).
+            launcher.hide(reason: "hotkey while not key")
+        }
         if launcher.isVisible {
             // Only the launcher key itself works while it is open (it closes the panel).
             if case .launcher = action { launcher.hide(); return true }
